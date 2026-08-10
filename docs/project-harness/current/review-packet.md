@@ -2,32 +2,32 @@
 
 ## Subject
 
-- Checklist item: `DH-003`
-- Reviewer: `final-fresh-cross-review`
+- Checklist item: `DH-005`
+- Reviewer: `round4-final-cross-review`
 - Updated at: `2026-08-10`
-- Canonical plan path: `docs/project-harness/tasks/DH-003/plan.md`
+- Canonical plan path: `docs/project-harness/tasks/DH-005/plan.md`
 
 ## Item Snapshot
 
-- Title: 实现 World Ref 与安全 Adopt Slice
+- Title: 实现 Oh My Pi Agent Runtime Vertical Slice
 - Status: doing
-- Workflow status: changes_requested
+- Workflow status: review_requested
 - Priority: p0
 - Owner: codex
-- Session: demiurges-dh003-authority-20260809
-- Dependencies: DH-002
+- Session: demiurges-dh005-omp-runtime-20260810
+- Dependencies: DH-004
 
 ## Acceptance
 
-Repository ref 具有单调 version；authored advance 与 Runtime terminal adopt 分离；adopt 必须绑定同一 Episode、通过的不可变 EvaluationRecord、固定 AdoptPolicy 与 expectedCurrent + expectedRefVersion；stale 或错配输入不改变 current；tests/typecheck/build/browser acceptance 通过。
+OMP 以锁定版本的 SDK restricted Agent Runtime 接入；active/enabled surface 仅有 world_read/world_write/world_edit/world_run，mounted surface 为空；slash/control 与 @file preprocessing fail closed；自然语言 falling-cube walking skeleton 产生可观察成功/失败 trace，run 不推进 ref，adopt 保持 control-side authority；真实 no-prompt SDK smoke、tests/typecheck/build/checklist validation 通过，真实模型 prompt 未执行。
 
 ## Verification
 
-Lexical authority GREEN: 35 tests / 0 fail / 213 assertions; typecheck/build/diff-check passed; browser re-proved v1 -> advance v2 -> run/evaluate stays v2 -> adopt v3; Repository implementation is module-private, evidence writer is a Host-private lexical closure, and another factory authority only mutates its own Repository; product source digest 495a6c95299e19bd3e714e381f2cb2b472a12b0aec45e7a8b647077fd96feec2.
+Round 1/2/3 cross-review 均为 changes_requested；最终已使用 SDK restricted session、pre-start prompt admission、descriptor-based bounded tool input、turn-shared bounded trace 与 128-call budget。48 tests / 0 fail / 304 assertions，typecheck/build/no-prompt SDK smoke/diff-check/checklist validation 通过；product digest 1b3b6496f1f27fe7bd89f0db105f60745e027108922507eb3301f7f1ca594dae，等待 final fresh cross-review。
 
 ## Handoff
 
-Round 2 same-realm interception was fixed by removing the exported Repository implementation and dynamic symbol dispatch. Request final fresh cross-review of lexical authority isolation, canonical evidence path, Ref CAS and UI gate; Coding agent does not mark-done.
+三轮 changes_requested 已修复且 latest full gate 通过，等待 final fresh independent cross-review。未经授权不发送真实模型 prompt；批准前不 mark-done、commit、push、merge 或 deploy。
 
 ## Review Inputs
 
@@ -40,108 +40,116 @@ Round 2 same-realm interception was fixed by removing the exported Repository im
 ## Canonical Plan Content
 
 ```md
-# DH-003 计划：World Ref 与安全 Adopt
+# DH-005 计划：Oh My Pi Agent Runtime Vertical Slice
 
 ## 目标
 
-把当前仅保存 `Snapshot ID` 的 Repository ref 提升为带单调 version 的 authority record，并把 authored Snapshot 的 `advance` 与 Runtime terminal 的 `adopt` 分离。任何成功 Adopt 都必须绑定同一个 Episode、通过的不可变 EvaluationRecord、固定 Host AdoptPolicy，以及调用开始时观察到的 `expectedCurrent + expectedRefVersion`。
+把 Oh My Pi（OMP）作为第一个可替换的 Agent Runtime 接入 Demiurges，同时保持 World Kernel、Repository、MuJoCo Runtime 与 `adopt` authority 完全由 Demiurges 拥有。
+
+本切片只内置我们真正需要的边界：OMP SDK 负责模型 turn loop 与对话；Demiurges 负责四个 world tools 的定义、执行、证据、trace 与控制面。项目不启动完整 OMP CLI，不复制、裁剪或 fork OMP 源码。
 
 ## 已授权范围
 
-- 为 Repository ref 增加可读取的 `snapshotId + version`；
-- 让 authored Snapshot 先被记录，再由显式 `advance` 推进 current；
-- 为 `advance` 与 `adopt` 共用一个最小 CAS 边界，但保留两种操作的不同准入条件；
-- `adopt` 校验 Episode、TerminalSnapshot、EvaluationRecord 与固定 AdoptPolicy 的绑定关系；
-- UI 显示 ref version，并且只有当前 Episode 的 Evaluation 通过后才允许 Adopt；
-- 添加 authority、policy、stale ref 与 UI 组合所需的回归测试；
-- 更新必要的 repo-local Harness 证据。
+- 创建独立 `agent/codex/DH-005` branch/worktree；
+- 增加一个本地 Agent Gateway package，并锁定 OMP 依赖版本；
+- 通过 OMP SDK restricted session 暴露 `world_read`、`world_write`、`world_edit`、`world_run`；
+- tool closure 只持有现有 `WorldToolSurface`，不向 OMP 暴露 `RuntimeMvpHost`、Repository、evidence writer、`advance` 或 `adopt`；
+- OMP session construction 时关闭 MCP、内建 coding tools、extension discovery、skills、rules、IRC、LSP 与 session persistence，使用 Demiurges 自己的极小 system prompt；
+- 记录不可变、JSON-safe 的 Agent/tool trace；
+- 以 fake Agent client 完成一个自然语言 falling-cube walking skeleton，并以不触发模型调用的 OMP SDK boot smoke 验证真实 effective tool surface；
+- 更新必要的 architecture、runbook、progress 与 checklist。
 
-用户已持续授权：本 item 获得 reviewer approval 并由 Operator 关闭后，commit 同步 push 当前 branch；不自动 merge `main`。
+未经另行授权，不执行真实模型 prompt、不读取或使用 provider credential、不产生模型费用；不 commit、push、merge、tag、deploy 或发布 package。
 
 ## Invariants
 
-- `run`、Episode playback、Evaluation 与 terminal `record` 都不推进 authoritative ref；
-- Ref version 每次成功推进只增加 1，失败、拒绝或 stale CAS 不改变 ref；
-- `advance` 只接纳当前 authored lineage 的直接 child；`adopt` 只接纳该 Episode 的已记录 Runtime terminal；
-- `adopt` 必须引用同一 Episode 的通过 EvaluationRecord，并满足 Host 注册的固定 AdoptPolicy；
-- `expectedCurrent` 与 `expectedRefVersion` 任一不匹配都返回 `stale_ref`，不得用“当前 Snapshot 又碰巧相同”绕过 version；
-- 模型可见的世界工具面仍未引入；`advance/adopt` 保持 Host/Repository 内部事务。
+- OMP 是 Agent Runtime，不是 Kernel，也不是世界状态 authority；
+- OMP 只能获得四个 host-owned world tools，工具执行发生在 Demiurges Host 进程；
+- transport 名使用 `world_*` 防止与 OMP 内建工具混淆，内部 canonical 语义仍是 `read/write/edit/run`；
+- `world_run` 不推进 current ref，`adopt` 不进入 Agent tool definitions；
+- OMP 的 event/message/tool shape 不进入 Kernel contract；
+- tool argument 与 result 都在 Gateway 边界进行 JSON data admission/serialization；
+- trace 是观察证据，不是 Repository、Episode 或 Evaluation authority；
+- OMP dependency 被精确锁定，升级必须通过本切片的 contract tests。
 
 ## Non-goals
 
-- LLM/VLM、Agent Shell 或 `world_read/write/edit/run` tool schema；
-- imported mesh、Spark/3DGS、机器人或第二 Runtime provider；
-- 通用权限平台、Policy registry、数据库、分布式锁或多人协作；
-- 重写 Episode identity、MuJoCo dynamics、播放器时间映射或视觉设计；
-- 合并到 `main`、deployment 或 package 发布。
+- 从 OMP 仓库复制、改写或抽取源码；
+- 把 OMP 包装成通用 AgentRuntime SDK，或同时支持 OpenCode/Claude/Codex；
+- 给 Agent 暴露 filesystem、bash、edit、write、browser、web、subagent、skills、rules 或 extensions；
+- 让 Agent 自动 adopt、merge、deploy 或执行真实设备动作；
+- 完成聊天 UI、WebSocket/SSE、云端服务、鉴权、持久 session 或多用户并发；
+- imported mesh、Spark/3DGS、机器人、VLM 或第二 Runtime provider；
+- 真实 provider/model acceptance；该动作需要单独的 credential/cost authority。
 
 ## 验收标准
 
-1. root write 初始化 `{ snapshotId, version: 1 }`；成功 advance/adopt 各自只递增一次 version。
-2. authored `edit` 只产生 child，显式 `advance` 才推进 current；stale advance 不修改 ref。
-3. 未 Evaluation、失败 Evaluation、错配 Episode、错配 evaluator/contract/policy 或未记录 terminal 均不能 Adopt。
-4. 合法 Episode + 通过 Evaluation + 固定 Policy + fresh CAS 成功 Adopt；重复调用返回 `stale_ref`，不重复推进。
-5. stale CAS 即使未来再次指向相同 Snapshot，也不能绕过 version。
-6. UI 显示 current ref version；Evaluate 通过前 Adopt disabled，成功后 Adopt 并显示 terminal authority。
-7. `bun test`、`bun run typecheck`、`bun run build`、checklist validation 与真实浏览器 acceptance 通过。
+1. Gateway 注册且只注册 `world_read`、`world_write`、`world_edit`、`world_run` 四个 OMP host tools。
+2. 每个 tool closure 只委托现有 `WorldToolSurface`；`adopt` 不存在于 OMP definitions 或 Agent-facing object。
+3. 一个 fake Agent turn 从自然语言请求出发，通过四工具完成 write → read → edit → run，并得到通过的 Evaluation；run 前后 current ref 不变。
+4. Gateway 返回按 sequence 排序、递归冻结、可 `JSON.stringify` 的 turn/tool trace；失败调用也形成 bounded error evidence，且不泄露 stack、Host 或 Repository object。
+5. OMP restricted session 明确关闭 MCP、coding tools、extensions、skills、rules、IRC、LSP 与 session persistence；slash/control 和 `@file` preprocessing 被 admission 拒绝。
+6. 锁定版本的真实 OMP SDK session 可以在不发送 prompt 的情况下启动；active/enabled tools 恰好为四个 world tools、mounted tools 为空，读取已安装 runtime version 后干净停止；该 smoke 不发起 provider model call。
+7. `bun test`、`bun run typecheck`、`bun run build`、`git diff --check` 与 checklist validation 通过。
 
 ## 实现阶段
 
-### Phase 1 — Authority 基线与 RED
+### Phase 1 — Harness 与契约 RED
 
 Status: completed
 
-- 登记并激活 `DH-003`；
-- 保存当前 tests/typecheck 基线；
-- 添加 Ref version、explicit advance、Evaluation/Policy-gated adopt 与 stale CAS 反例，确认旧实现失败。
+- 登记并激活 `DH-005`；
+- 记录当前 40 tests / 250 assertions 基线；
+- 先写四工具注册、authority separation、trace 与 walking skeleton tests。
 
-基线为 26 tests / 166 assertions，typecheck 通过。新增 authority test 在旧实现上以 `Export named 'ADOPT_RUNTIME_MVP_POLICY' not found` 进入 RED（0 pass / 1 fail / 1 error），证明 Ref/Policy contract 与新 Repository operations 尚不存在。
+基线为 40 tests / 0 fail / 250 assertions，typecheck 通过。新增 Gateway contract test 因 `Cannot find module './omp-world-agent'` 明确进入 RED，证明 OMP Agent Runtime 尚不存在。
 
-### Phase 2 — 最小 Kernel/Repository 实现
-
-Status: completed
-
-- 增加最小 Ref、Policy 与 operation result records；
-- Repository 内部保存 versioned ref，并以一个私有 CAS helper 实现 advance/adopt；
-- 不增加 Provider registry、权限框架或通用事务层。
-
-实现结果：Ref 以冻结 `{ name, snapshotId, version }` 保存；root write 初始化 version 1；`advance` 与 `adopt` 共享私有 CAS helper，但分别执行 authored lineage 与 Episode/Evaluation/Policy 准入。固定 policy 位于 Host composition 文件并显式注入 Repository，Kernel 不依赖 evaluator。Episode 与 Evaluation 必须先作为不可变 evidence 登记，单独 terminal record 不能进入 adopt。
-
-### Phase 3 — Studio 组合与验收
+### Phase 2 — OMP Gateway 最小实现
 
 Status: completed
 
-- Studio 改为 explicit edit → advance，Evaluation pass → adopt；
-- 显示 ref version 并验证 Episode Player 不影响 authority；
-- 完成 tests/typecheck/build/browser acceptance。
+- 新增 Agent Gateway workspace；
+- 锁定 OMP dependency；
+- 实现四个 host-owned tool closures、最小 OMP SDK client composition 与 trace。
 
-GREEN：32 tests / 0 fail / 200 assertions；typecheck/build 通过。真实浏览器从 `snapshot:base v1` 经 explicit edit/advance 到 `snapshot:edit-1 v2`；Run 与 Playback 期间 ref 保持 v2，Evaluate 前 Adopt disabled；Evaluation `PASS` 后 Adopt 才开放，成功后 terminal 为 v3、显示源为 `adopted-terminal`，按钮再次 disabled。stale advance/adopt、相同 Snapshot 但旧 version、失败/错配/未登记 evidence 均由 executable tests 证明不改变 ref。
+Agent Gateway 已固定 `@oh-my-pi/pi-coding-agent@17.2.12`。Round 1 executable review 证明 CLI flags 无法隔离 ambient MCP，因此 composition 已从完整 CLI/RPC 改为 SDK restricted session：MCP、built-ins、extension discovery、skills/rules、IRC、LSP 与持久 session 在 construction 时关闭，prompt 前再以 effective state fail closed。fake Agent walking skeleton 与 boundary regressions 现为 6 tests / 0 fail / 32 assertions；run 后 current ref 仍为 authored version 2。
 
-### Phase 4 — 证据、独立审查与发布
+### Phase 3 — 真实 SDK boot smoke 与文档
 
-Status: in_progress
+Status: completed
 
-- 更新 progress、checklist verification 与 handoff；
-- 生成只读 review packet，由 independent reviewer 给出结构化 verdict；
-- approved 后由 Operator `mark-done`；
-- 运行发布 gate，commit 当前 branch 并同步 push，回查 remote SHA。
+- 运行无模型 prompt 的真实 OMP SDK restricted-session boot smoke；
+- 更新 architecture、runbook 与 progress；
+- 明确 live provider acceptance 仍未授权、未执行。
 
-Round 1 独立审查在 digest `2cd5edf...` 上给出 `changes_requested`：可伪造 frozen Episode/Evaluation，且同一 `contractId` 下可替换 contract 参数，两个反例都成功推进 ref。修复没有继续叠加字段校验，而是把证据产生与 admission 收束到新的 `RuntimeMvpHost` effect boundary：Host 私有持有 capability，只调用固定 MuJoCo Runtime、固定 Program/Profile、固定 Landing evaluator 与 canonical SuccessContract；Studio 不再暴露任意 evidence registration。外部 capability 在 terminal Snapshot 入库前即失败。
+真实 OMP SDK restricted session 已在不发送 prompt 的情况下启动；active/enabled tool surface 恰好为四个 world tools，mounted surface 为空，并从已安装 package manifest 读取 runtime `17.2.12` 后干净停止。architecture/runbook/progress 记录 authority 与未验证边界；没有发起 provider model call。
 
-修复后 GREEN 为 34 tests / 0 fail / 210 assertions，typecheck/build 通过，`git diff --check` 通过；真实浏览器再次证明 `v1 → explicit advance v2 → run/evaluate 仍为 v2 → PASS adopt v3`。修复后 product digest 为 `d9ca6da0...`。
+### Phase 4 — 验证与交接
 
-Round 2 Kimi/K3 在该 digest 上 approved，但 Sol/max 随后复现 same-realm interception：导出的 Repository class prototype 可在 Host 构造前被替换，从动态调用中截获 symbol 与 existing Repository。实现再次回到底层收束：`WorldRepositoryState` 不再导出，factory 只把冻结的 repository facade 与 evidence-writer closures 交给创建者；`RuntimeMvpHost` 私有持有整个 lexical authority，证据 admission 不再携带或传递可截获的 token。另一个 factory 调用只能写入它自己拥有的 Repository，不能影响 existing Host。
+Status: completed
 
-lexical authority 修复后 GREEN 为 35 tests / 0 fail / 213 assertions，typecheck/build/diff-check 通过；浏览器第三次复验仍为 v1→v2→v3。当前 product digest 为 `495a6c95299e19bd3e714e381f2cb2b472a12b0aec45e7a8b647077fd96feec2`，等待 fresh final cross-review。
+- 完成全量 tests/typecheck/build/diff-check/checklist validation；
+- 准备 independent review 所需的聚焦边界与证据；
+- Coding agent 不自行审批、`mark-done`、commit 或 push。
+
+Round 1、Round 2、Round 3 combined verdict 均为 `changes_requested`，每轮 executable reviewer 都发现了新的 effective boundary 反例。Round 3 的最后两个问题是 non-enumerable/symbol/accessor own properties 没有在 Gateway admission 自身被拒绝，以及超长 key 绕过 trace char budget。最终实现改用 `Reflect.ownKeys + descriptor` admission，拒绝 non-enumerable、symbol、accessor、数组与 `__proto__`；trace key 在写入 null-prototype projection 前先截断，budget 改为整个 turn 共享。regression 证明 getter reads=0、surface calls=0、1 MiB key trace 小于 8 KiB 且 `__proto__` 作为 own key 安全保留。最终 full gate 为 48 tests / 0 fail / 304 assertions，typecheck/build/SDK smoke/diff-check/checklist validation 全部通过；新 product source digest 为 `1b3b6496f1f27fe7bd89f0db105f60745e027108922507eb3301f7f1ca594dae`。该冻结 snapshot 必须完成 final fresh independent cross-review；在批准前不关单或发布。
 
 ## 错误记录
 
 | 错误 | 尝试 | 处理 |
 | --- | --- | --- |
-| 临时 harness runtime 固定指向 `/Users/Admin/projects/Demiurges` | 在 DH-003 worktree 直接调用前审计脚本 | 未执行错误 mutation；复制 task-local 临时 runtime，并只把 project root 改为 DH-003 worktree。该副本不进入产品仓库。 |
-| 浏览器 locator 不提供 `isDisabled()` | 首次读取 Adopt 状态 | 改为读取原生 `disabled` attribute；不修改产品以迎合测试工具。 |
-| Round 1 reviewer 复现 forged evidence 与 same-ID contract bypass | digest `2cd5edf...` 的 independent `bun -e` probes | 从 evidence effect boundary 修正：新增私有 Host capability 与固定 Runtime/Evaluator 组合，不把 frozen plain data 当作 provenance。新增 RED 后回归为 34/0/210。 |
-| Round 2 reviewer 通过 prototype interception 捕获 symbol capability | digest `d9ca6da...` 的 existing Host `bun -e` probe | 删除导出的 Repository implementation 与动态 token dispatch；改用 factory 创建的 lexical authority closure。新增 RED 后回归为 35/0/213。 |
+| 实例化临时 harness runtime 时 `cp references/scripts/*` 遇到模板目录中的 `__pycache__` 并中止 | DH-005 harness init attempt 1 | 改为只复制 regular files；产品文件未受影响，也不把临时 runtime 纳入 Git。 |
+| walking skeleton test 把注册顺序 `read/write/edit/run` 错当成实际调用顺序 | Gateway GREEN attempt 1 | 测试改为断言真实任务调用顺序 `write/read/edit/run`；实现与 authority 状态无需修改。 |
+| 首次 Gateway typecheck 暴露 readonly tuple matcher 与 tool result union 的窄化缺口 | Gateway typecheck attempt 1 | 测试比较使用 mutable copy；`resultForModel` 返回类型收窄为 structured result，不增加 runtime 分支。 |
+| 合并文档 patch 假设 `runbook.md` 存在 `## 本地开发` 标题，context verification 失败 | Documentation attempt 1 | 原 patch 原子失败、未留下部分修改；先读取实际 runbook heading，再分文件做聚焦 patch。 |
+| harness 生成的 `current/review-packet.md` 末尾多出一个 blank line，`git diff --check` 拒绝 | Final gate attempt 1 | 只删除生成 artifact 的末尾空行；canonical plan 与产品实现不变。 |
+| Round 1 executable review 发现 `--no-tools`/`--no-extensions` 后仍有 8 个 ambient `mcp__*` tools，且 smoke 只验证 host-definition echo | Cross-review round 1 | 不补更多 CLI flags；删除完整 CLI/RPC composition，改用 OMP SDK `restrictToolNames + enableMCP:false + disableExtensionDiscovery` 的 restricted session，并在任何 prompt 前核验 active/enabled/mounted effective surface。 |
+| OMP session 会自动处理 slash/control 与 `@file` mention，可能绕过四工具读取文件或产生控制副作用 | Cross-review round 1 | Gateway admission 拒绝这两类 syntax；SDK prompt 同时关闭 prompt-template expansion 并标记 synthetic，regression 证明 prompt 前 fail closed。 |
+| 失败 turn 丢失 trace，cleanup error 可能覆盖 primary error | Cross-review round 1 | 新增 `OmpAgentTurnError`，保留 frozen bounded trace，并分别保存 primary 与 cleanup error。 |
+| Prompt syntax admission 仍晚于 OMP SDK session start | Cross-review round 2 | 在创建 tools、client 或 session 前先完成 `requirePrompt()`；regression 断言被拒绝输入不会调用 client factory。 |
+| error string 有界但 trace payload 与 entry count 无整体预算 | Cross-review round 2 | 对 tool input 和 trace data 建立显式 node/depth/string/char/collection budget；每 turn 最多 128 次 world tool calls，超限停止执行并使 turn 失败；新增 oversized input 与 129-call regressions。 |
+| non-enumerable/symbol/accessor own property 绕过 Gateway input admission | Cross-review round 3 | 使用 `Reflect.ownKeys` 与 data/enumerable descriptor admission；数组、symbol、accessor、non-enumerable 与 `__proto__` 均 fail closed，regression 证明 getter 与 surface 都未被调用。 |
+| 超长 object key 在 trace 中按原 key 写出，绕过 char budget | Cross-review round 3 | key 先经过 bounded projection 再写入 null-prototype trace object；trace budget 在整个 turn 共享；1 MiB key 与 `__proto__` regressions 验证 size 与保真边界。 |
 ```
 
 ## Review Focus

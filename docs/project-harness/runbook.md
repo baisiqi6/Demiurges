@@ -34,6 +34,18 @@ bun run build
 
 `bun run build` 会生成 ignored `apps/studio/dist/` 与 `*.tsbuildinfo`。不得把 process exit、HTTP 200 或单独一张 rendered page 当作产品验收。
 
+## OMP Agent Runtime
+
+Agent Gateway 固定使用 `@oh-my-pi/pi-coding-agent@17.2.12`。验证 SDK restricted session 而不触发模型调用：
+
+```bash
+bun --cwd apps/agent-gateway smoke:sdk
+```
+
+成功信号必须同时包含：从已安装 package manifest 读取的 runtime version 为 `17.2.12`；active/enabled tool names 恰好为 `world_read`、`world_write`、`world_edit`、`world_run`；mounted tools 为空；命令正常退出。该 smoke 只创建 restricted session、读取 effective state 并停止，不发送 prompt，也不证明任一 provider/model 可以完成世界任务。
+
+真实 Agent prompt 会使用本机 provider credential 并可能产生费用；必须获得单独的 credential/cost authority 后才能执行。不得为了 smoke 给 OMP 开启 filesystem、bash、edit、write、browser、web、subagent、MCP、skills、rules、extensions、IRC 或 LSP，也不得向它增加 `adopt`。Gateway 必须拒绝以 `/` 开头的 OMP control syntax 与可被 OMP 解析为 `@file` mention 的输入。
+
 ## 本地运行与浏览器验收
 
 ```bash
@@ -70,7 +82,7 @@ App 只组合上述边界
 
 ## 当前 execution profile
 
-当前使用 Standalone、file-backed 项目 authority。Product Runtime 为浏览器内单线程 MuJoCo WASM，Repository 为内存实现。canonical Git remote 为 private GitHub repository `https://github.com/baisiqi6/Demiurges`；当前不存在 Coordinate workspace、deployment target、Spark/3DGS Runtime 或 world-model provider。
+当前使用 Standalone、file-backed 项目 authority。Studio Product Runtime 为浏览器内单线程 MuJoCo WASM，Agent Gateway 为本地 Bun 进程并嵌入 OMP SDK restricted session；两者尚未建立产品 transport。Repository 为内存实现。canonical Git remote 为 private GitHub repository `https://github.com/baisiqi6/Demiurges`；当前不存在 Coordinate workspace、deployment target、Spark/3DGS Runtime 或 world-model provider。
 
 ## Commit 与 push 验证
 

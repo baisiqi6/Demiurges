@@ -52,6 +52,10 @@ Presentation                         │
 
 这四个调用是 model-facing world tools，不等于全部 Harness control operations。`run` 可以返回 Episode 与 deterministic Evaluation evidence，但不能推进 Repository ref；`adopt` 仍是 Harness control boundary 的显式 authority transition，不为了凑成“四个工具”而藏进 `run` 或伪装成静态 `edit`。模型只持有 tool surface，组合它的 Host/control side 保留 adopt authority。
 
+第一个 Agent Runtime 实现采用锁定版本的 Oh My Pi（OMP）SDK restricted session，而不启动完整 CLI。Demiurges Agent Gateway 只把 `world_read`、`world_write`、`world_edit`、`world_run` 注册为 host-owned custom tools；tool closure 在 Demiurges Host 进程执行。session construction 使用显式 tool allowlist，并关闭 MCP、内建 coding tools、extension discovery、skills、rules、IRC、LSP 与持久 session；任何 prompt 前还要核验 active/enabled tools 恰好为四工具且 mounted tools 为空，否则 fail closed。
+
+OMP 的 prompt、message 与 event 只属于 Agent Gateway，不进入 Kernel contract。Gateway 拒绝 OMP slash/control 与 `@file` preprocessing syntax，避免四工具之外的隐式控制或文件读取。Gateway trace 是 JSON-safe 的观察证据，也不拥有或替代 Snapshot、Episode、EvaluationRecord 与 Ref；失败 turn 仍保留 frozen trace。
+
 ## Walking skeleton
 
 ### WS-1：可观察状态
@@ -90,6 +94,8 @@ Presentation                         │
 上述语义边界不要求提前制造进程边界。只要 import 和 ownership 保持单向，第一条切片可以运行在一个本地 Web 应用内。
 
 MuJoCo WASM 初期可以运行在浏览器中。只有测量证明仿真工作威胁 UI 响应性或隔离性时，才迁入 Web Worker。Python planning service 不属于第一条切片。
+
+`DH-005` 在此基础上增加一个本地 Bun Agent Gateway 与嵌入式 OMP SDK restricted session，用于验证 Agent Runtime 边界。Gateway 可以在自己的 Host 中执行同一套 world tools，但当前 Studio 尚未通过 HTTP/WebSocket/SSE 连接 Gateway；不得把“Agent Runtime boundary 已成立”描述成“聊天产品已经完成”。
 
 ## 防止架构漂移的规则
 

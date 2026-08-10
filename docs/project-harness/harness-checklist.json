@@ -210,6 +210,49 @@
         "ttl_minutes": 120,
         "released_at": "2026-08-10T06:39:32Z"
       }
+    },
+    {
+      "id": "DH-005",
+      "title": "实现 Oh My Pi Agent Runtime Vertical Slice",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-10",
+      "dependencies": [
+        "DH-004"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "OMP 以锁定版本的 SDK restricted Agent Runtime 接入；active/enabled surface 仅有 world_read/world_write/world_edit/world_run，mounted surface 为空；slash/control 与 @file preprocessing fail closed；自然语言 falling-cube walking skeleton 产生可观察成功/失败 trace，run 不推进 ref，adopt 保持 control-side authority；真实 no-prompt SDK smoke、tests/typecheck/build/checklist validation 通过，真实模型 prompt 未执行。",
+      "verification": "48 tests / 0 fail / 304 assertions; typecheck, build, no-prompt OMP SDK smoke, git diff --check, checklist validation pass; product digest 1b3b6496f1f27fe7bd89f0db105f60745e027108922507eb3301f7f1ca594dae; Round 4 Sol executable + Kimi static approved with no P0/P1/P2",
+      "handoff": "Final cross-review 已批准，可 closeout 与 mark-done；Human 已授权随后 commit + push。未经授权不发送真实模型 prompt，不 merge main、tag 或 deploy。",
+      "plan_path": "docs/project-harness/tasks/DH-005/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-10",
+        "branch": "agent/codex/DH-005"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-005",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "final-cross-review-kimi-k3-sol-max-round4",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-10",
+        "summary": "Round 4 Sol executable + Kimi static approved; P0/P1/P2 none; product digest 1b3b6496f1f27fe7bd89f0db105f60745e027108922507eb3301f7f1ca594dae"
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "demiurges-dh005-omp-runtime-20260810",
+        "acquired_at": "2026-08-10T07:33:15Z",
+        "expires_at": "2026-08-10T09:33:15Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-10T08:48:23Z"
+      }
     }
   ]
 }

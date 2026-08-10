@@ -8,8 +8,8 @@
   ],
   "scripts": {
     "dev": "bun --cwd apps/studio dev",
-    "build": "bun --cwd apps/studio build",
-    "typecheck": "bun --cwd apps/studio typecheck",
+    "build": "bun --cwd apps/agent-gateway build && bun --cwd apps/studio build",
+    "typecheck": "bun --cwd apps/agent-gateway typecheck && bun --cwd apps/studio typecheck",
     "test": "bun test"
   }
 }

@@ -2,32 +2,32 @@
 
 ## Subject
 
-- Checklist item: `DH-004`
-- Reviewer: `final-cross-review-kimi-k3-sol-max`
+- Checklist item: `DH-005`
+- Reviewer: `final-cross-review-kimi-k3-sol-max-round4`
 - Updated at: `2026-08-10`
-- Canonical plan path: `docs/project-harness/tasks/DH-004/plan.md`
+- Canonical plan path: `docs/project-harness/tasks/DH-005/plan.md`
 
 ## Item Snapshot
 
-- Title: 实现最小 World Tool Surface
+- Title: 实现 Oh My Pi Agent Runtime Vertical Slice
 - Status: doing
 - Workflow status: closeout_requested
 - Priority: p0
 - Owner: codex
-- Session: demiurges-dh004-world-tools-20260809
-- Dependencies: DH-003
+- Session: demiurges-dh005-omp-runtime-20260810
+- Dependencies: DH-004
 
 ## Acceptance
 
-提供 read、write、edit、run 四个 JSON-data model-facing tools；run 产生 Episode 与 deterministic Evaluation 但不推进 ref；adopt 保持 Harness control authority；scripted operator、input admission、tests/typecheck/build/checklist validation 通过。
+OMP 以锁定版本的 SDK restricted Agent Runtime 接入；active/enabled surface 仅有 world_read/world_write/world_edit/world_run，mounted surface 为空；slash/control 与 @file preprocessing fail closed；自然语言 falling-cube walking skeleton 产生可观察成功/失败 trace，run 不推进 ref，adopt 保持 control-side authority；真实 no-prompt SDK smoke、tests/typecheck/build/checklist validation 通过，真实模型 prompt 未执行。
 
 ## Verification
 
-Final gate: 40 tests / 0 fail / 250 assertions; typecheck, build, git diff --check passed; product digest 9575362e701a6c980898ce448c6847522941c9cb102eaae28cedd0af7c4896db; Kimi Code K3 Max and GPT-5.6 Sol Max final verdicts approved with no P0/P1/P2.
+Round 1/2/3 changes_requested 全部修复；最终使用 SDK restricted session、pre-start prompt admission、descriptor-based bounded tool input、turn-shared bounded trace 与 128-call budget。48 tests / 0 fail / 304 assertions，typecheck/build/no-prompt SDK smoke/diff-check/checklist validation 通过；product digest 1b3b6496f1f27fe7bd89f0db105f60745e027108922507eb3301f7f1ca594dae；Round 4 Sol executable + Kimi static cross-review 双方 approved，P0/P1/P2 none。
 
 ## Handoff
 
-Final verdict: docs/project-harness/tasks/DH-004/final-cross-review-verdict.md. Operator close and authorized commit + push only; do not merge main.
+Final cross-review 已批准，可 closeout 与 mark-done；Human 已授权随后 commit + push。未经授权不发送真实模型 prompt，不 merge main、tag 或 deploy。
 
 ## Review Inputs
 
@@ -40,107 +40,116 @@ Final verdict: docs/project-harness/tasks/DH-004/final-cross-review-verdict.md. 
 ## Canonical Plan Content
 
 ```md
-# DH-004 计划：最小 World Tool Surface
+# DH-005 计划：Oh My Pi Agent Runtime Vertical Slice
 
 ## 目标
 
-在已经完成的非 Agent 世界闭环上建立第一层模型可调用边界。模型只获得 `read`、`write`、`edit`、`run` 四个 JSON-data 工具；它不能获得 Repository、evidence writer、`advance` 或 `adopt` authority。`run` 返回 Episode 与 deterministic Evaluation，但不推进 authoritative ref；终态 adopt 继续由持有 `RuntimeMvpHost` 的 Harness control boundary 显式执行。
+把 Oh My Pi（OMP）作为第一个可替换的 Agent Runtime 接入 Demiurges，同时保持 World Kernel、Repository、MuJoCo Runtime 与 `adopt` authority 完全由 Demiurges 拥有。
+
+本切片只内置我们真正需要的边界：OMP SDK 负责模型 turn loop 与对话；Demiurges 负责四个 world tools 的定义、执行、证据、trace 与控制面。项目不启动完整 OMP CLI，不复制、裁剪或 fork OMP 源码。
 
 ## 已授权范围
 
-- 在 Studio 内增加一个极小的 `WorldToolSurface`，直接组合现有 `RuntimeMvpHost`；
-- 定义 `read`、`write`、`edit`、`run` 的 plain-data input/output contract；
-- 在工具边界把 JSON round-trip 后的输入复制、校验并冻结，再交给 Host；
-- `write` 只创建当前 falling-cube root，`edit` 只修改 cube height 并以 fresh ref CAS 推进 authored child；
-- `run` 只执行固定 Program/Profile，并返回 Episode、Evaluation 与运行时观察到的 base ref；
-- 以 scripted operator test 证明模型侧只通过四个工具即可完成 write → read → edit → run → inspect evidence；
-- 以 Harness control boundary 的现有 `adopt` 完成终态提交，并证明模型工具对象本身不暴露该能力；
-- 更新必要的架构、progress、checklist 与 review 证据。
+- 创建独立 `agent/codex/DH-005` branch/worktree；
+- 增加一个本地 Agent Gateway package，并锁定 OMP 依赖版本；
+- 通过 OMP SDK restricted session 暴露 `world_read`、`world_write`、`world_edit`、`world_run`；
+- tool closure 只持有现有 `WorldToolSurface`，不向 OMP 暴露 `RuntimeMvpHost`、Repository、evidence writer、`advance` 或 `adopt`；
+- OMP session construction 时关闭 MCP、内建 coding tools、extension discovery、skills、rules、IRC、LSP 与 session persistence，使用 Demiurges 自己的极小 system prompt；
+- 记录不可变、JSON-safe 的 Agent/tool trace；
+- 以 fake Agent client 完成一个自然语言 falling-cube walking skeleton，并以不触发模型调用的 OMP SDK boot smoke 验证真实 effective tool surface；
+- 更新必要的 architecture、runbook、progress 与 checklist。
 
-用户已授权：DH-003 fast-forward merge 并 push `main`；创建 `DH-004` branch/worktree；本 item 完成并通过既定 review/Operator close 后，commit 同步 push 当前 branch。未经另行授权不 merge `main`。
+未经另行授权，不执行真实模型 prompt、不读取或使用 provider credential、不产生模型费用；不 commit、push、merge、tag、deploy 或发布 package。
 
 ## Invariants
 
-- 模型工具面恰好是 `read`、`write`、`edit`、`run`；工具数量不是把 authority boundary 藏进某个宽泛命令的理由；
-- `run` 可以产生并登记 Episode/Evaluation evidence，但永远不推进 Repository ref；
-- `edit` 只表达 authored world description change，不负责 adopt Runtime terminal；
-- `adopt` 不进入 model-facing tool surface，只能由持有同一 Host 的 Harness control boundary 调用；
-- 工具输入来自 JSON data，不能依赖调用方提前冻结对象，也不能信任 accessor、prototype 或 sparse data；
-- 工具输出是递归冻结、JSON 可序列化的 plain data，不泄露 Three.js、MuJoCo handle、Repository implementation 或 provider SDK type；
-- current ref CAS 与 DH-003 evidence provenance 不得弱化。
+- OMP 是 Agent Runtime，不是 Kernel，也不是世界状态 authority；
+- OMP 只能获得四个 host-owned world tools，工具执行发生在 Demiurges Host 进程；
+- transport 名使用 `world_*` 防止与 OMP 内建工具混淆，内部 canonical 语义仍是 `read/write/edit/run`；
+- `world_run` 不推进 current ref，`adopt` 不进入 Agent tool definitions；
+- OMP 的 event/message/tool shape 不进入 Kernel contract；
+- tool argument 与 result 都在 Gateway 边界进行 JSON data admission/serialization；
+- trace 是观察证据，不是 Repository、Episode 或 Evaluation authority；
+- OMP dependency 被精确锁定，升级必须通过本切片的 contract tests。
 
 ## Non-goals
 
-- 接入真实 LLM/VLM、聊天 UI、prompt、provider SDK 或通用 tool registry；
-- 让模型获得 `adopt`、Repository、evidence registration 或任意 Snapshot 注入能力；
-- 支持任意 Entity/geometry/WorldProgram，或提前设计通用 Adapter SDK；
-- imported mesh、Spark/3DGS、机器人、第二 Runtime provider 或 persistence；
-- 改写 MuJoCo dynamics、Episode Player、视觉设计或现有 Evaluation predicate；
-- merge `main`、deployment、release tag 或 package 发布。
+- 从 OMP 仓库复制、改写或抽取源码；
+- 把 OMP 包装成通用 AgentRuntime SDK，或同时支持 OpenCode/Claude/Codex；
+- 给 Agent 暴露 filesystem、bash、edit、write、browser、web、subagent、skills、rules 或 extensions；
+- 让 Agent 自动 adopt、merge、deploy 或执行真实设备动作；
+- 完成聊天 UI、WebSocket/SSE、云端服务、鉴权、持久 session 或多用户并发；
+- imported mesh、Spark/3DGS、机器人、VLM 或第二 Runtime provider；
+- 真实 provider/model acceptance；该动作需要单独的 credential/cost authority。
 
 ## 验收标准
 
-1. 一个 fresh Host 上，scripted operator 只通过四个 tools 完成 root write、current read、height edit 与 falling-cube run。
-2. `read` 返回同一 `Snapshot + RefRecord`；`edit` 使用 expected ref，成功时 version 只增加 1，stale 输入不改变 current。
-3. `run` 返回绑定同一 base Snapshot 的 Episode、通过的 Evaluation 与 base ref；run/evaluation 前后 current ref 完全不变。
-4. model-facing surface 不具有 `adopt`；Harness control 使用同一 Host、同一 Episode/Evaluation 与 fresh base ref 后才可 adopt，version 再增加 1。
-5. JSON round-trip 后的合法 input 可用；accessor-backed、错误 prototype、非有限数字、非法 ID 或额外字段 fail closed。
-6. 所有 tool result 可 `JSON.stringify`，递归冻结，且 contract/source 中不暴露 Three.js、MuJoCo object handle 或 Repository authority。
+1. Gateway 注册且只注册 `world_read`、`world_write`、`world_edit`、`world_run` 四个 OMP host tools。
+2. 每个 tool closure 只委托现有 `WorldToolSurface`；`adopt` 不存在于 OMP definitions 或 Agent-facing object。
+3. 一个 fake Agent turn 从自然语言请求出发，通过四工具完成 write → read → edit → run，并得到通过的 Evaluation；run 前后 current ref 不变。
+4. Gateway 返回按 sequence 排序、递归冻结、可 `JSON.stringify` 的 turn/tool trace；失败调用也形成 bounded error evidence，且不泄露 stack、Host 或 Repository object。
+5. OMP restricted session 明确关闭 MCP、coding tools、extensions、skills、rules、IRC、LSP 与 session persistence；slash/control 和 `@file` preprocessing 被 admission 拒绝。
+6. 锁定版本的真实 OMP SDK session 可以在不发送 prompt 的情况下启动；active/enabled tools 恰好为四个 world tools、mounted tools 为空，读取已安装 runtime version 后干净停止；该 smoke 不发起 provider model call。
 7. `bun test`、`bun run typecheck`、`bun run build`、`git diff --check` 与 checklist validation 通过。
 
 ## 实现阶段
 
-### Phase 1 — Harness 与 RED
+### Phase 1 — Harness 与契约 RED
 
 Status: completed
 
-- 登记并激活 `DH-004`；
-- 记录 35 tests / 213 assertions、typecheck 通过的基线；
-- 先写 scripted operator、authority separation 与 input admission tests，确认 surface 尚不存在。
+- 登记并激活 `DH-005`；
+- 记录当前 40 tests / 250 assertions 基线；
+- 先写四工具注册、authority separation、trace 与 walking skeleton tests。
 
-基线为 35 tests / 213 assertions，typecheck 通过。新增 test 以 `Cannot find module './world-tool-surface'` 进入 RED，证明 model-facing surface 尚不存在。
+基线为 40 tests / 0 fail / 250 assertions，typecheck 通过。新增 Gateway contract test 因 `Cannot find module './omp-world-agent'` 明确进入 RED，证明 OMP Agent Runtime 尚不存在。
 
-### Phase 2 — 最小工具面
-
-Status: completed
-
-- 实现四个直接方法与最小 input admission；
-- 复用 Host/Kernel 现有记录，不新增 provider abstraction 或通用 dispatcher；
-- 保持 model tools 与 control authority 为两个对象引用边界。
-
-实现为一个直接组合 `RuntimeMvpHost` 的 `WorldToolSurface`：prototype 只有四个 tool method；输入以 exact own data properties 复制为受信 primitives/ref，再冻结后调用 Host；`run` 在相同 Host 内登记 Episode 与固定 Evaluation 并返回 evidence。没有 tool registry、dispatcher、provider SDK 或新的 Kernel type。
-
-### Phase 3 — 验证与文档
+### Phase 2 — OMP Gateway 最小实现
 
 Status: completed
 
-- 完成 tests/typecheck/build/diff-check；
-- 把稳定边界写回 architecture/progress/checklist；
-- 准备独立 reviewer packet，Coding agent 不自行审批或 mark-done。
+- 新增 Agent Gateway workspace；
+- 锁定 OMP dependency；
+- 实现四个 host-owned tool closures、最小 OMP SDK client composition 与 trace。
 
-初始 GREEN 为 39 tests / 0 fail / 245 assertions；typecheck、build、`git diff --check` 通过。Round 1 Kimi/K3 review 随后发现 stale edit 在 CAS 拒绝前已经插入 orphan Snapshot，Operator 已以 executable probe 独立复现。
+Agent Gateway 已固定 `@oh-my-pi/pi-coding-agent@17.2.12`。Round 1 executable review 证明 CLI flags 无法隔离 ambient MCP，因此 composition 已从完整 CLI/RPC 改为 SDK restricted session：MCP、built-ins、extension discovery、skills/rules、IRC、LSP 与持久 session 在 construction 时关闭，prompt 前再以 effective state fail closed。fake Agent walking skeleton 与 boundary regressions 现为 6 tests / 0 fail / 32 assertions；run 后 current ref 仍为 authored version 2。
 
-修复没有在 tool surface 叠加 pre-read guard，而是把 `expected ref admission → authored child creation → ref advance` 内聚为 Repository 的单一同步 `editCurrentCubeHeight` operation。stale input 在任何 Snapshot/sequence mutation 前返回；回归测试同时断言 current 不变与 `snapshot:edit-2` 不存在。修复后 GREEN 为 39 tests / 0 fail / 246 assertions；typecheck、build、diff-check 通过，product source digest 为 `1d95045e...`。
+### Phase 3 — 真实 SDK boot smoke 与文档
 
-Round 2 Kimi/K3 fresh review 在该 digest 上 approved，但 GPT-5.6 Sol Max 复现 same-realm prototype interception：model tool 动态调用可替换的 `RuntimeMvpHost.prototype`，拦截者可从 `this` 捕获 existing Host 并调用 `adopt`。Operator 独立 probe 复现。修复回到 authority class invariant，在模块初始化时冻结 Host prototype；不增加新 facade/registry/tool。回归证明 method replacement 被拒绝且 tool call 不泄露 Host。修复后 GREEN 为 40 tests / 0 fail / 250 assertions，typecheck、build、diff-check 通过，product digest 为 `9575362e701a6c980898ce448c6847522941c9cb102eaae28cedd0af7c4896db`，等待 final fresh cross-review。
+Status: completed
 
-### Phase 4 — 审查与发布
+- 运行无模型 prompt 的真实 OMP SDK restricted-session boot smoke；
+- 更新 architecture、runbook 与 progress；
+- 明确 live provider acceptance 仍未授权、未执行。
 
-Status: in_progress
+真实 OMP SDK restricted session 已在不发送 prompt 的情况下启动；active/enabled tool surface 恰好为四个 world tools，mounted surface 为空，并从已安装 package manifest 读取 runtime `17.2.12` 后干净停止。architecture/runbook/progress 记录 authority 与未验证边界；没有发起 provider model call。
 
-- independent reviewer 验证工具面、JSON admission、authority separation 与 scope；
-- approved 后由 Operator close；
-- 运行已授权的 commit + push gate并回查 remote branch SHA；不 merge `main`。
+### Phase 4 — 验证与交接
 
-Final fresh cross-review 已在 product digest `9575362e701a6c980898ce448c6847522941c9cb102eaae28cedd0af7c4896db` 上完成：Kimi Code K3 Max 与 GPT-5.6 Sol Max 均为 `approved`，P0/P1/P2 none；两者均独立确认 prototype interception 已被阻止、stale edit 仍保持 atomic、run 不推进 ref，且 40/0/250 全绿。当前只剩 Operator close 与已授权的 commit + push gate。
+Status: completed
+
+- 完成全量 tests/typecheck/build/diff-check/checklist validation；
+- 准备 independent review 所需的聚焦边界与证据；
+- Coding agent 不自行审批、`mark-done`、commit 或 push。
+
+Round 1、Round 2、Round 3 combined verdict 均为 `changes_requested`，每轮 executable reviewer 都发现了新的 effective boundary 反例。最终实现改用 `Reflect.ownKeys + descriptor` admission，拒绝 non-enumerable、symbol、accessor、数组与 `__proto__`；trace key 在写入 null-prototype projection 前先截断，budget 整个 turn 共享。regression 证明 getter reads=0、surface calls=0、1 MiB key trace 小于 8 KiB 且 `__proto__` 作为 own key 安全保留。最终 full gate 为 48 tests / 0 fail / 304 assertions，typecheck/build/SDK smoke/diff-check/checklist validation 全部通过；product source digest 为 `1b3b6496f1f27fe7bd89f0db105f60745e027108922507eb3301f7f1ca594dae`。Round 4 GPT-5.6 Sol Max executable review 与 Kimi Code K3 Max static review 均为 `approved`，无 P0/P1/P2；实现可进入 harness closeout 与 operator `mark-done`。
 
 ## 错误记录
 
 | 错误 | 尝试 | 处理 |
 | --- | --- | --- |
-| 新 worktree 没有 `node_modules`，首次 `bun test` 无法解析 `@mujoco/mujoco`、typecheck 找不到 `tsc` | DH-004 baseline | 依据现有 `bun.lock` 执行 `bun install --frozen-lockfile`；manifest/lockfile 未改变，随后基线恢复为 35/0/213 且 typecheck 通过。 |
-| Round 1 reviewer 发现 stale tool edit 在 CAS 前插入 orphan Snapshot | 初始 digest `b6bbe45d...` | Operator 独立 probe 复现；把 admission 与 mutation 下沉合并为 Repository 同步 operation，补 orphan absence regression，修复后 39/0/246。 |
-| Round 2 Sol reviewer 通过 Host prototype interception 捕获 existing control Host | digest `1d95045e...` | Operator 独立 probe 复现；冻结 authority class prototype，补 method replacement regression，修复后 40/0/250。 |
+| 实例化临时 harness runtime 时 `cp references/scripts/*` 遇到模板目录中的 `__pycache__` 并中止 | DH-005 harness init attempt 1 | 改为只复制 regular files；产品文件未受影响，也不把临时 runtime 纳入 Git。 |
+| walking skeleton test 把注册顺序 `read/write/edit/run` 错当成实际调用顺序 | Gateway GREEN attempt 1 | 测试改为断言真实任务调用顺序 `write/read/edit/run`；实现与 authority 状态无需修改。 |
+| 首次 Gateway typecheck 暴露 readonly tuple matcher 与 tool result union 的窄化缺口 | Gateway typecheck attempt 1 | 测试比较使用 mutable copy；`resultForModel` 返回类型收窄为 structured result，不增加 runtime 分支。 |
+| 合并文档 patch 假设 `runbook.md` 存在 `## 本地开发` 标题，context verification 失败 | Documentation attempt 1 | 原 patch 原子失败、未留下部分修改；先读取实际 runbook heading，再分文件做聚焦 patch。 |
+| harness 生成的 `current/review-packet.md` 末尾多出一个 blank line，`git diff --check` 拒绝 | Final gate attempt 1 | 只删除生成 artifact 的末尾空行；canonical plan 与产品实现不变。 |
+| Round 1 executable review 发现 `--no-tools`/`--no-extensions` 后仍有 8 个 ambient `mcp__*` tools，且 smoke 只验证 host-definition echo | Cross-review round 1 | 不补更多 CLI flags；删除完整 CLI/RPC composition，改用 OMP SDK `restrictToolNames + enableMCP:false + disableExtensionDiscovery` 的 restricted session，并在任何 prompt 前核验 active/enabled/mounted effective surface。 |
+| OMP session 会自动处理 slash/control 与 `@file` mention，可能绕过四工具读取文件或产生控制副作用 | Cross-review round 1 | Gateway admission 拒绝这两类 syntax；SDK prompt 同时关闭 prompt-template expansion 并标记 synthetic，regression 证明 prompt 前 fail closed。 |
+| 失败 turn 丢失 trace，cleanup error 可能覆盖 primary error | Cross-review round 1 | 新增 `OmpAgentTurnError`，保留 frozen bounded trace，并分别保存 primary 与 cleanup error。 |
+| Prompt syntax admission 仍晚于 OMP SDK session start | Cross-review round 2 | 在创建 tools、client 或 session 前先完成 `requirePrompt()`；regression 断言被拒绝输入不会调用 client factory。 |
+| error string 有界但 trace payload 与 entry count 无整体预算 | Cross-review round 2 | 对 tool input 和 trace data 建立显式 node/depth/string/char/collection budget；每 turn 最多 128 次 world tool calls，超限停止执行并使 turn 失败；新增 oversized input 与 129-call regressions。 |
+| non-enumerable/symbol/accessor own property 绕过 Gateway input admission | Cross-review round 3 | 使用 `Reflect.ownKeys` 与 data/enumerable descriptor admission；数组、symbol、accessor、non-enumerable 与 `__proto__` 均 fail closed，regression 证明 getter 与 surface 都未被调用。 |
+| 超长 object key 在 trace 中按原 key 写出，绕过 char budget | Cross-review round 3 | key 先经过 bounded projection 再写入 null-prototype trace object；trace budget 在整个 turn 共享；1 MiB key 与 `__proto__` regressions 验证 size 与保真边界。 |
 ```
 
 ## Recent Progress Context
@@ -455,24 +464,50 @@ Independent review：
 - reviewer 独立验证 Host prototype 的 assignment/`defineProperty` interception 均被阻止，既有 capture probe 不再成立；
 - Round 1 stale edit atomicity、四工具形状、run ref 不变、control-side adopt、JSON admission/output freeze 均保持；
 - reviewer 独立运行 40 tests / 0 fail / 250 assertions。DH-004 已满足 reviewer gate，进入 Operator close 与已授权 commit + push；不 merge `main`。
+
+## 2026-08-09 — DH-004 Operator close 完成
+
+- Closeout request 事件：`evt-20260810T063932Z-9baaf80a`；final cross-review approval 事件：`evt-20260810T063932Z-5e55cf4c`；
+- Operator `mark-done` 事件：`evt-20260810T063932Z-b294cfaf`；DH-004 已为 `done/closed`，lease 于 `2026-08-10T06:39:32Z` 释放；
+- checklist validation 为 0 warning；最终 verification 绑定 40/0/250、typecheck/build/diff-check、完整 product digest 与双 reviewer approval；
+- 当前发布边界为 commit + push `agent/codex/DH-004` 并回查 remote SHA；不 merge `main`，不代表 deployment。
+
+## 2026-08-10 — DH-005 OMP Agent Runtime vertical slice 已实现
+
+- Human 确认把所需能力内置到 Demiurges，但边界是不复制或 fork OMP 源码；OMP 作为锁定版本的可替换 Agent Runtime，Demiurges 保留 World Kernel 与 control authority；
+- 新建 `agent/codex/DH-005` 与 `/Users/Admin/projects/WorkTrees/Demiurges-DH-005`，登记并激活 `DH-005`；
+- 新增本地 Bun Agent Gateway，固定 `@oh-my-pi/pi-coding-agent@17.2.12`，只注册 `world_read`、`world_write`、`world_edit`、`world_run` 四个 host-owned tools；
+- Round 1 executable cross-review 发现原 CLI/RPC composition 仍继承 ambient MCP，并处理 slash command 与 `@file` mention；combined verdict 为 `changes_requested`，原 digest `6bb22b193648b6f3d36d9176809409f10415d2f54d102fbd23393882da30f0d3` 未获批准；
+- 修复没有继续叠加 CLI flags，而是从 composition 根部改为 OMP SDK restricted session：关闭 MCP、built-ins、extension discovery、skills/rules、IRC、LSP 与持久 session；任何 prompt 前核验 active/enabled 四工具与空 mounted surface；
+- Gateway admission 拒绝 slash/control 与 `@file` preprocessing syntax；失败 turn 通过 `OmpAgentTurnError` 保留 frozen bounded trace，cleanup failure 不覆盖 primary failure；
+- fake Agent walking skeleton 从自然语言请求出发，按 write → read → edit → run 完成 falling-cube task，Evaluation 为 PASS，run 后 ref 保持 authored version 2；Gateway boundary tests 当前为 6 pass / 0 fail / 32 assertions；
+- 真实 OMP SDK boot smoke 在未发送 prompt、未发起 provider model call 的情况下成功：从 package manifest 读取 runtime `17.2.12`，effective tool surface 恰好为四工具，读取 state 后干净退出；
+- Studio 尚未连接 Agent Gateway，真实 provider/model prompt 也未获授权、未执行。下一步是全量验证与 independent review，不自行 `mark-done`、commit 或 push。
+- 修复后 full gate 已通过：46 tests / 0 fail / 282 assertions；Gateway + Studio typecheck、Gateway bundle + Studio Vite build、no-prompt SDK smoke、`git diff --check` 与 checklist validation 均通过；新 product source digest 为 `72675cebc90d57d45e33f1bb4c40199a6929b3609e79c0d098e1f65805237ff7`。现在对该冻结 snapshot 发起 fresh independent cross-review；在双审批准前不 `mark-done`、commit 或 push。
+- Round 2 Kimi static review 为 `approved`，但 Sol executable review 发现 admission 晚于 SDK start、trace 仍无整体预算，combined verdict 再次为 `changes_requested`；
+- 最终修复把 prompt admission 提到 client factory/start 前，并对 tool input、trace data 与单 turn tool-call count 建立明确预算；oversized input 与 129-call regression 证明 failure evidence 有界且超限 turn 失败；
+- 新 full gate 为 47 tests / 0 fail / 291 assertions，typecheck/build/no-prompt SDK smoke/diff-check/checklist validation 通过；final candidate product digest 为 `fdbf25f25d81ff7028a56d3a71d5687ceace624ecdec9189b4341e6e3ce1b23a`，等待 final fresh cross-review。
+- Round 3 Kimi static review 为 `approved`，Sol executable review 继续发现 descriptor admission 与 trace key budget 两个 P1，combined verdict 为 `changes_requested`；
+- 最终修复使用 `Reflect.ownKeys + descriptor`，拒绝 hidden/symbol/accessor/array/`__proto__` input；trace key bounded 后写入 null-prototype projection，budget 整个 turn 共享；getter reads 与 surface calls 均为 0，1 MiB key trace 保持小于 8 KiB；
+- 最新 full gate 为 48 tests / 0 fail / 304 assertions，typecheck/build/no-prompt SDK smoke/diff-check/checklist validation 通过；final candidate digest 为 `1b3b6496f1f27fe7bd89f0db105f60745e027108922507eb3301f7f1ca594dae`。
+- Round 4 final cross-review 已双审批准：GPT-5.6 Sol Max executable review 与 Kimi Code K3 Max static review 均为 `approved`，P0/P1/P2 全无；允许进入 EXharness closeout 与 operator `mark-done`，但不包含真实 provider prompt、merge main、tag 或 deploy authority。
 ```
 
 ## Current Review Content
 
 ```md
-# DH-004 Final Fresh Cross-review Verdict
+# DH-001 Review Verdict
 
-当前状态：`approved`，P0/P1/P2 均无。
+当前状态：`changes_requested`。
 
 - Kimi Code K3 Max：`approved`；
-- GPT-5.6 Sol Max：`approved`；
-- 两位 reviewer 均在 product digest `9575362e701a6c980898ce448c6847522941c9cb102eaae28cedd0af7c4896db` 上完成验证；
-- `bun test`：40 pass / 0 fail / 250 assertions；typecheck、build、`git diff --check` 通过；
-- Round 1 stale edit atomicity 与 Round 2 Host prototype interception regressions 均保持通过。
+- GPT-5.6 Sol Max：`changes_requested`；
+- Operator 已独立复现 P1，combined decision 为 `changes_requested`；
+- product aggregate SHA-256 审查前后不变。
 
-Canonical verdict：`docs/project-harness/tasks/DH-004/final-cross-review-verdict.md`。
+Canonical verdict：`docs/project-harness/tasks/DH-001/cross-review-verdict.md`。
 
-更正说明：生成 closeout packet 时 `current/review-packet.md` 仍指向历史 DH-001，导致本嵌入区块错误；Item Snapshot、Verification、Handoff 与正式 review event 均正确指向 DH-004。本区块在 commit 前依据 canonical verdict 更正，不改写 review decision 或事件记录。
+本文件记录正式 review-result；实现者不得在此自我批准或 mark done。
 ```
 
 ## Closeout Questions
