@@ -124,6 +124,49 @@
         "ttl_minutes": 120,
         "released_at": "2026-08-10T02:34:58Z"
       }
+    },
+    {
+      "id": "DH-003",
+      "title": "实现 World Ref 与安全 Adopt Slice",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-10",
+      "dependencies": [
+        "DH-002"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "Repository ref 具有单调 version；authored advance 与 Runtime terminal adopt 分离；adopt 必须绑定同一 Episode、通过的不可变 EvaluationRecord、固定 AdoptPolicy 与 expectedCurrent + expectedRefVersion；stale 或错配输入不改变 current；tests/typecheck/build/browser acceptance 通过。",
+      "verification": "35 tests / 0 fail / 213 assertions; typecheck/build/diff-check/browser acceptance passed; final Kimi K3 + GPT-5.6 Sol Max reviews approved; digest 495a6c95299e19bd3e714e381f2cb2b472a12b0aec45e7a8b647077fd96feec2.",
+      "handoff": "Final cross-review approved. Operator may close DH-003 and run the authorized commit + push gate on agent/codex/DH-003; do not merge main.",
+      "plan_path": "docs/project-harness/tasks/DH-003/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-10",
+        "branch": "agent/codex/DH-003"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-003",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "final-cross-review-kimi-k3-sol-max-closeout",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-10",
+        "summary": "Closeout packet approved from the two fresh final reviewer verdicts; current digest 495a6c95..., P0/P1/P2 none, 35/0/213."
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "demiurges-dh003-authority-20260809",
+        "acquired_at": "2026-08-10T04:00:15Z",
+        "expires_at": "2026-08-10T06:00:15Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-10T04:49:15Z"
+      }
     }
   ]
 }

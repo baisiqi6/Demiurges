@@ -1,12 +1,19 @@
 import { describe, expect, test } from "bun:test";
+import { ADOPT_RUNTIME_MVP_POLICY } from "../host/runtime-mvp-adopt-policy";
 import { createInitialSnapshot, findEntity, CUBE_REF } from "../kernel/world";
-import { WorldRepository } from "./world-repository";
+import { createWorldRepositoryAuthority } from "./world-repository";
+
+const createRepository = () => {
+  const authority = createWorldRepositoryAuthority(ADOPT_RUNTIME_MVP_POLICY);
+  return { ...authority.repository, ...authority.evidence };
+};
 
 describe("WorldRepository", () => {
   test("edit 创建 child Snapshot，且不改变 base bytes", () => {
-    const repository = new WorldRepository();
+    const repository = createRepository();
     const base = repository.write(createInitialSnapshot());
     const before = JSON.stringify(base);
+    const observed = repository.readRefRecord();
 
     const edited = repository.editCubeHeight(base.id, 3.25);
 
@@ -15,11 +22,13 @@ describe("WorldRepository", () => {
     expect(findEntity(edited, CUBE_REF).state.pose.position[2]).toBe(3.25);
     expect(JSON.stringify(base)).toBe(before);
     expect(findEntity(base, CUBE_REF).state.pose.position[2]).toBe(2);
+    expect(repository.readRef()).toBe(base);
+    expect(repository.advance(edited.id, observed).status).toBe("updated");
     expect(repository.readRef().id).toBe(edited.id);
   });
 
-  test("record terminal 不推进 ref，adopt 才推进", () => {
-    const repository = new WorldRepository();
+  test("单独 record terminal 不推进 ref，也不能代替 Episode evidence", () => {
+    const repository = createRepository();
     const base = repository.write(createInitialSnapshot());
     const terminal = {
       ...base,
@@ -30,13 +39,11 @@ describe("WorldRepository", () => {
 
     repository.record(terminal);
     expect(repository.readRef().id).toBe(base.id);
-
-    repository.adopt(terminal.id);
-    expect(repository.readRef().id).toBe(terminal.id);
+    expect(repository.readSnapshot(terminal.id)).toBe(terminal);
   });
 
   test("同一 Snapshot ID 不能静默替换已被 ref 指向的内容", () => {
-    const repository = new WorldRepository();
+    const repository = createRepository();
     const base = repository.write(createInitialSnapshot());
     const first = {
       ...base,
@@ -46,7 +53,6 @@ describe("WorldRepository", () => {
     };
 
     const recorded = repository.record(first);
-    repository.adopt(recorded.id);
 
     expect(Object.isFrozen(recorded)).toBe(true);
     expect(() =>
@@ -55,12 +61,12 @@ describe("WorldRepository", () => {
         parentId: "snapshot:other",
       }),
     ).toThrow("Snapshot ID 冲突：snapshot:terminal-collision");
-    expect(repository.readRef()).toBe(recorded);
-    expect(repository.readRef().parentId).toBe(base.id);
+    expect(repository.readSnapshot(recorded.id)).toBe(recorded);
+    expect(repository.readRef()).toBe(base);
   });
 
   test("即使 Snapshot root 已冻结，Repository 仍递归冻结 children", () => {
-    const repository = new WorldRepository();
+    const repository = createRepository();
     const base = repository.write(createInitialSnapshot());
     const shallow = Object.freeze({
       ...structuredClone(base),
@@ -72,17 +78,16 @@ describe("WorldRepository", () => {
       .state.pose.position as unknown as number[];
 
     const recorded = repository.record(shallow);
-    repository.adopt(recorded.id);
 
     expect(Object.isFrozen(mutableHeight)).toBe(true);
     expect(() => {
       mutableHeight[2] = 9;
     }).toThrow(TypeError);
-    expect(findEntity(repository.readRef(), CUBE_REF).state.pose.position[2]).toBe(2);
+    expect(findEntity(repository.readSnapshot(recorded.id), CUBE_REF).state.pose.position[2]).toBe(2);
   });
 
   test("Repository 拒绝 parent 不可解析的 orphan lineage", () => {
-    const repository = new WorldRepository();
+    const repository = createRepository();
     const base = repository.write(createInitialSnapshot());
 
     expect(() =>
@@ -97,7 +102,7 @@ describe("WorldRepository", () => {
   });
 
   test("runtime-terminal 不能以 null parent 冒充新的 root", () => {
-    const repository = new WorldRepository();
+    const repository = createRepository();
     const base = repository.write(createInitialSnapshot());
 
     expect(() =>
@@ -111,8 +116,8 @@ describe("WorldRepository", () => {
     expect(repository.readRef()).toBe(base);
   });
 
-  test("write/record/adopt 按 Snapshot source 分工，terminal 不能绕过 adopt", () => {
-    const repository = new WorldRepository();
+  test("write/record/advance 按 Snapshot source 分工，terminal 不能绕过 authority gate", () => {
+    const repository = createRepository();
     const base = repository.write(createInitialSnapshot());
     const terminal = {
       ...base,
@@ -124,10 +129,12 @@ describe("WorldRepository", () => {
     expect(() => repository.write(terminal)).toThrow("write 只接纳 source: write");
     expect(repository.readRef()).toBe(base);
     expect(() => repository.record(base)).toThrow("record 只接纳 runtime-terminal");
-    expect(() => repository.adopt(base.id)).toThrow("adopt 只接纳 runtime-terminal");
+    expect(() => repository.advance(base.id, repository.readRefRecord())).toThrow(
+      "advance 只接纳 authored edit Snapshot",
+    );
 
     const recorded = repository.record(terminal);
     expect(repository.readRef()).toBe(base);
-    expect(repository.adopt(recorded.id)).toBe(recorded);
+    expect(repository.readSnapshot(recorded.id)).toBe(recorded);
   });
 });

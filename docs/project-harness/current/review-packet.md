@@ -2,32 +2,32 @@
 
 ## Subject
 
-- Checklist item: `DH-002`
-- Reviewer: `dh002-independent-reviewer`
+- Checklist item: `DH-003`
+- Reviewer: `final-fresh-cross-review`
 - Updated at: `2026-08-10`
-- Canonical plan path: `docs/project-harness/tasks/DH-002/plan.md`
+- Canonical plan path: `docs/project-harness/tasks/DH-003/plan.md`
 
 ## Item Snapshot
 
-- Title: 实现 Episode Player Presentation Slice
+- Title: 实现 World Ref 与安全 Adopt Slice
 - Status: doing
-- Workflow status: running
+- Workflow status: changes_requested
 - Priority: p0
 - Owner: codex
-- Session: demiurges-dh002-player-20260809
-- Dependencies: DH-001
+- Session: demiurges-dh003-authority-20260809
+- Dependencies: DH-002
 
 ## Acceptance
 
-不可变 Episode 能按 sample time 自动回放，并支持暂停、继续、重播、逐帧、seek 与倍速；播放器不修改 Episode、不推进 Repository ref，tests/typecheck/build/browser acceptance 通过。
+Repository ref 具有单调 version；authored advance 与 Runtime terminal adopt 分离；adopt 必须绑定同一 Episode、通过的不可变 EvaluationRecord、固定 AdoptPolicy 与 expectedCurrent + expectedRefVersion；stale 或错配输入不改变 current；tests/typecheck/build/browser acceptance 通过。
 
 ## Verification
 
-Worker evidence: bun test 26 pass/0 fail/166 assertions; typecheck/build pass; browser verifies autoplay, pause, step, 2x resume, seek, PASS evaluation, ref unchanged until adopt, and adopt-during-playback remains terminal. Product digest 945b0a827397b44f4570f01891891a4269805b0d6bca8e9fe4d5ebe49e402f36.
+Lexical authority GREEN: 35 tests / 0 fail / 213 assertions; typecheck/build/diff-check passed; browser re-proved v1 -> advance v2 -> run/evaluate stays v2 -> adopt v3; Repository implementation is module-private, evidence writer is a Host-private lexical closure, and another factory authority only mutates its own Repository; product source digest 495a6c95299e19bd3e714e381f2cb2b472a12b0aec45e7a8b647077fd96feec2.
 
 ## Handoff
 
-Independent reviewer should follow tasks/DH-002/review-request.md. Browser console history and native canvas context were not available through the isolation wrapper and are not claimed.
+Round 2 same-realm interception was fixed by removing the exported Repository implementation and dynamic symbol dispatch. Request final fresh cross-review of lexical authority isolation, canonical evidence path, Ref CAS and UI gate; Coding agent does not mark-done.
 
 ## Review Inputs
 
@@ -40,116 +40,108 @@ Independent reviewer should follow tasks/DH-002/review-request.md. Browser conso
 ## Canonical Plan Content
 
 ```md
-# DH-002 计划：Episode Player
+# DH-003 计划：World Ref 与安全 Adopt
 
 ## 目标
 
-把 `DH-001` 已产生的不可变 Episode 从“可拖动检查的帧序列”提升为“可按证据时间自动回放的动态历程”。Runtime 继续离线、确定性地产出完整 Episode；新增的播放器只属于 Presentation，不拥有物理状态，也不推进 Repository ref。
+把当前仅保存 `Snapshot ID` 的 Repository ref 提升为带单调 version 的 authority record，并把 authored Snapshot 的 `advance` 与 Runtime terminal 的 `adopt` 分离。任何成功 Adopt 都必须绑定同一个 Episode、通过的不可变 EvaluationRecord、固定 Host AdoptPolicy，以及调用开始时观察到的 `expectedCurrent + expectedRefVersion`。
 
 ## 已授权范围
 
-- 新增独立的 Episode Player Presentation 组件与最小纯时间映射逻辑；
-- 点击 `运行 MuJoCo` 后从第 0 帧自动回放 Episode；
-- 支持播放/暂停、重播、前后逐帧、拖动时间轴与 `0.5x / 1x / 2x` 倍速；
-- 添加播放器时间映射与边界行为测试；
-- 更新必要的 SolidJS 组合代码、样式与 repo-local Harness 证据。
+- 为 Repository ref 增加可读取的 `snapshotId + version`；
+- 让 authored Snapshot 先被记录，再由显式 `advance` 推进 current；
+- 为 `advance` 与 `adopt` 共用一个最小 CAS 边界，但保留两种操作的不同准入条件；
+- `adopt` 校验 Episode、TerminalSnapshot、EvaluationRecord 与固定 AdoptPolicy 的绑定关系；
+- UI 显示 ref version，并且只有当前 Episode 的 Evaluation 通过后才允许 Adopt；
+- 添加 authority、policy、stale ref 与 UI 组合所需的回归测试；
+- 更新必要的 repo-local Harness 证据。
 
-不创建 commit、remote、Issue、PR、deployment 或外部发布。
+用户已持续授权：本 item 获得 reviewer approval 并由 Operator 关闭后，commit 同步 push 当前 branch；不自动 merge `main`。
 
 ## Invariants
 
-- Episode 与 samples 保持不可变，播放器只持有 transient Presentation state；
-- 播放位置由 `EpisodeSample.timeSeconds` 与单调 wall clock 映射，不用 `setInterval` 假装固定帧率；
-- 拖动、逐帧、播放或重播都不能调用 Repository `adopt` 或修改 current ref；
-- Three.js 仍只消费当前 Snapshot / EpisodeSample，不拥有时间轴；
-- 第一版播放精确证据帧，不在相邻 sample 之间制造新的 authority state；
-- `prefers-reduced-motion` 下不自动播放，用户仍可逐帧、拖动或显式播放。
+- `run`、Episode playback、Evaluation 与 terminal `record` 都不推进 authoritative ref；
+- Ref version 每次成功推进只增加 1，失败、拒绝或 stale CAS 不改变 ref；
+- `advance` 只接纳当前 authored lineage 的直接 child；`adopt` 只接纳该 Episode 的已记录 Runtime terminal；
+- `adopt` 必须引用同一 Episode 的通过 EvaluationRecord，并满足 Host 注册的固定 AdoptPolicy；
+- `expectedCurrent` 与 `expectedRefVersion` 任一不匹配都返回 `stale_ref`，不得用“当前 Snapshot 又碰巧相同”绕过 version；
+- 模型可见的世界工具面仍未引入；`advance/adopt` 保持 Host/Repository 内部事务。
 
 ## Non-goals
 
-- 修改 MuJoCo step、sample rate、Episode contract 或 Evaluation；
-- 在 Runtime loop 内加入实时等待、streaming transport 或 Web Worker；
-- 对位置或 quaternion 做插值、外推或补帧；
-- 音频、视频导出、轨迹编辑、关键帧编辑或通用媒体时间线；
-- Agent、3DGS、机器人或第二个 Runtime provider。
+- LLM/VLM、Agent Shell 或 `world_read/write/edit/run` tool schema；
+- imported mesh、Spark/3DGS、机器人或第二 Runtime provider；
+- 通用权限平台、Policy registry、数据库、分布式锁或多人协作；
+- 重写 Episode identity、MuJoCo dynamics、播放器时间映射或视觉设计；
+- 合并到 `main`、deployment 或 package 发布。
 
 ## 验收标准
 
-1. 新 Episode 到达后，普通 motion preference 下播放器从 sample 0 自动开始并按 `timeSeconds` 推进到 terminal。
-2. 播放可以暂停、继续、重播、前后逐帧、拖动和切换 `0.5x / 1x / 2x`，结束后稳定停在最后一帧。
-3. 任意 seek 后继续播放都从当前 sample time 重新锚定，不因暂停时长或倍速切换产生跳跃。
-4. 时间选择逻辑对起点、中间帧、帧间时间、终点和越界时间有 deterministic unit tests。
-5. 播放全程 current Repository ref 保持 edited Snapshot；Evaluation 与 explicit adopt 语义不变。
-6. `bun test`、`bun run typecheck`、`bun run build` 与真实浏览器 acceptance 通过。
+1. root write 初始化 `{ snapshotId, version: 1 }`；成功 advance/adopt 各自只递增一次 version。
+2. authored `edit` 只产生 child，显式 `advance` 才推进 current；stale advance 不修改 ref。
+3. 未 Evaluation、失败 Evaluation、错配 Episode、错配 evaluator/contract/policy 或未记录 terminal 均不能 Adopt。
+4. 合法 Episode + 通过 Evaluation + 固定 Policy + fresh CAS 成功 Adopt；重复调用返回 `stale_ref`，不重复推进。
+5. stale CAS 即使未来再次指向相同 Snapshot，也不能绕过 version。
+6. UI 显示 current ref version；Evaluate 通过前 Adopt disabled，成功后 Adopt 并显示 terminal authority。
+7. `bun test`、`bun run typecheck`、`bun run build`、checklist validation 与真实浏览器 acceptance 通过。
 
-## 阶段
+## 实现阶段
 
-### Phase 1 — Authority 与基线
-
-Status: completed
-
-- `DH-001` 已由独立 reviewer 批准；
-- 用户授权实现 Episode Player；
-- 基线 `bun test` 为 23 pass / 0 fail / 153 assertions，typecheck 通过；
-- 已确认根因是 UI 直接选择最后 sample，Runtime 本身已有 76 个证据帧。
-
-### Phase 2 — 时间映射回归与播放器实现
+### Phase 1 — Authority 基线与 RED
 
 Status: completed
 
-- 先增加纯时间映射 tests；
-- 实现最小 `EpisodePlayer`；
-- 把 App 的 terminal jump 改为 sample 0 autoplay。
+- 登记并激活 `DH-003`；
+- 保存当前 tests/typecheck 基线；
+- 添加 Ref version、explicit advance、Evaluation/Policy-gated adopt 与 stale CAS 反例，确认旧实现失败。
 
-RED evidence：新增 clock tests 后，`bun test apps/studio/src/presentation-episode/episode-player-clock.test.ts` 以 `Cannot find module './episode-player-clock'` 失败（0 pass / 1 fail / 1 error），证明测试先于实现且当前没有播放器时间映射。
+基线为 26 tests / 166 assertions，typecheck 通过。新增 authority test 在旧实现上以 `Export named 'ADOPT_RUNTIME_MVP_POLICY' not found` 进入 RED（0 pass / 1 fail / 1 error），证明 Ref/Policy contract 与新 Repository operations 尚不存在。
 
-GREEN evidence：新增 3 个 clock tests 后，完整 `bun test` 为 26 pass / 0 fail / 166 assertions；时间选择、wall-time 倍速映射与 index clamp 均通过。
-
-### Phase 3 — 交互、可访问性与浏览器验收
+### Phase 2 — 最小 Kernel/Repository 实现
 
 Status: completed
 
-- 验证播放、暂停、重播、逐帧、seek、倍速与 reduced-motion；
-- 核对 ref authority、Evaluation、adopt 与 WebGL；
-- 运行 tests、typecheck、build。
+- 增加最小 Ref、Policy 与 operation result records；
+- Repository 内部保存 versioned ref，并以一个私有 CAS helper 实现 advance/adopt；
+- 不增加 Provider registry、权限框架或通用事务层。
 
-验收证据：
+实现结果：Ref 以冻结 `{ name, snapshotId, version }` 保存；root write 初始化 version 1；`advance` 与 `adopt` 共享私有 CAS helper，但分别执行 authored lineage 与 Episode/Evaluation/Policy 准入。固定 policy 位于 Host composition 文件并显式注入 Repository，Kernel 不依赖 evaluator。Episode 与 Evaluation 必须先作为不可变 evidence 登记，单独 terminal record 不能进入 adopt。
 
-- 新 Episode 自动播放时从中间帧持续推进：`frame 12 / 75 @ 0.40s`，toggle 为“暂停”；
-- 暂停后 `frame 14` 在 320ms 内保持不变，下一帧精确到 `frame 15`；
-- 切换 `2x` 后从当前帧继续到 `frame 45`，没有回到起点；
-- run、pause、step、rate change 与 evaluate 后 current ref 均保持 `snapshot:edit-1`；
-- 播放进行到 `frame 18 / 75` 时 explicit adopt，500ms 后稳定为 terminal ref、`adopted-terminal`、`frame 75 / 75` 与“重播”，残余 clock 未抢回 Episode view；
-- timeline seek 到 frame 25 后显示源为 `episode-frame`，Repository ref 保持不变；
-- 完整 `bun test` 为 26/0/166，typecheck/build 通过；build 仍只有既有 Vite browser-external notice 与大 chunk warning；
-- reduced-motion 由代码路径直接关闭新 Episode autoplay；当前 browser 环境未提供 media emulation，因此未把该分支写成浏览器动态证据；
-- 浏览器隔离层不提供历史 console 捕获与原生 canvas context probe；已确认 canvas locator 存在、Three.js 画面截图正常，但不宣称这两项未取得的证据。
+### Phase 3 — Studio 组合与验收
 
-Motion self-review：新增的 2.5 秒运动是世界历程本身，不是 UI 装饰；clock 可暂停、seek、逐帧与改速，使用 `requestAnimationFrame`，未动画 layout property；reduced-motion 默认不 autoplay。自审结论为可提交 independent review，不替 reviewer 作 approval。
+Status: completed
 
-### Phase 4 — 证据与独立审查
+- Studio 改为 explicit edit → advance，Evaluation pass → adopt；
+- 显示 ref version 并验证 Episode Player 不影响 authority；
+- 完成 tests/typecheck/build/browser acceptance。
+
+GREEN：32 tests / 0 fail / 200 assertions；typecheck/build 通过。真实浏览器从 `snapshot:base v1` 经 explicit edit/advance 到 `snapshot:edit-1 v2`；Run 与 Playback 期间 ref 保持 v2，Evaluate 前 Adopt disabled；Evaluation `PASS` 后 Adopt 才开放，成功后 terminal 为 v3、显示源为 `adopted-terminal`，按钮再次 disabled。stale advance/adopt、相同 Snapshot 但旧 version、失败/错配/未登记 evidence 均由 executable tests 证明不改变 ref。
+
+### Phase 4 — 证据、独立审查与发布
 
 Status: in_progress
 
-- 更新 `progress.md`、checklist verification 与 handoff；
-- 生成只读 review packet；
-- Coding agent 不自行 `mark-done`。
+- 更新 progress、checklist verification 与 handoff；
+- 生成只读 review packet，由 independent reviewer 给出结构化 verdict；
+- approved 后由 Operator `mark-done`；
+- 运行发布 gate，commit 当前 branch 并同步 push，回查 remote SHA。
+
+Round 1 独立审查在 digest `2cd5edf...` 上给出 `changes_requested`：可伪造 frozen Episode/Evaluation，且同一 `contractId` 下可替换 contract 参数，两个反例都成功推进 ref。修复没有继续叠加字段校验，而是把证据产生与 admission 收束到新的 `RuntimeMvpHost` effect boundary：Host 私有持有 capability，只调用固定 MuJoCo Runtime、固定 Program/Profile、固定 Landing evaluator 与 canonical SuccessContract；Studio 不再暴露任意 evidence registration。外部 capability 在 terminal Snapshot 入库前即失败。
+
+修复后 GREEN 为 34 tests / 0 fail / 210 assertions，typecheck/build 通过，`git diff --check` 通过；真实浏览器再次证明 `v1 → explicit advance v2 → run/evaluate 仍为 v2 → PASS adopt v3`。修复后 product digest 为 `d9ca6da0...`。
+
+Round 2 Kimi/K3 在该 digest 上 approved，但 Sol/max 随后复现 same-realm interception：导出的 Repository class prototype 可在 Host 构造前被替换，从动态调用中截获 symbol 与 existing Repository。实现再次回到底层收束：`WorldRepositoryState` 不再导出，factory 只把冻结的 repository facade 与 evidence-writer closures 交给创建者；`RuntimeMvpHost` 私有持有整个 lexical authority，证据 admission 不再携带或传递可截获的 token。另一个 factory 调用只能写入它自己拥有的 Repository，不能影响 existing Host。
+
+lexical authority 修复后 GREEN 为 35 tests / 0 fail / 213 assertions，typecheck/build/diff-check 通过；浏览器第三次复验仍为 v1→v2→v3。当前 product digest 为 `495a6c95299e19bd3e714e381f2cb2b472a12b0aec45e7a8b647077fd96feec2`，等待 fresh final cross-review。
 
 ## 错误记录
 
 | 错误 | 尝试 | 处理 |
 | --- | --- | --- |
-| `docs/project-harness/harness-config.json` 不存在 | 基线检查时尝试读取 optional config | 当前实例使用外置临时 runtime，配置文件不是 product authority；继续使用已实例化 `harnessctl`，不补第二份 config。 |
-| clock regression 首次运行缺少 `episode-player-clock` module | Phase 2 RED | 预期的 regression-first 失败；下一步实现该最小模块。 |
-| `HTMLSelectElement.valueAsNumber` typecheck 失败 | 首次完整 GREEN 验证 | `valueAsNumber` 只属于 number input；倍速 select 改为显式 `Number(event.currentTarget.value)`。 |
-| 首次暂停验收时播放已经结束，toggle 触发了重播 | browser acceptance attempt 1 | 重放后在明确的中间帧再次暂停；frame 16 在 350ms 内保持不变，随后逐帧到 frame 17。 |
-| 浏览器验收不能在不可扩展的 `window` 或 `dataset` 上新增 test-only error buffer | browser acceptance attempts 2-3 | 停止注入式 console 捕获；改用交互调用无异常、结构化 DOM、WebGL canvas 与最终结果验收，并不把“未捕获历史 console”写成已验证。 |
-| browser evaluate 的 canvas wrapper 不暴露原生 `getContext()` | WebGL probe | 不绕过浏览器隔离；改用 canvas locator/element info 与 Three.js 画面截图确认 Presentation 存在，WebGL context 本轮不单独宣称。 |
-
-## 浏览器阶段发现
-
-- 自动播放与时间推进成立；
-- 播放器需要显式知道 Episode view 是否 active：`Adopt terminal` 切回 Repository view 时必须停止 clock，否则残余 tick 可能重新选择 Episode frame。该约束通过 `active` Presentation prop 表达，不修改 Runtime 或 Repository。
+| 临时 harness runtime 固定指向 `/Users/Admin/projects/Demiurges` | 在 DH-003 worktree 直接调用前审计脚本 | 未执行错误 mutation；复制 task-local 临时 runtime，并只把 project root 改为 DH-003 worktree。该副本不进入产品仓库。 |
+| 浏览器 locator 不提供 `isDisabled()` | 首次读取 Adopt 状态 | 改为读取原生 `disabled` attribute；不修改产品以迎合测试工具。 |
+| Round 1 reviewer 复现 forged evidence 与 same-ID contract bypass | digest `2cd5edf...` 的 independent `bun -e` probes | 从 evidence effect boundary 修正：新增私有 Host capability 与固定 Runtime/Evaluator 组合，不把 frozen plain data 当作 provenance。新增 RED 后回归为 34/0/210。 |
+| Round 2 reviewer 通过 prototype interception 捕获 symbol capability | digest `d9ca6da...` 的 existing Host `bun -e` probe | 删除导出的 Repository implementation 与动态 token dispatch；改用 factory 创建的 lexical authority closure。新增 RED 后回归为 35/0/213。 |
 ```
 
 ## Review Focus

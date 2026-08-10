@@ -49,6 +49,19 @@ export interface Snapshot {
   readonly entities: readonly Entity[];
 }
 
+export interface RefRecord {
+  readonly name: `world:${string}`;
+  readonly snapshotId: Snapshot["id"];
+  readonly version: number;
+}
+
+export interface RefUpdateResult {
+  readonly status: "updated" | "stale_ref";
+  readonly operation: "advance" | "adopt";
+  readonly ref: RefRecord;
+  readonly snapshot: Snapshot;
+}
+
 export interface WorldProgram {
   readonly id: `program:${string}`;
   readonly kind: "free-fall";
@@ -118,4 +131,13 @@ export interface EvaluationRecord {
     readonly heightError: number;
     readonly terminalLinearSpeed: number;
   };
+}
+
+export interface AdoptPolicy {
+  readonly id: `adopt-policy:${string}`;
+  readonly evaluatorId: EvaluationRecord["evaluatorId"];
+  readonly contractId: EvaluationRecord["contractId"];
+  readonly requirePassed: true;
+  readonly episodeCompletion: Episode["completion"];
+  readonly terminalSource: "runtime-terminal";
 }

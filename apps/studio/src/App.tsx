@@ -1,19 +1,16 @@
 import { createMemo, createSignal, Show } from "solid-js";
 
-import { evaluateLanding } from "./evaluation/evaluate-landing";
-import type { Episode, EvaluationRecord } from "./kernel/types";
+import { RuntimeMvpHost } from "./host/runtime-mvp-host";
+import type { Episode, EvaluationRecord, RefRecord } from "./kernel/types";
 import {
   CUBE_REF,
   createInitialSnapshot,
   deepFreeze,
   FALLING_CUBE_PROGRAM,
-  LANDING_SUCCESS_CONTRACT,
   MUJOCO_PROFILE,
 } from "./kernel/world";
 import { EpisodePlayer } from "./presentation-episode/EpisodePlayer";
 import { ThreeViewport } from "./presentation-three/ThreeViewport";
-import { WorldRepository } from "./repository/world-repository";
-import { runFallingCube } from "./runtime-mujoco/run-falling-cube";
 
 type RuntimeStatus = "ready" | "running" | "completed" | "error";
 type ViewMode = "repository" | "episode";
@@ -23,11 +20,14 @@ function formatNumber(value: number, digits = 3): string {
 }
 
 export default function App() {
-  const repository = new WorldRepository();
-  const baseSnapshot = repository.write(createInitialSnapshot());
+  const host = new RuntimeMvpHost();
+  const baseSnapshot = host.write(createInitialSnapshot());
+  const baseRef = host.readRefRecord();
   const [currentSnapshot, setCurrentSnapshot] = createSignal(baseSnapshot);
+  const [currentRef, setCurrentRef] = createSignal(baseRef);
   const [height, setHeight] = createSignal(2.8);
   const [episode, setEpisode] = createSignal<Episode>();
+  const [episodeBaseRef, setEpisodeBaseRef] = createSignal<RefRecord>();
   const [evaluation, setEvaluation] = createSignal<EvaluationRecord>();
   const [timelineIndex, setTimelineIndex] = createSignal(0);
   const [viewMode, setViewMode] = createSignal<ViewMode>("repository");
@@ -52,9 +52,16 @@ export default function App() {
 
   const editWorld = () => {
     try {
-      const edited = repository.editCubeHeight(repository.readRef().id, height());
-      setCurrentSnapshot(edited);
+      const observed = host.readRefRecord();
+      const edited = host.editCubeHeight(observed.snapshotId, height());
+      const advanced = host.advance(edited.id, observed);
+      if (advanced.status === "stale_ref") {
+        throw new Error("current ref 已变化，请重新读取世界后再编辑");
+      }
+      setCurrentRef(advanced.ref);
+      setCurrentSnapshot(advanced.snapshot);
       setEpisode(undefined);
+      setEpisodeBaseRef(undefined);
       setEvaluation(undefined);
       setTimelineIndex(0);
       setViewMode("repository");
@@ -69,17 +76,14 @@ export default function App() {
     setRuntimeStatus("running");
     setErrorMessage(undefined);
     setEvaluation(undefined);
+    setEpisodeBaseRef(undefined);
     try {
       runSequence += 1;
-      const frozenBase = repository.readRef();
-      const nextEpisode = await runFallingCube(
-        frozenBase,
-        FALLING_CUBE_PROGRAM,
-        MUJOCO_PROFILE,
+      const result = await host.runCurrent(
         deepFreeze({ runId: `run:studio-${runSequence}` }),
       );
-      repository.record(nextEpisode.terminalSnapshot);
-      setEpisode(nextEpisode);
+      setEpisode(result.episode);
+      setEpisodeBaseRef(result.baseRef);
       setTimelineIndex(0);
       setViewMode("episode");
       setRuntimeStatus("completed");
@@ -92,16 +96,30 @@ export default function App() {
   const evaluateEpisode = () => {
     const currentEpisode = episode();
     if (!currentEpisode) return;
-    setEvaluation(evaluateLanding(currentEpisode, LANDING_SUCCESS_CONTRACT));
+    const record = host.evaluateEpisode(currentEpisode.id);
+    setEvaluation(record);
   };
 
   const adoptTerminal = () => {
     const currentEpisode = episode();
-    if (!currentEpisode) return;
-    const adopted = repository.adopt(currentEpisode.terminalSnapshot.id);
-    setCurrentSnapshot(adopted);
+    const currentEvaluation = evaluation();
+    const expected = episodeBaseRef();
+    if (!currentEpisode || !currentEvaluation?.passed || !expected) return;
+    const adopted = host.adopt(
+      currentEpisode.id,
+      currentEvaluation.id,
+      expected,
+    );
+    if (adopted.status === "stale_ref") {
+      setErrorMessage("Episode 的 base ref 已过期；结果已保留，但 current world 未改变。");
+      return;
+    }
+    setCurrentRef(adopted.ref);
+    setCurrentSnapshot(adopted.snapshot);
     setTimelineIndex(currentEpisode.samples.length - 1);
     setViewMode("repository");
+    setEpisodeBaseRef(undefined);
+    setErrorMessage(undefined);
   };
 
   const selectTimelineFrame = (index: number) => {
@@ -157,6 +175,7 @@ export default function App() {
             <h2>Repository</h2>
             <dl class="fact-list">
               <div><dt>current ref</dt><dd data-testid="current-ref-id">{currentSnapshot().id}</dd></div>
+              <div><dt>ref version</dt><dd data-testid="current-ref-version">v{currentRef().version}</dd></div>
               <div><dt>parent</dt><dd>{currentSnapshot().parentId ?? "—"}</dd></div>
               <div><dt>frame</dt><dd>frame:world</dd></div>
               <div><dt>units</dt><dd>units:si</dd></div>
@@ -266,8 +285,22 @@ export default function App() {
             )}
           </Show>
           <div class="action-row">
-            <button class="button secondary" data-testid="evaluate-button" disabled={!episode()} onClick={evaluateEpisode}>Evaluate</button>
-            <button class="button ghost" data-testid="adopt-button" disabled={!episode()} onClick={adoptTerminal}>Adopt terminal</button>
+            <button
+              class="button secondary"
+              data-testid="evaluate-button"
+              disabled={!episode() || !!evaluation()}
+              onClick={evaluateEpisode}
+            >
+              Evaluate
+            </button>
+            <button
+              class="button ghost"
+              data-testid="adopt-button"
+              disabled={!evaluation()?.passed || !episodeBaseRef()}
+              onClick={adoptTerminal}
+            >
+              Adopt terminal
+            </button>
           </div>
         </div>
       </section>

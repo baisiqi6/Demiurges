@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { evaluateLanding } from "../evaluation/evaluate-landing";
+import { ADOPT_RUNTIME_MVP_POLICY } from "../host/runtime-mvp-adopt-policy";
 import {
   CUBE_REF,
   createInitialSnapshot,
@@ -11,7 +12,7 @@ import {
   MUJOCO_PROFILE,
 } from "../kernel/world";
 import type { Entity, ExplicitInputs, RuntimeProfile, Snapshot, WorldProgram } from "../kernel/types";
-import { WorldRepository } from "../repository/world-repository";
+import { createWorldRepositoryAuthority } from "../repository/world-repository";
 import { createFallingCubeMjcf, runFallingCube } from "./run-falling-cube";
 
 function explicitInputs(runId: ExplicitInputs["runId"]): ExplicitInputs {
@@ -33,10 +34,13 @@ describe("MuJoCo falling-cube Runtime", () => {
   });
 
   test("真实 MuJoCo 推演产生 Episode，record 不推进 ref，adopt 才推进", async () => {
-    const repository = new WorldRepository();
+    const authority = createWorldRepositoryAuthority(ADOPT_RUNTIME_MVP_POLICY);
+    const repository = authority.repository;
     const base = repository.write(createInitialSnapshot());
+    const rootRef = repository.readRefRecord();
     const edited = repository.editCubeHeight(base.id, 2.8);
-    const refBeforeRun = repository.readRef().id;
+    expect(repository.advance(edited.id, rootRef).status).toBe("updated");
+    const refBeforeRun = repository.readRefRecord();
 
     const episode = await runFallingCube(
       edited,
@@ -55,10 +59,11 @@ describe("MuJoCo falling-cube Runtime", () => {
     });
     expect(episode.terminalSnapshot.parentId).toBe(edited.id);
 
-    repository.record(episode.terminalSnapshot);
-    expect(repository.readRef().id).toBe(refBeforeRun);
+    authority.evidence.recordEpisode(episode);
+    expect(repository.readRefRecord()).toBe(refBeforeRun);
 
     const evaluation = evaluateLanding(episode, LANDING_SUCCESS_CONTRACT);
+    authority.evidence.recordEvaluation(evaluation);
     expect(evaluation.passed).toBe(true);
     expect(evaluation.metrics.terminalCenterHeight).toBeCloseTo(0.25, 2);
     expect(
@@ -71,7 +76,12 @@ describe("MuJoCo falling-cube Runtime", () => {
       ).passed,
     ).toBe(false);
 
-    repository.adopt(episode.terminalSnapshot.id);
+    repository.adopt(
+      episode.id,
+      evaluation.id,
+      ADOPT_RUNTIME_MVP_POLICY.id,
+      refBeforeRun,
+    );
     expect(repository.readRef().id).toBe(episode.terminalSnapshot.id);
   });
 
