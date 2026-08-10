@@ -1,0 +1,15 @@
+{
+  "name": "demiurges",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "bun@1.3.14",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "bun --cwd apps/studio dev",
+    "build": "bun --cwd apps/studio build",
+    "typecheck": "bun --cwd apps/studio typecheck",
+    "test": "bun test"
+  }
+}

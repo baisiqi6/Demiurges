@@ -1,0 +1,129 @@
+{
+  "project": "demiurges",
+  "harness_root": "docs/project-harness",
+  "updated_at": "2026-08-10",
+  "items": [
+    {
+      "id": "DH-000",
+      "title": "Bootstrap Demiurges 项目 authority 与技术基线",
+      "status": "done",
+      "priority": "p0",
+      "owner": "operator",
+      "selected_in_session": "bootstrap-2026-08-09",
+      "updated_at": "2026-08-09",
+      "dependencies": [],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "Demiurges 拥有独立 Git 仓库和唯一 repo-local 项目 authority；该 authority 在不创建 product code 或安装 dependency 的前提下，定义产品范围、极简架构、领域语义、初始技术基线、几何演进、clean-room Lyaup 捐赠边界与第一条 vertical slice。项目文档以中文为主体，并保留精确 English technical token。",
+      "verification": "Checklist validation 通过；所有 canonical Markdown link 可解析；Git status 只包含已授权 bootstrap 文件；Lyaup 保持不变；未创建 product dependency、remote、commit、package 或 Runtime。",
+      "handoff": "Bootstrap artifact 已准备好接受 independent review。批准后，下一个 item 应只从真实任务或 GitHub Issue 出发 scaffold falling-cube vertical slice。",
+      "workflow": {
+        "status": "closed",
+        "branch": "main",
+        "updated_at": "2026-08-09"
+      },
+      "lease": null,
+      "artifacts": {
+        "plan": "docs/project-harness/tasks/DH-000/plan.md",
+        "review_packet": "docs/project-harness/tasks/DH-000/review-packet.md",
+        "reviewer_prompt": "docs/project-harness/tasks/DH-000/reviewer-prompt.md",
+        "review_verdict": "docs/project-harness/tasks/DH-000/review-verdict.md",
+        "branch": "main"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "kimi-code/k3",
+        "effort": "max",
+        "session": "session_1decb43d-1a25-42c0-b341-00756deb602d",
+        "artifact": "docs/project-harness/tasks/DH-000/review-verdict.md"
+      }
+    },
+    {
+      "id": "DH-001",
+      "title": "实现 Falling Cube Vertical Slice",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-10",
+      "dependencies": [
+        "DH-000"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "从 canonical Snapshot 经 edit、真实 MuJoCo WASM run、Episode、TerminalSnapshot 与 deterministic EvaluationRecord 形成可观察闭环；Three.js 只负责 Presentation，run 不推进 Repository ref，只有 explicit adopt 可以推进；unit、build 与 browser acceptance 均通过。",
+      "verification": "Focused independent review approved; 23 tests, typecheck, build, browser acceptance and authority probes passed.",
+      "handoff": "Focused independent reviewer approved. Operator may perform final close. Coding agent did not commit, release, deploy, or mark-done.",
+      "plan_path": "docs/project-harness/tasks/DH-001/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-10",
+        "branch": "main"
+      },
+      "artifacts": {
+        "plan": "docs/project-harness/tasks/DH-001/plan.md",
+        "branch": "main",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "focused-closure-review",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-10",
+        "summary": "Focused reviewer approved: 23/0/153; P0/P1/P2 none; product digest unchanged."
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "demiurges-dh001-fix5-20260809",
+        "acquired_at": "2026-08-09T18:19:17Z",
+        "expires_at": "2026-08-09T20:19:17Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-10T01:55:40Z"
+      }
+    },
+    {
+      "id": "DH-002",
+      "title": "实现 Episode Player Presentation Slice",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-10",
+      "dependencies": [
+        "DH-001"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "不可变 Episode 能按 sample time 自动回放，并支持暂停、继续、重播、逐帧、seek 与倍速；播放器不修改 Episode、不推进 Repository ref，tests/typecheck/build/browser acceptance 通过。",
+      "verification": "Independent review approved; release gate bun test 26/0/166, typecheck, build and checklist validation passed; product digest 945b0a827397b44f4570f01891891a4269805b0d6bca8e9fe4d5ebe49e402f36.",
+      "handoff": "Independent reviewer approved. Operator may mark-done. Coding agent did not commit, release, deploy, or mark-done.",
+      "plan_path": "docs/project-harness/tasks/DH-002/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-10",
+        "branch": "main"
+      },
+      "artifacts": {
+        "branch": "main",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "dh002-independent-reviewer",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-10",
+        "summary": "26/0/166; digest unchanged; P0/P1/P2 none; authority and rAF lifecycle approved."
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "demiurges-dh002-player-20260809",
+        "acquired_at": "2026-08-10T01:55:40Z",
+        "expires_at": "2026-08-10T03:55:40Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-10T02:34:58Z"
+      }
+    }
+  ]
+}

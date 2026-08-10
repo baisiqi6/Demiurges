@@ -1,0 +1,233 @@
+{
+  "project": "demiurges",
+  "harness_root": "docs/project-harness",
+  "generated_at": "2026-08-10T02:34:58Z",
+  "source": {
+    "checklist_path": "docs/project-harness/harness-checklist.json",
+    "checklist_sha256": "fa17eec53fb572ab134907bebdb9e619236ab146128616f1c653a723da1fd6c2"
+  },
+  "current_status": "",
+  "current_item": null,
+  "checklist_summary": {
+    "todo": 0,
+    "doing": 0,
+    "done": 3,
+    "blocked": 0
+  },
+  "workflow_summary": {
+    "closed": 3
+  },
+  "paths": {
+    "scope": "docs/project-harness/scope.md",
+    "architecture": "docs/project-harness/architecture.md",
+    "domain_model": "docs/project-harness/domain-model.md",
+    "checklist": "docs/project-harness/harness-checklist.json",
+    "progress": "docs/project-harness/progress.md",
+    "runbook": "docs/project-harness/runbook.md",
+    "config": "docs/project-harness/harness-config.json",
+    "events": "docs/project-harness/events.jsonl",
+    "current_task_plan": "docs/project-harness/current/task_plan.md"
+  },
+  "commands": {
+    "state": "scripts/harness/harnessctl state",
+    "session_init": "scripts/harness/harnessctl session-init",
+    "validate_checklist": "python3 scripts/harness/validate_checklist.py docs/project-harness/harness-checklist.json",
+    "typecheck": "npm run typecheck",
+    "test": "npm run test",
+    "build": "npm run build"
+  },
+  "runtime": {
+    "session_init_commands": [
+      "typecheck",
+      "test"
+    ],
+    "lease_ttl_minutes": 120
+  },
+  "git": {
+    "base_branch": "main",
+    "branch_namespace": "agent/{owner}/{item_id}"
+  },
+  "message_bus": {
+    "event_log": "docs/project-harness/events.jsonl",
+    "visible_bus": "discord-or-kook"
+  },
+  "open_risks": [],
+  "recent_events": [
+    {
+      "actor": "focused-closure-review",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-10T01:55:40Z",
+      "id": "evt-20260810T015540Z-c2919fc9",
+      "idempotency_key": "REVIEW:DH-001:approved:focused-closure-review",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "approved",
+      "summary": "Focused reviewer approved: 23/0/153; P0/P1/P2 none; product digest unchanged.",
+      "target": "codex",
+      "task": "DH-001",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260810T015540Z-c2919fc9 task=DH-001 actor=focused-closure-review target=codex status=approved"
+    },
+    {
+      "actor": "operator",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-10T01:55:40Z",
+      "id": "evt-20260810T015540Z-cbd61be1",
+      "idempotency_key": "CLOSE:DH-001:done:operator",
+      "metadata": {
+        "force_reason": null
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "done",
+      "summary": "operator closed DH-001",
+      "target": null,
+      "task": "DH-001",
+      "type": "CLOSE",
+      "visible_header": "[CLOSE] id=evt-20260810T015540Z-cbd61be1 task=DH-001 actor=operator status=done"
+    },
+    {
+      "actor": "operator",
+      "artifacts": [
+        "docs/project-harness/tasks/DH-002/plan.md"
+      ],
+      "branch": "main",
+      "causation_id": null,
+      "created_at": "2026-08-10T01:55:40Z",
+      "id": "evt-20260810T015540Z-b0b097fe",
+      "idempotency_key": "ASSIGN:DH-002:assigned:operator",
+      "metadata": {
+        "force_reason": null,
+        "session": "demiurges-dh002-player-20260809"
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "assigned",
+      "summary": "operator assigned DH-002 to codex",
+      "target": "codex",
+      "task": "DH-002",
+      "type": "ASSIGN",
+      "visible_header": "[ASSIGN] id=evt-20260810T015540Z-b0b097fe task=DH-002 actor=operator target=codex status=assigned branch=main artifacts=docs/project-harness/tasks/DH-002/plan.md"
+    },
+    {
+      "actor": "codex",
+      "artifacts": [],
+      "branch": "main",
+      "causation_id": null,
+      "created_at": "2026-08-10T01:55:40Z",
+      "id": "evt-20260810T015540Z-b0bb0476",
+      "idempotency_key": "ACCEPT:DH-002:running:codex",
+      "metadata": {
+        "force_reason": null,
+        "session": "demiurges-dh002-player-20260809"
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "running",
+      "summary": "codex accepted DH-002",
+      "target": "codex",
+      "task": "DH-002",
+      "type": "ACCEPT",
+      "visible_header": "[ACCEPT] id=evt-20260810T015540Z-b0bb0476 task=DH-002 actor=codex target=codex status=running branch=main"
+    },
+    {
+      "actor": "codex",
+      "artifacts": [
+        "docs/project-harness/current/review-packet.md"
+      ],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-10T02:08:24Z",
+      "id": "evt-20260810T020824Z-39c5adf1",
+      "idempotency_key": "REVIEW:DH-002:requested:codex",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "requested",
+      "summary": "Review requested for DH-002",
+      "target": "dh002-independent-reviewer",
+      "task": "DH-002",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260810T020824Z-39c5adf1 task=DH-002 actor=codex target=dh002-independent-reviewer status=requested artifacts=docs/project-harness/current/review-packet.md"
+    },
+    {
+      "actor": "codex",
+      "artifacts": [
+        "docs/project-harness/current/closeout-packet.md"
+      ],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-10T02:23:22Z",
+      "id": "evt-20260810T022322Z-2fa1dd0b",
+      "idempotency_key": "RESULT:DH-002:closeout_requested:codex",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "closeout_requested",
+      "summary": "Closeout requested for DH-002",
+      "target": "dh002-independent-reviewer",
+      "task": "DH-002",
+      "type": "RESULT",
+      "visible_header": "[RESULT] id=evt-20260810T022322Z-2fa1dd0b task=DH-002 actor=codex target=dh002-independent-reviewer status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
+    },
+    {
+      "actor": "dh002-independent-reviewer",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-10T02:23:22Z",
+      "id": "evt-20260810T022322Z-961815e9",
+      "idempotency_key": "REVIEW:DH-002:approved:dh002-independent-reviewer",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "approved",
+      "summary": "26/0/166; digest unchanged; P0/P1/P2 none; authority and rAF lifecycle approved.",
+      "target": "codex",
+      "task": "DH-002",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260810T022322Z-961815e9 task=DH-002 actor=dh002-independent-reviewer target=codex status=approved"
+    },
+    {
+      "actor": "operator",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-10T02:34:58Z",
+      "id": "evt-20260810T023458Z-706fa171",
+      "idempotency_key": "CLOSE:DH-002:done:operator",
+      "metadata": {
+        "force_reason": null
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "done",
+      "summary": "operator closed DH-002",
+      "target": null,
+      "task": "DH-002",
+      "type": "CLOSE",
+      "visible_header": "[CLOSE] id=evt-20260810T023458Z-706fa171 task=DH-002 actor=operator status=done"
+    }
+  ]
+}
