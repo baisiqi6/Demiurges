@@ -1,21 +1,21 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "generated_at": "2026-08-10T04:49:16Z",
+  "generated_at": "2026-08-10T06:40:07Z",
   "source": {
     "checklist_path": "docs/project-harness/harness-checklist.json",
-    "checklist_sha256": "6b3d2a802a1e4ba16c73b3d1ac52bb5b9e218c7d66474c0bcca671bec9e3c713"
+    "checklist_sha256": "79c2b7383895042840ce0769257b9e4a1c1029fddfb522032b69fedbd6aa6254"
   },
   "current_status": "",
   "current_item": null,
   "checklist_summary": {
     "todo": 0,
     "doing": 0,
-    "done": 4,
+    "done": 5,
     "blocked": 0
   },
   "workflow_summary": {
-    "closed": 4
+    "closed": 5
   },
   "paths": {
     "scope": "docs/project-harness/scope.md",
@@ -53,110 +53,6 @@
   },
   "open_risks": [],
   "recent_events": [
-    {
-      "actor": "gpt-5.6-sol-max",
-      "artifacts": [],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-10T04:25:02Z",
-      "id": "evt-20260810T042502Z-722614e2",
-      "idempotency_key": "REVIEW:DH-003:changes_requested:gpt-5.6-sol-max",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "changes_requested",
-      "summary": "Round 1: forged frozen Episode/Evaluation and same-ID alternate contract both advanced ref; fix required at Host evidence admission boundary.",
-      "target": "codex",
-      "task": "DH-003",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260810T042502Z-722614e2 task=DH-003 actor=gpt-5.6-sol-max target=codex status=changes_requested"
-    },
-    {
-      "actor": "codex",
-      "artifacts": [
-        "docs/project-harness/current/review-packet.md"
-      ],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-10T04:25:02Z",
-      "id": "evt-20260810T042502Z-667d797a",
-      "idempotency_key": "REVIEW:DH-003:requested:codex",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "requested",
-      "summary": "Review requested for DH-003",
-      "target": "fresh-cross-review",
-      "task": "DH-003",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260810T042502Z-667d797a task=DH-003 actor=codex target=fresh-cross-review status=requested artifacts=docs/project-harness/current/review-packet.md"
-    },
-    {
-      "actor": "gpt-5.6-sol-max-round2",
-      "artifacts": [],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-10T04:40:59Z",
-      "id": "evt-20260810T044059Z-9441f747",
-      "idempotency_key": "REVIEW:DH-003:changes_requested:gpt-5.6-sol-max-round2",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "changes_requested",
-      "summary": "Round 2 executable P1: exported Repository prototype interception captured existing Host symbol capability and admitted forged evidence; lexical closure authority required.",
-      "target": "codex",
-      "task": "DH-003",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260810T044059Z-9441f747 task=DH-003 actor=gpt-5.6-sol-max-round2 target=codex status=changes_requested"
-    },
-    {
-      "actor": "codex",
-      "artifacts": [
-        "docs/project-harness/current/review-packet.md"
-      ],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-10T04:40:59Z",
-      "id": "evt-20260810T044059Z-e3611ad4",
-      "idempotency_key": "REVIEW:DH-003:requested:codex",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "requested",
-      "summary": "Review requested for DH-003",
-      "target": "final-fresh-cross-review",
-      "task": "DH-003",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260810T044059Z-e3611ad4 task=DH-003 actor=codex target=final-fresh-cross-review status=requested artifacts=docs/project-harness/current/review-packet.md"
-    },
-    {
-      "actor": "kimi-k3-and-gpt-5.6-sol-max",
-      "artifacts": [],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-10T04:48:45Z",
-      "id": "evt-20260810T044845Z-4fcd4c3a",
-      "idempotency_key": "REVIEW:DH-003:approved:kimi-k3-and-gpt-5.6-sol-max",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "approved",
-      "summary": "Final fresh cross-review: both reviewers approved current lexical-authority digest 495a6c95...; P0/P1/P2 none; 35/0/213 and independent adversarial probes passed.",
-      "target": "codex",
-      "task": "DH-003",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260810T044845Z-4fcd4c3a task=DH-003 actor=kimi-k3-and-gpt-5.6-sol-max target=codex status=approved"
-    },
     {
       "actor": "codex",
       "artifacts": [
@@ -220,6 +116,120 @@
       "task": "DH-003",
       "type": "CLOSE",
       "visible_header": "[CLOSE] id=evt-20260810T044915Z-946886aa task=DH-003 actor=operator status=done"
+    },
+    {
+      "actor": "operator",
+      "artifacts": [
+        "docs/project-harness/tasks/DH-004/plan.md"
+      ],
+      "branch": "agent/codex/DH-004",
+      "causation_id": null,
+      "created_at": "2026-08-10T05:43:40Z",
+      "id": "evt-20260810T054340Z-64d9cc5e",
+      "idempotency_key": "ASSIGN:DH-004:assigned:operator",
+      "metadata": {
+        "force_reason": null,
+        "session": "demiurges-dh004-world-tools-20260809"
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "assigned",
+      "summary": "operator assigned DH-004 to codex",
+      "target": "codex",
+      "task": "DH-004",
+      "type": "ASSIGN",
+      "visible_header": "[ASSIGN] id=evt-20260810T054340Z-64d9cc5e task=DH-004 actor=operator target=codex status=assigned branch=agent/codex/DH-004 artifacts=docs/project-harness/tasks/DH-004/plan.md"
+    },
+    {
+      "actor": "codex",
+      "artifacts": [],
+      "branch": "agent/codex/DH-004",
+      "causation_id": null,
+      "created_at": "2026-08-10T05:43:40Z",
+      "id": "evt-20260810T054340Z-ce06cbf4",
+      "idempotency_key": "ACCEPT:DH-004:running:codex",
+      "metadata": {
+        "force_reason": null,
+        "session": "demiurges-dh004-world-tools-20260809"
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "running",
+      "summary": "codex accepted DH-004",
+      "target": "codex",
+      "task": "DH-004",
+      "type": "ACCEPT",
+      "visible_header": "[ACCEPT] id=evt-20260810T054340Z-ce06cbf4 task=DH-004 actor=codex target=codex status=running branch=agent/codex/DH-004"
+    },
+    {
+      "actor": "codex",
+      "artifacts": [
+        "docs/project-harness/current/closeout-packet.md"
+      ],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-10T06:39:32Z",
+      "id": "evt-20260810T063932Z-9baaf80a",
+      "idempotency_key": "RESULT:DH-004:closeout_requested:codex",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "closeout_requested",
+      "summary": "Closeout requested for DH-004",
+      "target": "final-cross-review-kimi-k3-sol-max",
+      "task": "DH-004",
+      "type": "RESULT",
+      "visible_header": "[RESULT] id=evt-20260810T063932Z-9baaf80a task=DH-004 actor=codex target=final-cross-review-kimi-k3-sol-max status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
+    },
+    {
+      "actor": "final-cross-review-kimi-k3-sol-max",
+      "artifacts": [
+        "docs/project-harness/tasks/DH-004/final-cross-review-verdict.md"
+      ],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-10T06:39:32Z",
+      "id": "evt-20260810T063932Z-5e55cf4c",
+      "idempotency_key": "REVIEW:DH-004:approved:final-cross-review-kimi-k3-sol-max",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "approved",
+      "summary": "Current digest 9575362e... approved by Kimi Code K3 Max and GPT-5.6 Sol Max; P0/P1/P2 none; 40/0/250 and focused authority/atomicity probes pass.",
+      "target": "codex",
+      "task": "DH-004",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260810T063932Z-5e55cf4c task=DH-004 actor=final-cross-review-kimi-k3-sol-max target=codex status=approved artifacts=docs/project-harness/tasks/DH-004/final-cross-review-verdict.md"
+    },
+    {
+      "actor": "operator",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-10T06:39:32Z",
+      "id": "evt-20260810T063932Z-b294cfaf",
+      "idempotency_key": "CLOSE:DH-004:done:operator",
+      "metadata": {
+        "force_reason": null
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "done",
+      "summary": "operator closed DH-004",
+      "target": null,
+      "task": "DH-004",
+      "type": "CLOSE",
+      "visible_header": "[CLOSE] id=evt-20260810T063932Z-b294cfaf task=DH-004 actor=operator status=done"
     }
   ]
 }

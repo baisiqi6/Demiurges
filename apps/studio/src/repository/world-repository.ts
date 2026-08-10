@@ -241,6 +241,33 @@ class WorldRepositoryState {
     }) as Snapshot);
   }
 
+  editCurrentCubeHeight(
+    expected: RefRecord,
+    height: number,
+    ref: RefRecord["name"] = CURRENT_WORLD_REF,
+  ): RefUpdateResult {
+    this.#requireExpectation(expected, ref);
+    if (!Number.isFinite(height) || height < 0.5 || height > 4) {
+      throw new Error("方块高度必须在 0.5m 到 4m 之间");
+    }
+
+    const current = this.readRefRecord(ref);
+    if (
+      current.snapshotId !== expected.snapshotId ||
+      current.version !== expected.version
+    ) {
+      return deepFreeze({
+        status: "stale_ref",
+        operation: "advance",
+        ref: current,
+        snapshot: this.readSnapshot(current.snapshotId),
+      }) as RefUpdateResult;
+    }
+
+    const snapshot = this.editCubeHeight(expected.snapshotId, height);
+    return this.#updateRef("advance", snapshot, expected, ref);
+  }
+
   advance(
     snapshotId: Snapshot["id"],
     expected: RefRecord,
@@ -313,6 +340,11 @@ export interface WorldRepository {
   readRefRecord(ref?: RefRecord["name"]): RefRecord;
   readRef(ref?: RefRecord["name"]): Snapshot;
   editCubeHeight(parentId: Snapshot["id"], height: number): Snapshot;
+  editCurrentCubeHeight(
+    expected: RefRecord,
+    height: number,
+    ref?: RefRecord["name"],
+  ): RefUpdateResult;
   advance(
     snapshotId: Snapshot["id"],
     expected: RefRecord,
@@ -353,6 +385,11 @@ export function createWorldRepositoryAuthority(
       readRef: (ref?: RefRecord["name"]) => state.readRef(ref),
       editCubeHeight: (parentId: Snapshot["id"], height: number) =>
         state.editCubeHeight(parentId, height),
+      editCurrentCubeHeight: (
+        expected: RefRecord,
+        height: number,
+        ref?: RefRecord["name"],
+      ) => state.editCurrentCubeHeight(expected, height, ref),
       advance: (
         snapshotId: Snapshot["id"],
         expected: RefRecord,

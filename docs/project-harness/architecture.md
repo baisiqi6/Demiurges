@@ -50,6 +50,8 @@ Presentation                         │
 
 把用户意图编译为 `read`、`write`、`edit` 和 `run` 调用，并决定下一步。它位于 Kernel 之外，只有非 Agent 的 vertical slice 成立后才接入。
 
+这四个调用是 model-facing world tools，不等于全部 Harness control operations。`run` 可以返回 Episode 与 deterministic Evaluation evidence，但不能推进 Repository ref；`adopt` 仍是 Harness control boundary 的显式 authority transition，不为了凑成“四个工具”而藏进 `run` 或伪装成静态 `edit`。模型只持有 tool surface，组合它的 Host/control side 保留 adopt authority。
+
 ## Walking skeleton
 
 ### WS-1：可观察状态
@@ -80,6 +82,7 @@ Presentation                         │
 
 - LLM 把自然语言请求编译为已有能力调用。
 - Agent 读取结构化证据，并能在失败后修改 WorldProgram。
+- 第一层 provider-neutral surface 只暴露 `read`、`write`、`edit`、`run`；Harness control 独立决定是否 adopt 已通过评测的 terminal。
 - 在真实任务证明 VLM 或 world model 提供了必要的新信息前，不接入这些角色。
 
 ## 第一版进程拓扑

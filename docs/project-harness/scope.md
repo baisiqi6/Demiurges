@@ -53,6 +53,7 @@ Snapshot
 - `write` 创建初始世界资源；
 - `edit` 产生新 Snapshot，但不虚构历史；
 - `run` 产生 Episode 与终态；
+- model-facing surface 只暴露 `read`、`write`、`edit`、`run`，终态 `adopt` 保持独立 Harness control authority；
 - Three.js 呈现状态，但不拥有状态；
 - MuJoCo 推演状态，但不拥有 Repository refs；
 - 成功由预先声明的 predicate 判定，而不是由 LLM 叙述决定。

@@ -2,8 +2,8 @@
 
 ## Current Item
 
-- Checklist item: `DH-003`
-- Title: `实现 World Ref 与安全 Adopt Slice`
+- Checklist item: `DH-004`
+- Title: `实现最小 World Tool Surface`
 - Owner: `None`
 - Session: `None`
 - Status: `done`
@@ -12,7 +12,7 @@
 
 ## Canonical Plan
 
-- Active plan path: `docs/project-harness/tasks/DH-003/plan.md`
+- Active plan path: `docs/project-harness/tasks/DH-004/plan.md`
 
 ## Goal Summary
 
@@ -32,6 +32,6 @@
 
 ## Notes
 
-- Canonical plan lives at `docs/project-harness/tasks/DH-003/plan.md`
+- Canonical plan lives at `docs/project-harness/tasks/DH-004/plan.md`
 - This file is a pointer/summary, not the full plan
 - Re-run sync after significant canonical plan changes

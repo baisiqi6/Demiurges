@@ -44,6 +44,10 @@ export class RuntimeMvpHost {
     return this.#authority.repository.editCubeHeight(parentId, height);
   }
 
+  editCurrentCubeHeight(expected: RefRecord, height: number): RefUpdateResult {
+    return this.#authority.repository.editCurrentCubeHeight(expected, height);
+  }
+
   advance(snapshotId: Snapshot["id"], expected: RefRecord): RefUpdateResult {
     return this.#authority.repository.advance(snapshotId, expected);
   }
@@ -81,3 +85,5 @@ export class RuntimeMvpHost {
     );
   }
 }
+
+Object.freeze(RuntimeMvpHost.prototype);

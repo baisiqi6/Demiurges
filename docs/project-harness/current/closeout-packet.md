@@ -2,32 +2,32 @@
 
 ## Subject
 
-- Checklist item: `DH-003`
-- Reviewer: `kimi-k3-and-gpt-5.6-sol-max`
+- Checklist item: `DH-004`
+- Reviewer: `final-cross-review-kimi-k3-sol-max`
 - Updated at: `2026-08-10`
-- Canonical plan path: `docs/project-harness/tasks/DH-003/plan.md`
+- Canonical plan path: `docs/project-harness/tasks/DH-004/plan.md`
 
 ## Item Snapshot
 
-- Title: 实现 World Ref 与安全 Adopt Slice
+- Title: 实现最小 World Tool Surface
 - Status: doing
 - Workflow status: closeout_requested
 - Priority: p0
 - Owner: codex
-- Session: demiurges-dh003-authority-20260809
-- Dependencies: DH-002
+- Session: demiurges-dh004-world-tools-20260809
+- Dependencies: DH-003
 
 ## Acceptance
 
-Repository ref 具有单调 version；authored advance 与 Runtime terminal adopt 分离；adopt 必须绑定同一 Episode、通过的不可变 EvaluationRecord、固定 AdoptPolicy 与 expectedCurrent + expectedRefVersion；stale 或错配输入不改变 current；tests/typecheck/build/browser acceptance 通过。
+提供 read、write、edit、run 四个 JSON-data model-facing tools；run 产生 Episode 与 deterministic Evaluation 但不推进 ref；adopt 保持 Harness control authority；scripted operator、input admission、tests/typecheck/build/checklist validation 通过。
 
 ## Verification
 
-Final GREEN: 35 tests / 0 fail / 213 assertions; typecheck/build/diff-check passed; browser proved v1 -> advance v2 -> run/evaluate stays v2 -> PASS adopt v3; Kimi K3 and GPT-5.6 Sol Max fresh reviews approved with P0/P1/P2 none; product digest 495a6c95299e19bd3e714e381f2cb2b472a12b0aec45e7a8b647077fd96feec2.
+Final gate: 40 tests / 0 fail / 250 assertions; typecheck, build, git diff --check passed; product digest 9575362e701a6c980898ce448c6847522941c9cb102eaae28cedd0af7c4896db; Kimi Code K3 Max and GPT-5.6 Sol Max final verdicts approved with no P0/P1/P2.
 
 ## Handoff
 
-Final cross-review approved. Operator may close DH-003 and run the authorized commit + push gate on agent/codex/DH-003; do not merge main.
+Final verdict: docs/project-harness/tasks/DH-004/final-cross-review-verdict.md. Operator close and authorized commit + push only; do not merge main.
 
 ## Review Inputs
 
@@ -40,110 +40,107 @@ Final cross-review approved. Operator may close DH-003 and run the authorized co
 ## Canonical Plan Content
 
 ```md
-# DH-003 计划：World Ref 与安全 Adopt
+# DH-004 计划：最小 World Tool Surface
 
 ## 目标
 
-把当前仅保存 `Snapshot ID` 的 Repository ref 提升为带单调 version 的 authority record，并把 authored Snapshot 的 `advance` 与 Runtime terminal 的 `adopt` 分离。任何成功 Adopt 都必须绑定同一个 Episode、通过的不可变 EvaluationRecord、固定 Host AdoptPolicy，以及调用开始时观察到的 `expectedCurrent + expectedRefVersion`。
+在已经完成的非 Agent 世界闭环上建立第一层模型可调用边界。模型只获得 `read`、`write`、`edit`、`run` 四个 JSON-data 工具；它不能获得 Repository、evidence writer、`advance` 或 `adopt` authority。`run` 返回 Episode 与 deterministic Evaluation，但不推进 authoritative ref；终态 adopt 继续由持有 `RuntimeMvpHost` 的 Harness control boundary 显式执行。
 
 ## 已授权范围
 
-- 为 Repository ref 增加可读取的 `snapshotId + version`；
-- 让 authored Snapshot 先被记录，再由显式 `advance` 推进 current；
-- 为 `advance` 与 `adopt` 共用一个最小 CAS 边界，但保留两种操作的不同准入条件；
-- `adopt` 校验 Episode、TerminalSnapshot、EvaluationRecord 与固定 AdoptPolicy 的绑定关系；
-- UI 显示 ref version，并且只有当前 Episode 的 Evaluation 通过后才允许 Adopt；
-- 添加 authority、policy、stale ref 与 UI 组合所需的回归测试；
-- 更新必要的 repo-local Harness 证据。
+- 在 Studio 内增加一个极小的 `WorldToolSurface`，直接组合现有 `RuntimeMvpHost`；
+- 定义 `read`、`write`、`edit`、`run` 的 plain-data input/output contract；
+- 在工具边界把 JSON round-trip 后的输入复制、校验并冻结，再交给 Host；
+- `write` 只创建当前 falling-cube root，`edit` 只修改 cube height 并以 fresh ref CAS 推进 authored child；
+- `run` 只执行固定 Program/Profile，并返回 Episode、Evaluation 与运行时观察到的 base ref；
+- 以 scripted operator test 证明模型侧只通过四个工具即可完成 write → read → edit → run → inspect evidence；
+- 以 Harness control boundary 的现有 `adopt` 完成终态提交，并证明模型工具对象本身不暴露该能力；
+- 更新必要的架构、progress、checklist 与 review 证据。
 
-用户已持续授权：本 item 获得 reviewer approval 并由 Operator 关闭后，commit 同步 push 当前 branch；不自动 merge `main`。
+用户已授权：DH-003 fast-forward merge 并 push `main`；创建 `DH-004` branch/worktree；本 item 完成并通过既定 review/Operator close 后，commit 同步 push 当前 branch。未经另行授权不 merge `main`。
 
 ## Invariants
 
-- `run`、Episode playback、Evaluation 与 terminal `record` 都不推进 authoritative ref；
-- Ref version 每次成功推进只增加 1，失败、拒绝或 stale CAS 不改变 ref；
-- `advance` 只接纳当前 authored lineage 的直接 child；`adopt` 只接纳该 Episode 的已记录 Runtime terminal；
-- `adopt` 必须引用同一 Episode 的通过 EvaluationRecord，并满足 Host 注册的固定 AdoptPolicy；
-- `expectedCurrent` 与 `expectedRefVersion` 任一不匹配都返回 `stale_ref`，不得用“当前 Snapshot 又碰巧相同”绕过 version；
-- 模型可见的世界工具面仍未引入；`advance/adopt` 保持 Host/Repository 内部事务。
+- 模型工具面恰好是 `read`、`write`、`edit`、`run`；工具数量不是把 authority boundary 藏进某个宽泛命令的理由；
+- `run` 可以产生并登记 Episode/Evaluation evidence，但永远不推进 Repository ref；
+- `edit` 只表达 authored world description change，不负责 adopt Runtime terminal；
+- `adopt` 不进入 model-facing tool surface，只能由持有同一 Host 的 Harness control boundary 调用；
+- 工具输入来自 JSON data，不能依赖调用方提前冻结对象，也不能信任 accessor、prototype 或 sparse data；
+- 工具输出是递归冻结、JSON 可序列化的 plain data，不泄露 Three.js、MuJoCo handle、Repository implementation 或 provider SDK type；
+- current ref CAS 与 DH-003 evidence provenance 不得弱化。
 
 ## Non-goals
 
-- LLM/VLM、Agent Shell 或 `world_read/write/edit/run` tool schema；
-- imported mesh、Spark/3DGS、机器人或第二 Runtime provider；
-- 通用权限平台、Policy registry、数据库、分布式锁或多人协作；
-- 重写 Episode identity、MuJoCo dynamics、播放器时间映射或视觉设计；
-- 合并到 `main`、deployment 或 package 发布。
+- 接入真实 LLM/VLM、聊天 UI、prompt、provider SDK 或通用 tool registry；
+- 让模型获得 `adopt`、Repository、evidence registration 或任意 Snapshot 注入能力；
+- 支持任意 Entity/geometry/WorldProgram，或提前设计通用 Adapter SDK；
+- imported mesh、Spark/3DGS、机器人、第二 Runtime provider 或 persistence；
+- 改写 MuJoCo dynamics、Episode Player、视觉设计或现有 Evaluation predicate；
+- merge `main`、deployment、release tag 或 package 发布。
 
 ## 验收标准
 
-1. root write 初始化 `{ snapshotId, version: 1 }`；成功 advance/adopt 各自只递增一次 version。
-2. authored `edit` 只产生 child，显式 `advance` 才推进 current；stale advance 不修改 ref。
-3. 未 Evaluation、失败 Evaluation、错配 Episode、错配 evaluator/contract/policy 或未记录 terminal 均不能 Adopt。
-4. 合法 Episode + 通过 Evaluation + 固定 Policy + fresh CAS 成功 Adopt；重复调用返回 `stale_ref`，不重复推进。
-5. stale CAS 即使未来再次指向相同 Snapshot，也不能绕过 version。
-6. UI 显示 current ref version；Evaluate 通过前 Adopt disabled，成功后 Adopt 并显示 terminal authority。
-7. `bun test`、`bun run typecheck`、`bun run build`、checklist validation 与真实浏览器 acceptance 通过。
+1. 一个 fresh Host 上，scripted operator 只通过四个 tools 完成 root write、current read、height edit 与 falling-cube run。
+2. `read` 返回同一 `Snapshot + RefRecord`；`edit` 使用 expected ref，成功时 version 只增加 1，stale 输入不改变 current。
+3. `run` 返回绑定同一 base Snapshot 的 Episode、通过的 Evaluation 与 base ref；run/evaluation 前后 current ref 完全不变。
+4. model-facing surface 不具有 `adopt`；Harness control 使用同一 Host、同一 Episode/Evaluation 与 fresh base ref 后才可 adopt，version 再增加 1。
+5. JSON round-trip 后的合法 input 可用；accessor-backed、错误 prototype、非有限数字、非法 ID 或额外字段 fail closed。
+6. 所有 tool result 可 `JSON.stringify`，递归冻结，且 contract/source 中不暴露 Three.js、MuJoCo object handle 或 Repository authority。
+7. `bun test`、`bun run typecheck`、`bun run build`、`git diff --check` 与 checklist validation 通过。
 
 ## 实现阶段
 
-### Phase 1 — Authority 基线与 RED
+### Phase 1 — Harness 与 RED
 
 Status: completed
 
-- 登记并激活 `DH-003`；
-- 保存当前 tests/typecheck 基线；
-- 添加 Ref version、explicit advance、Evaluation/Policy-gated adopt 与 stale CAS 反例，确认旧实现失败。
+- 登记并激活 `DH-004`；
+- 记录 35 tests / 213 assertions、typecheck 通过的基线；
+- 先写 scripted operator、authority separation 与 input admission tests，确认 surface 尚不存在。
 
-基线为 26 tests / 166 assertions，typecheck 通过。新增 authority test 在旧实现上以 `Export named 'ADOPT_RUNTIME_MVP_POLICY' not found` 进入 RED（0 pass / 1 fail / 1 error），证明 Ref/Policy contract 与新 Repository operations 尚不存在。
+基线为 35 tests / 213 assertions，typecheck 通过。新增 test 以 `Cannot find module './world-tool-surface'` 进入 RED，证明 model-facing surface 尚不存在。
 
-### Phase 2 — 最小 Kernel/Repository 实现
-
-Status: completed
-
-- 增加最小 Ref、Policy 与 operation result records；
-- Repository 内部保存 versioned ref，并以一个私有 CAS helper 实现 advance/adopt；
-- 不增加 Provider registry、权限框架或通用事务层。
-
-实现结果：Ref 以冻结 `{ name, snapshotId, version }` 保存；root write 初始化 version 1；`advance` 与 `adopt` 共享私有 CAS helper，但分别执行 authored lineage 与 Episode/Evaluation/Policy 准入。固定 policy 位于 Host composition 文件并显式注入 Repository，Kernel 不依赖 evaluator。Episode 与 Evaluation 必须先作为不可变 evidence 登记，单独 terminal record 不能进入 adopt。
-
-### Phase 3 — Studio 组合与验收
+### Phase 2 — 最小工具面
 
 Status: completed
 
-- Studio 改为 explicit edit → advance，Evaluation pass → adopt；
-- 显示 ref version 并验证 Episode Player 不影响 authority；
-- 完成 tests/typecheck/build/browser acceptance。
+- 实现四个直接方法与最小 input admission；
+- 复用 Host/Kernel 现有记录，不新增 provider abstraction 或通用 dispatcher；
+- 保持 model tools 与 control authority 为两个对象引用边界。
 
-GREEN：32 tests / 0 fail / 200 assertions；typecheck/build 通过。真实浏览器从 `snapshot:base v1` 经 explicit edit/advance 到 `snapshot:edit-1 v2`；Run 与 Playback 期间 ref 保持 v2，Evaluate 前 Adopt disabled；Evaluation `PASS` 后 Adopt 才开放，成功后 terminal 为 v3、显示源为 `adopted-terminal`，按钮再次 disabled。stale advance/adopt、相同 Snapshot 但旧 version、失败/错配/未登记 evidence 均由 executable tests 证明不改变 ref。
+实现为一个直接组合 `RuntimeMvpHost` 的 `WorldToolSurface`：prototype 只有四个 tool method；输入以 exact own data properties 复制为受信 primitives/ref，再冻结后调用 Host；`run` 在相同 Host 内登记 Episode 与固定 Evaluation 并返回 evidence。没有 tool registry、dispatcher、provider SDK 或新的 Kernel type。
 
-### Phase 4 — 证据、独立审查与发布
+### Phase 3 — 验证与文档
 
 Status: completed
 
-- 更新 progress、checklist verification 与 handoff；
-- 生成只读 review packet，由 independent reviewer 给出结构化 verdict；
-- approved 后由 Operator `mark-done`；
-- 运行发布 gate，commit 当前 branch 并同步 push，回查 remote SHA。
+- 完成 tests/typecheck/build/diff-check；
+- 把稳定边界写回 architecture/progress/checklist；
+- 准备独立 reviewer packet，Coding agent 不自行审批或 mark-done。
 
-Round 1 独立审查在 digest `2cd5edf...` 上给出 `changes_requested`：可伪造 frozen Episode/Evaluation，且同一 `contractId` 下可替换 contract 参数，两个反例都成功推进 ref。修复没有继续叠加字段校验，而是把证据产生与 admission 收束到新的 `RuntimeMvpHost` effect boundary：Host 私有持有 capability，只调用固定 MuJoCo Runtime、固定 Program/Profile、固定 Landing evaluator 与 canonical SuccessContract；Studio 不再暴露任意 evidence registration。外部 capability 在 terminal Snapshot 入库前即失败。
+初始 GREEN 为 39 tests / 0 fail / 245 assertions；typecheck、build、`git diff --check` 通过。Round 1 Kimi/K3 review 随后发现 stale edit 在 CAS 拒绝前已经插入 orphan Snapshot，Operator 已以 executable probe 独立复现。
 
-修复后 GREEN 为 34 tests / 0 fail / 210 assertions，typecheck/build 通过，`git diff --check` 通过；真实浏览器再次证明 `v1 → explicit advance v2 → run/evaluate 仍为 v2 → PASS adopt v3`。修复后 product digest 为 `d9ca6da0...`。
+修复没有在 tool surface 叠加 pre-read guard，而是把 `expected ref admission → authored child creation → ref advance` 内聚为 Repository 的单一同步 `editCurrentCubeHeight` operation。stale input 在任何 Snapshot/sequence mutation 前返回；回归测试同时断言 current 不变与 `snapshot:edit-2` 不存在。修复后 GREEN 为 39 tests / 0 fail / 246 assertions；typecheck、build、diff-check 通过，product source digest 为 `1d95045e...`。
 
-Round 2 Kimi/K3 在该 digest 上 approved，但 Sol/max 随后复现 same-realm interception：导出的 Repository class prototype 可在 Host 构造前被替换，从动态调用中截获 symbol 与 existing Repository。实现再次回到底层收束：`WorldRepositoryState` 不再导出，factory 只把冻结的 repository facade 与 evidence-writer closures 交给创建者；`RuntimeMvpHost` 私有持有整个 lexical authority，证据 admission 不再携带或传递可截获的 token。另一个 factory 调用只能写入它自己拥有的 Repository，不能影响 existing Host。
+Round 2 Kimi/K3 fresh review 在该 digest 上 approved，但 GPT-5.6 Sol Max 复现 same-realm prototype interception：model tool 动态调用可替换的 `RuntimeMvpHost.prototype`，拦截者可从 `this` 捕获 existing Host 并调用 `adopt`。Operator 独立 probe 复现。修复回到 authority class invariant，在模块初始化时冻结 Host prototype；不增加新 facade/registry/tool。回归证明 method replacement 被拒绝且 tool call 不泄露 Host。修复后 GREEN 为 40 tests / 0 fail / 250 assertions，typecheck、build、diff-check 通过，product digest 为 `9575362e701a6c980898ce448c6847522941c9cb102eaae28cedd0af7c4896db`，等待 final fresh cross-review。
 
-lexical authority 修复后 GREEN 为 35 tests / 0 fail / 213 assertions，typecheck/build/diff-check 通过；浏览器第三次复验仍为 v1→v2→v3。当前 product digest 为 `495a6c95299e19bd3e714e381f2cb2b472a12b0aec45e7a8b647077fd96feec2`，等待 fresh final cross-review。
+### Phase 4 — 审查与发布
 
-Final fresh cross-review 已完成：Kimi/K3 与 GPT-5.6 Sol Max route 都在 digest `495a6c...` 上给出 `approved`，P0/P1/P2 均为 none；两者独立得到 35/0/213 并确认 digest/status 前后不变。DH-003 可以由 Operator 关闭并进入已授权的 commit + push gate。
+Status: in_progress
+
+- independent reviewer 验证工具面、JSON admission、authority separation 与 scope；
+- approved 后由 Operator close；
+- 运行已授权的 commit + push gate并回查 remote branch SHA；不 merge `main`。
+
+Final fresh cross-review 已在 product digest `9575362e701a6c980898ce448c6847522941c9cb102eaae28cedd0af7c4896db` 上完成：Kimi Code K3 Max 与 GPT-5.6 Sol Max 均为 `approved`，P0/P1/P2 none；两者均独立确认 prototype interception 已被阻止、stale edit 仍保持 atomic、run 不推进 ref，且 40/0/250 全绿。当前只剩 Operator close 与已授权的 commit + push gate。
 
 ## 错误记录
 
 | 错误 | 尝试 | 处理 |
 | --- | --- | --- |
-| 临时 harness runtime 固定指向 `/Users/Admin/projects/Demiurges` | 在 DH-003 worktree 直接调用前审计脚本 | 未执行错误 mutation；复制 task-local 临时 runtime，并只把 project root 改为 DH-003 worktree。该副本不进入产品仓库。 |
-| 浏览器 locator 不提供 `isDisabled()` | 首次读取 Adopt 状态 | 改为读取原生 `disabled` attribute；不修改产品以迎合测试工具。 |
-| Round 1 reviewer 复现 forged evidence 与 same-ID contract bypass | digest `2cd5edf...` 的 independent `bun -e` probes | 从 evidence effect boundary 修正：新增私有 Host capability 与固定 Runtime/Evaluator 组合，不把 frozen plain data 当作 provenance。新增 RED 后回归为 34/0/210。 |
-| Round 2 reviewer 通过 prototype interception 捕获 symbol capability | digest `d9ca6da...` 的 existing Host `bun -e` probe | 删除导出的 Repository implementation 与动态 token dispatch；改用 factory 创建的 lexical authority closure。新增 RED 后回归为 35/0/213。 |
+| 新 worktree 没有 `node_modules`，首次 `bun test` 无法解析 `@mujoco/mujoco`、typecheck 找不到 `tsc` | DH-004 baseline | 依据现有 `bun.lock` 执行 `bun install --frozen-lockfile`；manifest/lockfile 未改变，随后基线恢复为 35/0/213 且 typecheck 通过。 |
+| Round 1 reviewer 发现 stale tool edit 在 CAS 前插入 orphan Snapshot | 初始 digest `b6bbe45d...` | Operator 独立 probe 复现；把 admission 与 mutation 下沉合并为 Repository 同步 operation，补 orphan absence regression，修复后 39/0/246。 |
+| Round 2 Sol reviewer 通过 Host prototype interception 捕获 existing control Host | digest `1d95045e...` | Operator 独立 probe 复现；冻结 authority class prototype，补 method replacement regression，修复后 40/0/250。 |
 ```
 
 ## Recent Progress Context
@@ -418,23 +415,64 @@ Independent review：
 - 两份 verdict 均为 `approved`，P0/P1/P2 none；digest before/after 都是 `495a6c95299e19bd3e714e381f2cb2b472a12b0aec45e7a8b647077fd96feec2`，工作树 status 前后不变；
 - Final review 明确确认：Repository implementation 不导出；Host 私有持有 lexical repository/evidence closures；没有 symbol/token dynamic dispatch；foreign factory 只能影响自己的世界；forged evidence 与 alternate contract 无法进入 existing Host；
 - `DH-003` 满足关单条件，进入 Operator close 与已授权 commit + push gate。
+
+## 2026-08-09 — DH-003 Operator close 完成
+
+- Closeout packet 经 final cross-review approval；`mark-done` 事件为 `evt-20260810T044915Z-946886aa`；
+- `DH-003` 已为 `done/closed`，lease 于 `2026-08-10T04:49:15Z` 释放；checklist validation 0 warning；
+- 发布边界为 commit + push `agent/codex/DH-003` 并回查 remote SHA；不 merge `main`，不伪称 deployment。
+
+## 2026-08-09 — DH-003 已集成，DH-004 World Tool Surface 已实现
+
+- Human 授权把已审查的 `agent/codex/DH-003` fast-forward merge 到 `main` 并 push；local `main`、`origin/main` 与 GitHub remote ref 均为 `15744fb3aeae2f995765047d657aef9821f653cb`；
+- 新建 `agent/codex/DH-004` 与 `/Users/Admin/projects/WorkTrees/Demiurges-DH-004`，登记并激活 `DH-004`；
+- 增加直接组合 `RuntimeMvpHost` 的 `WorldToolSurface`，model-facing prototype 恰好为 `read`、`write`、`edit`、`run`；
+- `run` 返回同一 Host 产生的 Episode、deterministic Evaluation 与 base ref，但不推进 current；`adopt` 不进入模型工具面，只由持有同一 Host 的 Harness control boundary 执行；
+- JSON round-trip input 会按 exact plain-data fields 复制、校验、冻结；accessor、错误 prototype、额外字段、非法 number/ID/ref version fail closed；
+- scripted operator 证明四个工具可以完成 write → read → edit → run/evidence，随后 control side 才能显式 adopt；
+- 当前验证为 39 tests / 0 fail / 245 assertions，typecheck、build、`git diff --check` 通过。下一步生成 review packet 并接受 independent read-only review；Coding agent 不自行审批或关单。
+
+## 2026-08-09 — DH-004 Round 1 P1 已从 Repository transaction 修复
+
+- Kimi Code K3 Max Round 1 给出 `changes_requested`：stale model edit 先插入 authored child、后 CAS 拒绝，导致 orphan Snapshot partial side effect；Sol reviewer 因 worktree 随后变化被标记 superseded，没有在混合 digest 上给 verdict；
+- Operator 独立运行反例，确认 `stale_ref` 同时存在 `snapshot:edit-2` orphan；
+- 修复从底层 authority transaction 出发：Repository 的同步 `editCurrentCubeHeight` 先检查 expected ref，fresh 时才创建 child 并推进；tool surface 不增加 guard、mode 或第五个工具；
+- 回归现在证明 stale edit 后 current 不变且 orphan 不存在；修复后 39 tests / 0 fail / 246 assertions，typecheck、build、diff-check 通过；
+- 当前 product source digest 为 `1d95045e02f39c676b2f362535a1846cd7b25747d6ab9f98b2e2545a7ed3076d`，下一步只在该 digest 上执行 fresh cross-review。
+
+## 2026-08-09 — DH-004 Round 2 P1 已从 Host method-table invariant 修复
+
+- Kimi Code K3 Max 在 digest `1d95045e...` 上 fresh approved；GPT-5.6 Sol Max 随后以 executable probe 证明可替换 `RuntimeMvpHost.prototype.readRefRecord`，从 tool dynamic dispatch 的 `this` 捕获 existing Host 并调用 `adopt`；combined verdict 为 `changes_requested`；
+- Operator 独立复现 `captured === host`、adopt `updated`、ref v1 → v2，确认不是 reviewer 推测；
+- 修复不增加 facade/registry/provider abstraction，而是在模块初始化时冻结作为 authority boundary 的 `RuntimeMvpHost.prototype`；
+- regression 证明 `defineProperty`/assignment replacement 被拒绝、tool read 正常且 existing Host 未泄露；Round 1 atomic edit regression 同时保持；
+- 当前 40 tests / 0 fail / 250 assertions，typecheck、build、diff-check 通过；product source digest 为 `9575362e701a6c980898ce448c6847522941c9cb102eaae28cedd0af7c4896db`，等待 final fresh cross-review。
+
+## 2026-08-09 — DH-004 Final fresh cross-review approved
+
+- Kimi Code K3 Max 与 GPT-5.6 Sol Max 在同一 product digest `9575362e701a6c980898ce448c6847522941c9cb102eaae28cedd0af7c4896db` 上完成 fresh/focused read-only review；
+- 两份 verdict 均为 `approved`，P0/P1/P2 none；review 前后 digest 与 Git scope 不变；
+- reviewer 独立验证 Host prototype 的 assignment/`defineProperty` interception 均被阻止，既有 capture probe 不再成立；
+- Round 1 stale edit atomicity、四工具形状、run ref 不变、control-side adopt、JSON admission/output freeze 均保持；
+- reviewer 独立运行 40 tests / 0 fail / 250 assertions。DH-004 已满足 reviewer gate，进入 Operator close 与已授权 commit + push；不 merge `main`。
 ```
 
 ## Current Review Content
 
 ```md
-# DH-001 Review Verdict
+# DH-004 Final Fresh Cross-review Verdict
 
-当前状态：`changes_requested`。
+当前状态：`approved`，P0/P1/P2 均无。
 
 - Kimi Code K3 Max：`approved`；
-- GPT-5.6 Sol Max：`changes_requested`；
-- Operator 已独立复现 P1，combined decision 为 `changes_requested`；
-- product aggregate SHA-256 审查前后不变。
+- GPT-5.6 Sol Max：`approved`；
+- 两位 reviewer 均在 product digest `9575362e701a6c980898ce448c6847522941c9cb102eaae28cedd0af7c4896db` 上完成验证；
+- `bun test`：40 pass / 0 fail / 250 assertions；typecheck、build、`git diff --check` 通过；
+- Round 1 stale edit atomicity 与 Round 2 Host prototype interception regressions 均保持通过。
 
-Canonical verdict：`docs/project-harness/tasks/DH-001/cross-review-verdict.md`。
+Canonical verdict：`docs/project-harness/tasks/DH-004/final-cross-review-verdict.md`。
 
-本文件记录正式 review-result；实现者不得在此自我批准或 mark done。
+更正说明：生成 closeout packet 时 `current/review-packet.md` 仍指向历史 DH-001，导致本嵌入区块错误；Item Snapshot、Verification、Handoff 与正式 review event 均正确指向 DH-004。本区块在 commit 前依据 canonical verdict 更正，不改写 review decision 或事件记录。
 ```
 
 ## Closeout Questions

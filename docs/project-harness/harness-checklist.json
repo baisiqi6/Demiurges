@@ -167,6 +167,49 @@
         "ttl_minutes": 120,
         "released_at": "2026-08-10T04:49:15Z"
       }
+    },
+    {
+      "id": "DH-004",
+      "title": "实现最小 World Tool Surface",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-10",
+      "dependencies": [
+        "DH-003"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "提供 read、write、edit、run 四个 JSON-data model-facing tools；run 产生 Episode 与 deterministic Evaluation 但不推进 ref；adopt 保持 Harness control authority；scripted operator、input admission、tests/typecheck/build/checklist validation 通过。",
+      "verification": "40 tests / 0 fail / 250 assertions; typecheck/build/diff-check passed; digest 9575362e701a6c980898ce448c6847522941c9cb102eaae28cedd0af7c4896db; final Kimi K3 Max + GPT-5.6 Sol Max cross-review approved with P0/P1/P2 none.",
+      "handoff": "Final verdict: docs/project-harness/tasks/DH-004/final-cross-review-verdict.md. Operator close and authorized commit + push only; do not merge main.",
+      "plan_path": "docs/project-harness/tasks/DH-004/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-10",
+        "branch": "agent/codex/DH-004"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-004",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "final-cross-review-kimi-k3-sol-max",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-10",
+        "summary": "Current digest 9575362e... approved by Kimi Code K3 Max and GPT-5.6 Sol Max; P0/P1/P2 none; 40/0/250 and focused authority/atomicity probes pass.",
+        "artifact": "docs/project-harness/tasks/DH-004/final-cross-review-verdict.md"
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "demiurges-dh004-world-tools-20260809",
+        "acquired_at": "2026-08-10T05:43:40Z",
+        "expires_at": "2026-08-10T07:43:40Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-10T06:39:32Z"
+      }
     }
   ]
 }
