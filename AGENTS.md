@@ -36,3 +36,10 @@
 - 只有第二个真实实现需要时，才增加 extension point。
 - active task 和用户 authority 未覆盖时，不得安装依赖、commit、push、创建 remote、发布 package 或 deploy。
 - Worker、reviewer 与 operator 职责保持分离，worker 不审批自己的 closeout。
+
+## GitHub 发布纪律
+
+- canonical Git remote 为 `origin`：`https://github.com/baisiqi6/Demiurges.git`。
+- 用户或 active task 明确授予 commit authority 时，本地 commit 成功后必须在同一工作流中将当前 branch push 到 `origin`；创建 release tag 时，也必须同步 push 该 tag。
+- 上述规则不把普通开发 authority 扩大为 commit、push 或 release authority；没有明确授权时仍不得执行这些操作。
+- push 后必须只读回查 remote branch/tag SHA，并确认它与本地目标一致；仅看到命令 exit 0 不算发布完成。

@@ -70,4 +70,25 @@ App 只组合上述边界
 
 ## 当前 execution profile
 
-当前使用 Standalone、本地、file-backed 项目 authority。Product Runtime 为浏览器内单线程 MuJoCo WASM，Repository 为内存实现。不存在 Coordinate workspace、GitHub remote、deployment target、Spark/3DGS Runtime 或 world-model provider。
+当前使用 Standalone、file-backed 项目 authority。Product Runtime 为浏览器内单线程 MuJoCo WASM，Repository 为内存实现。canonical Git remote 为 private GitHub repository `https://github.com/baisiqi6/Demiurges`；当前不存在 Coordinate workspace、deployment target、Spark/3DGS Runtime 或 world-model provider。
+
+## Commit 与 push 验证
+
+只有在用户或 active task 明确授予 commit authority 后，才执行 commit。授权存在时，commit 与 push 是同一交付动作：
+
+```bash
+git status --short --branch
+git push origin HEAD
+git rev-parse HEAD
+git ls-remote --heads origin "$(git branch --show-current)"
+```
+
+若本轮创建 release tag，还需执行并回查：
+
+```bash
+git push origin <tag>
+git rev-list -n 1 <tag>
+git ls-remote --tags origin <tag> '<tag>^{}'
+```
+
+remote branch SHA 必须等于本地 `HEAD`；annotated tag 的 remote dereferenced SHA 必须等于本地 tag target。GitHub source publication 不等于 deployment target，不得据此宣称产品已公网部署。
