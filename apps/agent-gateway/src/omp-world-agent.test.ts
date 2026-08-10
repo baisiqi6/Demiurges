@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { RuntimeMvpHost } from "../../studio/src/host/runtime-mvp-host";
-import { isDeepFrozen } from "../../studio/src/kernel/world";
-import { WorldToolSurface } from "../../studio/src/world-tools/world-tool-surface";
+import {
+  RuntimeMvpHost,
+  WorldToolSurface,
+  isDeepFrozen,
+} from "@demiurges/world";
 import {
   OMP_RESTRICTED_SESSION_POLICY,
   OMP_WORLD_TOOL_NAMES,

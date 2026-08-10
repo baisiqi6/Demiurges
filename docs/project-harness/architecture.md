@@ -95,7 +95,13 @@ OMP 的 prompt、message 与 event 只属于 Agent Gateway，不进入 Kernel co
 
 MuJoCo WASM 初期可以运行在浏览器中。只有测量证明仿真工作威胁 UI 响应性或隔离性时，才迁入 Web Worker。Python planning service 不属于第一条切片。
 
-`DH-005` 在此基础上增加一个本地 Bun Agent Gateway 与嵌入式 OMP SDK restricted session，用于验证 Agent Runtime 边界。Gateway 可以在自己的 Host 中执行同一套 world tools，但当前 Studio 尚未通过 HTTP/WebSocket/SSE 连接 Gateway；不得把“Agent Runtime boundary 已成立”描述成“聊天产品已经完成”。
+`DH-005` 在此基础上增加本地 Bun Agent Gateway 与嵌入式 OMP SDK restricted session，用于验证 Agent Runtime 边界。`DH-006` 出现 Studio 与 Gateway 两个真实调用方后，才把既有 Kernel、Repository、Runtime、Evaluation、Host 与四工具提升为最小内部 workspace package `@demiurges/world`；这不是通用 Adapter SDK，也不包含 Three.js、SolidJS 或 OMP。
+
+connected Product Session 的唯一可写 `RuntimeMvpHost` 位于 Gateway。Studio 通过 Demiurges 自有、bounded、ordered、JSON-safe 的 HTTP NDJSON event stream 接收增量证据，并通过只读 resync 获取当前 projection；它不再实例化第二个 Host，也不从渲染状态反推世界状态。OMP message/event 仍只停留在 Gateway，跨进程 contract 是 product-owned `ProductSessionEvent` 与 `ProductSessionProjection`。
+
+这个 product contract 不是只靠 TypeScript cast：共享 codec 先通过 own property descriptor 把输入复制为全新 plain-data graph，再对 event lifecycle、session/turn identity、trace sequence、tool/evidence association、Snapshot/Ref/Episode/Evaluation DTO 与整体 node/depth/string/collection budget 做 fail-closed admission。派生 identity 服从真实 producer contract，不以与 runId 派生规则冲突的局部长度猜测误拒合法 evidence。Gateway 在构造 `200 NDJSON` 前原子取得 turn authority；request body 按真实 UTF-8 bytes 限额并精确解析 media type。任何 stream/parse/abort failure 都在单一 wall-clock deadline 下 bounded follow-up resync，每个 GET 共享剩余预算；只有取得 `running:false` 的 settled projection 才算恢复，预算耗尽则清空 partial authority。tool failure 是可恢复的中间 evidence，只有 `turn.completed`/`turn.failed` 决定 outcome；failure trace 只保留 `[redacted]` 与稳定 public code，不转发原始 tool input、OMP、Host、path、credential-like message 或 stack。
+
+当前闭环只注入 deterministic scripted Agent client，验证自然语言输入、四工具调用、权威证据、逐帧 Episode 回放与评测的产品链路。真实 provider/model prompt、credential 与费用尚未获授权，不能把 scripted product loop 描述为模型能力已经接入。
 
 ## 防止架构漂移的规则
 

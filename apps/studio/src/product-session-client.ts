@@ -1,0 +1,281 @@
+import {
+  decodeProductSessionEvent,
+  decodeProductSessionProjection,
+  type ProductSessionEvent,
+  type ProductSessionProjection,
+} from "@demiurges/world";
+
+const MAX_EVENT_LINE_BYTES = 1_000_000;
+const MAX_JSON_RESPONSE_BYTES = 2_000_000;
+const MAX_TURN_EVENTS = 130;
+const SETTLED_RESYNC_ATTEMPTS = 100;
+const SETTLED_RESYNC_DELAY_MS = 20;
+
+type EventSink = (event: ProductSessionEvent) => void;
+type FetchPort = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+function mediaType(value: string | null): string {
+  return (value ?? "").split(";", 1)[0]?.trim().toLowerCase() ?? "";
+}
+
+function byteLength(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
+}
+
+export async function readProductSessionEvents(
+  response: Response,
+  sessionId: string,
+  sink: EventSink,
+  firstSequence = 1,
+): Promise<Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }>> {
+  if (!response.ok) {
+    throw new Error(`Agent Gateway turn request 失败：HTTP ${response.status}`);
+  }
+  if (mediaType(response.headers.get("content-type")) !== "application/x-ndjson") {
+    throw new Error("Agent Gateway turn response 不是 NDJSON");
+  }
+  if (!response.body) throw new Error("Agent Gateway turn response 缺少 body");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let buffer = "";
+  let expectedSequence = firstSequence;
+  let turnId: string | undefined;
+  let nextTraceSequence = 1;
+  let eventCount = 0;
+  let terminal: Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }> | undefined;
+
+  const consumeLine = (line: string) => {
+    if (line.length === 0) return;
+    eventCount += 1;
+    if (eventCount > MAX_TURN_EVENTS) {
+      throw new Error(`Product Session event 总量不能超过 ${MAX_TURN_EVENTS}`);
+    }
+    if (byteLength(line) > MAX_EVENT_LINE_BYTES) {
+      throw new Error(`Product Session event 不能超过 ${MAX_EVENT_LINE_BYTES} bytes`);
+    }
+    let value: unknown;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      throw new Error("Product Session event 不是合法 JSON");
+    }
+    const event = decodeProductSessionEvent(value, sessionId, expectedSequence++);
+    if (terminal) throw new Error("Product Session terminal event 后不能继续发送 event");
+    if (turnId === undefined) {
+      if (event.type !== "turn.started") {
+        throw new Error("Product Session turn 必须以 turn.started 开始");
+      }
+      turnId = event.turnId;
+    } else {
+      if (event.turnId !== turnId || event.type === "turn.started") {
+        throw new Error("Product Session turn identity/lifecycle 漂移");
+      }
+      if (event.type === "tool.completed") {
+        if (event.trace.sequence !== nextTraceSequence++) {
+          throw new Error("Product Session tool trace sequence 漂移");
+        }
+      }
+      if (event.type === "turn.completed" || event.type === "turn.failed") {
+        terminal = event;
+      }
+    }
+    sink(event);
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      let newline = buffer.indexOf("\n");
+      while (newline >= 0) {
+        consumeLine(buffer.slice(0, newline));
+        buffer = buffer.slice(newline + 1);
+        newline = buffer.indexOf("\n");
+      }
+      if (byteLength(buffer) > MAX_EVENT_LINE_BYTES) {
+        throw new Error(`Product Session event 不能超过 ${MAX_EVENT_LINE_BYTES} bytes`);
+      }
+      if (done) break;
+    }
+    consumeLine(buffer);
+  } catch (error) {
+    await reader.cancel(error).catch(() => undefined);
+    throw error;
+  }
+  if (!turnId || !terminal) {
+    throw new Error("Product Session stream 缺少完整 turn lifecycle");
+  }
+  return terminal;
+}
+
+async function readBoundedText(response: Response, maximumBytes: number): Promise<string> {
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maximumBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error(`Agent Gateway JSON response 不能超过 ${maximumBytes} bytes`);
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
+
+async function responseJson(response: Response): Promise<unknown> {
+  if (mediaType(response.headers.get("content-type")) !== "application/json") {
+    throw new Error("Agent Gateway response 不是 JSON");
+  }
+  const text = await readBoundedText(response, MAX_JSON_RESPONSE_BYTES);
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw new Error("Agent Gateway response 不是合法 JSON");
+  }
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      typeof (body as { error?: unknown }).error === "string"
+    ) message = (body as { error: string }).error;
+    throw new Error(`Agent Gateway request 失败：${message.slice(0, 240)}`);
+  }
+  return body;
+}
+
+export class ProductSessionTurnError extends Error {
+  readonly projection: ProductSessionProjection;
+
+  constructor(message: string, projection: ProductSessionProjection) {
+    super(message.slice(0, 240));
+    this.name = "ProductSessionTurnError";
+    this.projection = projection;
+    Object.freeze(this);
+  }
+}
+
+export class ProductSessionClient {
+  readonly #fetch: FetchPort;
+  readonly #settledResyncTimeoutMs: number;
+
+  constructor(
+    fetchPort: FetchPort = globalThis.fetch.bind(globalThis),
+    settledResyncTimeoutMs = 2_000,
+  ) {
+    if (!Number.isFinite(settledResyncTimeoutMs) || settledResyncTimeoutMs <= 0) {
+      throw new Error("settled resync timeout 必须是正有限毫秒数");
+    }
+    this.#fetch = fetchPort;
+    this.#settledResyncTimeoutMs = settledResyncTimeoutMs;
+  }
+
+  async createSession(): Promise<ProductSessionProjection> {
+    const response = await this.#fetch("/api/sessions", { method: "POST" });
+    return decodeProductSessionProjection(await responseJson(response));
+  }
+
+  async readSession(
+    sessionId: string,
+    signal?: AbortSignal,
+  ): Promise<ProductSessionProjection> {
+    const response = await this.#fetch(
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
+      signal ? { signal } : undefined,
+    );
+    return decodeProductSessionProjection(await responseJson(response), sessionId);
+  }
+
+  async #readSettledSession(sessionId: string): Promise<ProductSessionProjection> {
+    const deadline = Date.now() + this.#settledResyncTimeoutMs;
+    let projection = await this.#readSessionBeforeDeadline(sessionId, deadline);
+    for (let attempt = 1; projection.running && attempt < SETTLED_RESYNC_ATTEMPTS; attempt += 1) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, Math.min(SETTLED_RESYNC_DELAY_MS, remaining)),
+      );
+      projection = await this.#readSessionBeforeDeadline(sessionId, deadline);
+    }
+    if (projection.running) {
+      throw new Error("Agent Gateway session 未在 resync budget 内 settled");
+    }
+    return projection;
+  }
+
+  async #readSessionBeforeDeadline(
+    sessionId: string,
+    deadline: number,
+  ): Promise<ProductSessionProjection> {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      throw new Error("Agent Gateway session 未在 resync deadline 内 settled");
+    }
+    const controller = new AbortController();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const deadlineFailure = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
+        controller.abort();
+        reject(new Error("Agent Gateway session resync GET 超过 deadline"));
+      }, remaining);
+    });
+    try {
+      return await Promise.race([
+        this.readSession(sessionId, controller.signal),
+        deadlineFailure,
+      ]);
+    } finally {
+      if (timeout !== undefined) clearTimeout(timeout);
+    }
+  }
+
+  async runTurn(
+    sessionId: string,
+    prompt: string,
+    firstSequence: number,
+    sink: EventSink,
+    signal?: AbortSignal,
+  ): Promise<ProductSessionProjection> {
+    let terminal: Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }>;
+    try {
+      const response = await this.#fetch(
+        `/api/sessions/${encodeURIComponent(sessionId)}/turns`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ prompt }),
+          signal,
+        },
+      );
+      terminal = await readProductSessionEvents(
+        response,
+        sessionId,
+        sink,
+        firstSequence,
+      );
+    } catch (error) {
+      const projection = await this.#readSettledSession(sessionId);
+      throw new ProductSessionTurnError(
+        error instanceof Error ? error.message : "Agent Gateway turn stream 失败",
+        projection,
+      );
+    }
+    const projection = await this.readSession(sessionId);
+    if (terminal.type === "turn.failed") {
+      throw new ProductSessionTurnError(terminal.error, projection);
+    }
+    return projection;
+  }
+}

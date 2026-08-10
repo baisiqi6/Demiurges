@@ -50,39 +50,53 @@ bun --cwd apps/agent-gateway smoke:sdk
 
 ```bash
 bun install
-bun run dev -- --host 127.0.0.1 --port 4173 --strictPort
+# terminal 1
+bun run dev:gateway
+
+# terminal 2
+bun run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
 在真实浏览器中至少核对：
 
-1. WebGL canvas 有有效尺寸并显示 floor 与 cube；
-2. `创建 child Snapshot` 后 current ref 从 base 变为 edit child；
-3. `运行 MuJoCo` 后产生 Episode 与 terminal pose，但 current ref 仍是 edit child；
-4. 时间轴回到 frame 0 时 cube 恢复初始高度，current ref 不变；
-5. `Evaluate` 由结构化 metric 给出 `PASS`/`FAIL`；
-6. `Adopt terminal` 后 current ref 才切换到 TerminalSnapshot，且 parent 指向 run 的 base Snapshot。
+1. 页面创建一个 Gateway Product Session，初始没有 current ref、Episode 或 Evaluation；
+2. 提交自然语言 falling-cube task 后，tool trace 严格按 `world_write → world_read → world_edit → world_run` 展示；
+3. WebGL canvas 根据 Gateway 返回的 authoritative Snapshot 显示 floor 与 cube；
+4. EpisodePlayer 使用真实 samples 从 frame 0 推进到 terminal frame，而不是直接跳到地面；
+5. 结构化 Evaluation 给出 `PASS`，并展示 Episode 与 terminal Snapshot identity；
+6. `world_run` 完成后 current ref 仍为 authored edit Snapshot version 2，而不是 terminal Snapshot；
+7. 创建新 Session 后 ref、trace、Episode、Evaluation 与 viewport 全部清空，不沿用前一 Session 的浏览器缓存状态。
+8. 同一 scripted Session 再次运行会得到稳定 `agent_turn_failed`，但 resync 后先前权威 ref/Episode/Evaluation 仍可呈现；页面与 console 不出现 OMP、Host、path、credential-like internal message 或 stack。
+9. 断流/Abort failure 的 resync 必须最终到达 `running:false`；一次中间 `running:true` 不算恢复完成，bounded budget 耗尽必须 fail closed。
+10. product codec 必须接受 producer 合法长 runId 的派生 evidence，并拒绝 sparse/accessor/non-enumerable/symbol DTO；failed trace 只能看到 `[redacted]` 与 public error code。
+11. 模拟 resync GET 永不 resolve 时，wall-clock deadline 必须拒绝；不能只证明持续返回 `running:true` 会在 attempt 上限结束。
+12. 模拟 Agent 首次 tool failure、纠正后完成时，最终必须是 `turn.completed` 与 PASS projection；中间 failed trace 仍可见且脱敏。
 
 ## 模块事实
 
 ```text
-kernel → repository
-kernel → runtime-mujoco
-kernel → evaluation
-kernel → presentation-episode
-kernel → presentation-three
-App 只组合上述边界
+@demiurges/world
+  ├── kernel → repository / authoring
+  ├── kernel → runtime-mujoco
+  ├── kernel → evaluation
+  ├── RuntimeMvpHost + WorldToolSurface
+  └── product-owned session contract
+
+Agent Gateway → sole Product Session authority + HTTP NDJSON/resync
+Studio → ProductSessionClient → Three.js + EpisodePlayer
 ```
 
 - MuJoCo 是 Evolution Runtime；
 - Three.js 是 Presentation；
 - Episode Player 只把不可变 Episode samples 映射为 transient Presentation time；
-- Snapshot/Repository 是世界状态 authority；
+- Gateway Product Session 内的 Snapshot/Repository 是 connected 世界状态 authority；
 - Evaluation 读取 Episode，不读取画布；
+- Studio 不实例化 `RuntimeMvpHost`，也不把 OMP event/message 当作产品 contract；
 - Runtime object handle 必须在 `finally` 中 `.delete()`。
 
 ## 当前 execution profile
 
-当前使用 Standalone、file-backed 项目 authority。Studio Product Runtime 为浏览器内单线程 MuJoCo WASM，Agent Gateway 为本地 Bun 进程并嵌入 OMP SDK restricted session；两者尚未建立产品 transport。Repository 为内存实现。canonical Git remote 为 private GitHub repository `https://github.com/baisiqi6/Demiurges`；当前不存在 Coordinate workspace、deployment target、Spark/3DGS Runtime 或 world-model provider。
+当前使用 Standalone、file-backed 项目 authority。Studio 与本地 Bun Agent Gateway 已通过 loopback HTTP NDJSON/resync 建立 Product Session transport；每个 session 的 Repository、MuJoCo Runtime 与 current ref 只存在于 Gateway 内存，因此刷新或重启 Gateway 会丢失 session。OMP SDK restricted session 已存在，但当前可见产品闭环使用 scripted Agent client，不发送真实 provider/model prompt。canonical Git remote 为 private GitHub repository `https://github.com/baisiqi6/Demiurges`；当前不存在 Coordinate workspace、deployment target、鉴权/TLS、Spark/3DGS Runtime 或 world-model provider。
 
 ## Commit 与 push 验证
 

@@ -4,11 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "bun build src/index.ts --target=bun --outdir=dist --external=@oh-my-pi/pi-coding-agent --external=@mujoco/mujoco",
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "build": "bun build src/index.ts src/main.ts --target=bun --outdir=dist --external=@oh-my-pi/pi-coding-agent --external=@mujoco/mujoco",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "smoke:sdk": "bun run src/smoke-omp-sdk.ts"
   },
   "dependencies": {
+    "@demiurges/world": "workspace:*",
     "@oh-my-pi/pi-coding-agent": "17.2.12"
   },
   "devDependencies": {

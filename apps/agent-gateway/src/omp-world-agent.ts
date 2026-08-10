@@ -9,8 +9,8 @@ import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manage
 import {
   CURRENT_WORLD_REF,
   deepFreeze,
-} from "../../studio/src/kernel/world";
-import { WorldToolSurface } from "../../studio/src/world-tools/world-tool-surface";
+  WorldToolSurface,
+} from "@demiurges/world";
 
 export const OMP_AGENT_RUNTIME_VERSION = "17.2.12";
 
@@ -68,6 +68,15 @@ export interface OmpAgentTurnResult {
   readonly trace: readonly OmpToolTraceEntry[];
 }
 
+export interface OmpWorldToolObservation {
+  readonly trace: OmpToolTraceEntry;
+  readonly evidence?: unknown;
+}
+
+export type OmpWorldToolObserver = (
+  observation: OmpWorldToolObservation,
+) => void;
+
 export class OmpAgentTurnError extends Error {
   readonly trace: readonly OmpToolTraceEntry[];
   readonly cleanupError?: string;
@@ -85,7 +94,7 @@ export class OmpAgentTurnError extends Error {
   }
 }
 
-type TraceSink = (entry: OmpToolTraceEntry) => void;
+type TraceSink = (entry: OmpToolTraceEntry, evidence?: unknown) => void;
 type ToolLimitSink = (error: Error) => void;
 interface StructuredToolResult {
   readonly content: readonly [{ readonly type: "text"; readonly text: string }];
@@ -335,15 +344,14 @@ export function createOmpWorldTools(
         requireBoundedToolInput(input);
         const result = await execute(input);
         const modelResult = resultForModel(result);
-        sink(
-          deepFreeze({
-            sequence: currentSequence,
-            tool,
-            input: traceTurnData(input, turnTraceBudget),
-            status: "succeeded",
-            result: traceTurnData(modelResult.details, turnTraceBudget),
-          }) as OmpToolTraceEntry,
-        );
+        const entry = deepFreeze({
+          sequence: currentSequence,
+          tool,
+          input: traceTurnData(input, turnTraceBudget),
+          status: "succeeded",
+          result: traceTurnData(modelResult.details, turnTraceBudget),
+        }) as OmpToolTraceEntry;
+        sink(entry, result);
         return modelResult;
       } catch (error) {
         const message = boundedError(error);
@@ -596,13 +604,28 @@ export class OmpWorldAgent {
     this.#clientFactory = clientFactory;
   }
 
-  async run(prompt: string): Promise<OmpAgentTurnResult> {
+  async run(
+    prompt: string,
+    observer: OmpWorldToolObserver = () => undefined,
+  ): Promise<OmpAgentTurnResult> {
     const admittedPrompt = requirePrompt(prompt);
     const trace: OmpToolTraceEntry[] = [];
     let toolLimitError: Error | undefined;
     const tools = createOmpWorldTools(
       this.#surface,
-      (entry) => trace.push(entry),
+      (entry, evidence) => {
+        trace.push(entry);
+        try {
+          observer(
+            deepFreeze({
+              trace: entry,
+              ...(evidence === undefined ? {} : { evidence }),
+            }) as OmpWorldToolObservation,
+          );
+        } catch {
+          // Presentation/transport observers cannot change world tool outcomes.
+        }
+      },
       (error) => {
         toolLimitError ??= error;
       },

@@ -2,32 +2,32 @@
 
 ## Subject
 
-- Checklist item: `DH-005`
-- Reviewer: `final-cross-review-kimi-k3-sol-max-round4`
+- Checklist item: `DH-006`
+- Reviewer: `round4-kimi-k3-max-sol-max`
 - Updated at: `2026-08-10`
-- Canonical plan path: `docs/project-harness/tasks/DH-005/plan.md`
+- Canonical plan path: `docs/project-harness/tasks/DH-006/plan.md`
 
 ## Item Snapshot
 
-- Title: 实现 Oh My Pi Agent Runtime Vertical Slice
+- Title: 本地 Agent—Studio 单一事实面闭环
 - Status: doing
 - Workflow status: closeout_requested
 - Priority: p0
 - Owner: codex
-- Session: demiurges-dh005-omp-runtime-20260810
-- Dependencies: DH-004
+- Session: codex-dh006-20260810-1
+- Dependencies: DH-005
 
 ## Acceptance
 
-OMP 以锁定版本的 SDK restricted Agent Runtime 接入；active/enabled surface 仅有 world_read/world_write/world_edit/world_run，mounted surface 为空；slash/control 与 @file preprocessing fail closed；自然语言 falling-cube walking skeleton 产生可观察成功/失败 trace，run 不推进 ref，adopt 保持 control-side authority；真实 no-prompt SDK smoke、tests/typecheck/build/checklist validation 通过，真实模型 prompt 未执行。
+一个本地 Product Session 的 Repository、Runtime 与 current ref 只由 Gateway Host 持有；Studio 通过 bounded、ordered、JSON-safe 的产品 transport 提交自然语言任务并呈现 world_write→world_read→world_edit→world_run trace，权威 Snapshot/Episode/EvaluationRecord 驱动 Three.js、EpisodePlayer 与 PASS/FAIL；run 不推进 ref、adopt 保持独立 control authority；Gateway 不再反向 import apps/studio/src；scripted Agent、tests/typecheck/build/Chromium/diff/checklist gates 通过，真实 provider prompt 不在本项范围。
 
 ## Verification
 
-Round 1/2/3 changes_requested 全部修复；最终使用 SDK restricted session、pre-start prompt admission、descriptor-based bounded tool input、turn-shared bounded trace 与 128-call budget。48 tests / 0 fail / 304 assertions，typecheck/build/no-prompt SDK smoke/diff-check/checklist validation 通过；product digest 1b3b6496f1f27fe7bd89f0db105f60745e027108922507eb3301f7f1ca594dae；Round 4 Sol executable + Kimi static cross-review 双方 approved，P0/P1/P2 none。
+71 tests / 0 fail / 403 assertions; typecheck, build, git diff --check, checklist validation pass; Chromium frame 9/75 to 75/75, PASS/ref-v2, sanitized failure/resync and empty console; product digest f1d58ab9a72c88edb53a5ca56a1eedb3a94727198da3360628349c0ece7f4a64; Round 4 Sol executable and Kimi K3 Max static reviews approved with no P0/P1; two non-blocking P2 recorded.
 
 ## Handoff
 
-Final cross-review 已批准，可 closeout 与 mark-done；Human 已授权随后 commit + push。未经授权不发送真实模型 prompt，不 merge main、tag 或 deploy。
+Round 1 changes_requested evidence is preserved. Root remediation for atomic admission, strict product codec/lifecycle, failure resync, UTF-8 byte/media-type bounds, and public error codes is complete on agent/codex/DH-006. Fresh focused Kimi K3 Max + Sol Max review is required before mark-done/commit/push.
 
 ## Review Inputs
 
@@ -40,116 +40,167 @@ Final cross-review 已批准，可 closeout 与 mark-done；Human 已授权随�
 ## Canonical Plan Content
 
 ```md
-# DH-005 计划：Oh My Pi Agent Runtime Vertical Slice
+# DH-006 计划：本地 Agent—Studio 单一事实面闭环
+
+## 状态与当前 Authority
+
+- Status：`active`；
+- 用户已授权按本计划开始产品代码实现；
+- 当前 authority 不包含真实 provider prompt、credential 使用、commit、push、merge、tag 或 deploy；
+- 本任务依赖已关闭且已推送的 `DH-005`，工作分支从 `agent/codex/DH-005` 建立，不隐式 merge `main`。
 
 ## 目标
 
-把 Oh My Pi（OMP）作为第一个可替换的 Agent Runtime 接入 Demiurges，同时保持 World Kernel、Repository、MuJoCo Runtime 与 `adopt` authority 完全由 Demiurges 拥有。
+把 `DH-005` 已验证的 restricted Agent Runtime 接成 Demiurges 第一个真实可见的本地产品闭环：用户在 Studio 提交自然语言任务，Agent Gateway 在一个 Product Session 中调用四个 world tools，Studio 根据权威 `Snapshot`、`Episode` 与 `EvaluationRecord` 更新 3D Observation、工具轨迹和 Episode 回放。
 
-本切片只内置我们真正需要的边界：OMP SDK 负责模型 turn loop 与对话；Demiurges 负责四个 world tools 的定义、执行、证据、trace 与控制面。项目不启动完整 OMP CLI，不复制、裁剪或 fork OMP 源码。
+本切片最重要的结构结果不是“多一个聊天框”，而是确立单一世界事实面：每个连接中的 Product Session 只允许 Gateway 内的 Host 持有 Repository 与 Runtime authority；Studio 是输入、观察、回放与显式 Harness control 的客户端，不再在同一连接中维护第二个可写 Host。
 
-## 已授权范围
+## 根部结构调整
 
-- 创建独立 `agent/codex/DH-005` branch/worktree；
-- 增加一个本地 Agent Gateway package，并锁定 OMP 依赖版本；
-- 通过 OMP SDK restricted session 暴露 `world_read`、`world_write`、`world_edit`、`world_run`；
-- tool closure 只持有现有 `WorldToolSurface`，不向 OMP 暴露 `RuntimeMvpHost`、Repository、evidence writer、`advance` 或 `adopt`；
-- OMP session construction 时关闭 MCP、内建 coding tools、extension discovery、skills、rules、IRC、LSP 与 session persistence，使用 Demiurges 自己的极小 system prompt；
-- 记录不可变、JSON-safe 的 Agent/tool trace；
-- 以 fake Agent client 完成一个自然语言 falling-cube walking skeleton，并以不触发模型调用的 OMP SDK boot smoke 验证真实 effective tool surface；
-- 更新必要的 architecture、runbook、progress 与 checklist。
+当前 Gateway 通过相对路径复用 `apps/studio/src` 内的 Kernel、Host 与 world tools。这在 `DH-005` 的隔离验证中可接受，但在 Studio 与 Gateway 同时成为真实调用方后会把应用目录误当成领域 authority。
 
-未经另行授权，不执行真实模型 prompt、不读取或使用 provider credential、不产生模型费用；不 commit、push、merge、tag、deploy 或发布 package。
+本切片应把已经出现第二个真实调用方的世界能力提升为一个最小内部 workspace module：
+
+- Kernel records 与 immutable helpers；
+- Repository / Authoring；
+- MuJoCo Evolution Runtime；
+- deterministic Evaluation；
+- `RuntimeMvpHost` 与 `WorldToolSurface`；
+- Product Session 所需的 JSON-data transport evidence contract。
+
+Three.js、SolidJS、Episode 播放时钟和聊天界面继续只属于 Studio Presentation。OMP SDK 与其 event/message shape 继续只属于 Agent Gateway。内部 module 不成为通用 Adapter SDK，也不预建 provider ecosystem。
+
+## 产品拓扑
+
+```text
+Studio
+  ├── natural-language input
+  ├── tool/evidence timeline
+  └── Three.js + EpisodePlayer
+             │
+             │ product-owned HTTP streaming / resync
+             ▼
+Agent Gateway / Product Session
+  ├── restricted OMP Agent Runtime 或 scripted Agent client
+  ├── world_read / world_write / world_edit / world_run
+  └── sole RuntimeMvpHost
+        ├── Repository / Authoring
+        ├── MuJoCo Evolution Runtime
+        └── Evaluation
+```
 
 ## Invariants
 
-- OMP 是 Agent Runtime，不是 Kernel，也不是世界状态 authority；
-- OMP 只能获得四个 host-owned world tools，工具执行发生在 Demiurges Host 进程；
-- transport 名使用 `world_*` 防止与 OMP 内建工具混淆，内部 canonical 语义仍是 `read/write/edit/run`；
-- `world_run` 不推进 current ref，`adopt` 不进入 Agent tool definitions；
-- OMP 的 event/message/tool shape 不进入 Kernel contract；
-- tool argument 与 result 都在 Gateway 边界进行 JSON data admission/serialization；
-- trace 是观察证据，不是 Repository、Episode 或 Evaluation authority；
-- OMP dependency 被精确锁定，升级必须通过本切片的 contract tests。
+- 一个 Product Session 只有一个可写 `RuntimeMvpHost` 与 current `Ref` authority；
+- connected Studio 不实例化或推进第二个 Repository，不从 render state 反推 world state；
+- Agent 仍只拥有 `world_read`、`world_write`、`world_edit`、`world_run`；
+- `run` 产生 Episode 与 Evaluation evidence，但不推进 current ref；
+- `adopt` 继续是独立 Harness control operation，不进入 Agent tool surface；
+- Studio 的场景变化、Episode 动画和 PASS/FAIL 只由结构化权威证据驱动，不以 assistant narration 为准；
+- transport 使用 Demiurges 自有、JSON-safe、bounded、ordered 的 event envelope，不把 OMP message/event shape 暴露给 Studio；
+- 连接中断或丢失增量事件后，以 Gateway 的 session snapshot/resync 结果恢复，不让前端缓存成为第二事实面；
+- Product Session 与 transport error 不泄露 Host、Repository、credential、stack 或 OMP internal object。
+
+## 首个 Transport Slice
+
+优先使用 HTTP streaming NDJSON，而不是提前引入 WebSocket：
+
+- 一个 turn request 携带 session id 与自然语言 prompt；
+- response stream 只发产品拥有的有序 event，例如 turn lifecycle、world tool trace 与 evidence update；
+- 一个只读 resync endpoint 返回该 session 当前可呈现的 authority/evidence projection；
+- 浏览器通过 `AbortSignal` 取消当前请求；只有实际出现服务端主动 steering、多用户协同或持续双向控制需求时才重新评估 WebSocket。
+
+具体 URL、event 名和 DTO 以 contract test 驱动的最小实现为准；计划不预先冻结未被调用方证明需要的通用协议。
+
+## 实现范围
+
+1. 提取最小内部 world module，消除 Gateway 对 `apps/studio/src` 的反向应用依赖。
+2. 在 Agent Gateway 建立进程内、显式生命周期的 Product Session registry；每个 session 私有持有一个 Host。
+3. 建立 bounded HTTP turn stream 与只读 resync；transport projection 递归冻结并可 JSON round-trip。
+4. 先注入 deterministic scripted/fake Agent client，执行自然语言任务的 `write → read → edit → run`，不调用真实 provider。
+5. Studio 增加最小聊天输入、运行状态、tool trace 与 failure evidence；connected mode 的世界与 Episode 只来自 Gateway evidence。
+6. Three.js 与 EpisodePlayer 继续呈现真实 sample；完成 turn 后能够看到 falling-cube Episode 逐帧回放。
+7. 保留 control-side explicit adopt 边界；如果本切片暴露 adopt UI，它必须使用独立 control endpoint、expected ref/version 与既有 policy，且不得由 Agent 自动触发。
 
 ## Non-goals
 
-- 从 OMP 仓库复制、改写或抽取源码；
-- 把 OMP 包装成通用 AgentRuntime SDK，或同时支持 OpenCode/Claude/Codex；
-- 给 Agent 暴露 filesystem、bash、edit、write、browser、web、subagent、skills、rules 或 extensions；
-- 让 Agent 自动 adopt、merge、deploy 或执行真实设备动作；
-- 完成聊天 UI、WebSocket/SSE、云端服务、鉴权、持久 session 或多用户并发；
-- imported mesh、Spark/3DGS、机器人、VLM 或第二 Runtime provider；
-- 真实 provider/model acceptance；该动作需要单独的 credential/cost authority。
+- 真实 provider/model prompt、credential 读取或模型费用；
+- 多用户、持久 session、数据库、鉴权、TLS、云部署或远程公网服务；
+- WebSocket、通用 event bus、workflow engine 或可靠消息系统；
+- 新增第五个 Agent-facing world tool，或让 Agent 获得 `adopt`；
+- 通用 AgentRuntime SDK、同时支持 OpenCode/Claude/Codex，或复制 OMP 源码；
+- imported mesh、Spark/3DGS、机器人、VLM、world model 或第二 Evolution Runtime；
+- 以兼容 mode 长期保留 connected Studio 内的第二个可写 Host。
 
 ## 验收标准
 
-1. Gateway 注册且只注册 `world_read`、`world_write`、`world_edit`、`world_run` 四个 OMP host tools。
-2. 每个 tool closure 只委托现有 `WorldToolSurface`；`adopt` 不存在于 OMP definitions 或 Agent-facing object。
-3. 一个 fake Agent turn 从自然语言请求出发，通过四工具完成 write → read → edit → run，并得到通过的 Evaluation；run 前后 current ref 不变。
-4. Gateway 返回按 sequence 排序、递归冻结、可 `JSON.stringify` 的 turn/tool trace；失败调用也形成 bounded error evidence，且不泄露 stack、Host 或 Repository object。
-5. OMP restricted session 明确关闭 MCP、coding tools、extensions、skills、rules、IRC、LSP 与 session persistence；slash/control 和 `@file` preprocessing 被 admission 拒绝。
-6. 锁定版本的真实 OMP SDK session 可以在不发送 prompt 的情况下启动；active/enabled tools 恰好为四个 world tools、mounted tools 为空，读取已安装 runtime version 后干净停止；该 smoke 不发起 provider model call。
-7. `bun test`、`bun run typecheck`、`bun run build`、`git diff --check` 与 checklist validation 通过。
+1. 一个本地 Product Session 的 Repository、Runtime 与 current ref 只由 Gateway Host 持有；connected Studio 不创建或推进第二个 Host。
+2. Studio 提交一个自然语言 falling-cube task 后，scripted Agent 经 product transport 实际执行 `world_write → world_read → world_edit → world_run`，UI 按 sequence 展示 trace。
+3. Gateway 返回的 authoritative `Snapshot`、`Episode` 与 `EvaluationRecord` 驱动 Three.js Observation、EpisodePlayer 和 PASS/FAIL；Episode 使用真实 samples 回放而非终态跳变。
+4. `world_run` 前后 current ref 不变；Agent surface 不含 `adopt`。若执行 control-side adopt，只有显式、policy-gated 且 expected-ref 匹配时才推进。
+5. transport event 与 resync projection 是 bounded、JSON-safe、ordered data；断流、取消、非法 prompt、非法 session 与内部失败均 fail closed，并保留可呈现的有限失败证据。
+6. Gateway 不再从 `apps/studio/src` import Kernel、Host、Repository、Runtime 或 world tools；Studio Presentation 不进入共享 world module。
+7. contract/unit/integration tests、`bun run typecheck`、`bun run build`、真实 Chromium product acceptance、`git diff --check` 与 checklist validation 通过。
 
 ## 实现阶段
 
-### Phase 1 — Harness 与契约 RED
+### Phase 1 — Boundary extraction 与 RED
 
 Status: completed
 
-- 登记并激活 `DH-005`；
-- 记录当前 40 tests / 250 assertions 基线；
-- 先写四工具注册、authority separation、trace 与 walking skeleton tests。
+- 记录当前 full gate 基线；
+- 先建立 import-boundary、single-authority、transport ordering 与 ref invariants 的失败测试；
+- 提取最小内部 world module，不改变已有世界语义与测试证据。
 
-基线为 40 tests / 0 fail / 250 assertions，typecheck 通过。新增 Gateway contract test 因 `Cannot find module './omp-world-agent'` 明确进入 RED，证明 OMP Agent Runtime 尚不存在。
+Evidence：baseline 安装 workspace dependency 后为 48 tests / 0 fail / 304 assertions；import-boundary RED 先失败，再由内部 `@demiurges/world` package 转绿，Gateway 已无 `apps/studio/src` import。
 
-### Phase 2 — OMP Gateway 最小实现
-
-Status: completed
-
-- 新增 Agent Gateway workspace；
-- 锁定 OMP dependency；
-- 实现四个 host-owned tool closures、最小 OMP SDK client composition 与 trace。
-
-Agent Gateway 已固定 `@oh-my-pi/pi-coding-agent@17.2.12`。Round 1 executable review 证明 CLI flags 无法隔离 ambient MCP，因此 composition 已从完整 CLI/RPC 改为 SDK restricted session：MCP、built-ins、extension discovery、skills/rules、IRC、LSP 与持久 session 在 construction 时关闭，prompt 前再以 effective state fail closed。fake Agent walking skeleton 与 boundary regressions 现为 6 tests / 0 fail / 32 assertions；run 后 current ref 仍为 authored version 2。
-
-### Phase 3 — 真实 SDK boot smoke 与文档
+### Phase 2 — Product Session 与 Transport
 
 Status: completed
 
-- 运行无模型 prompt 的真实 OMP SDK restricted-session boot smoke；
-- 更新 architecture、runbook 与 progress；
-- 明确 live provider acceptance 仍未授权、未执行。
+- 实现 Gateway-owned Product Session 生命周期；
+- 实现最小 turn streaming 与 resync；
+- scripted Agent client 跑通四工具并生成产品事件。
 
-真实 OMP SDK restricted session 已在不发送 prompt 的情况下启动；active/enabled tool surface 恰好为四个 world tools，mounted surface 为空，并从已安装 package manifest 读取 runtime `17.2.12` 后干净停止。architecture/runbook/progress 记录 authority 与未验证边界；没有发起 provider model call。
+Evidence：Product Session、real Bun HTTP API 与 resync contract tests 通过；四工具 event sequence、single Host authority、run/ref separation、deep freeze、JSON round-trip、非法 route/session 与并发 turn invariants 均有 executable coverage。
 
-### Phase 4 — 验证与交接
+### Phase 3 — Studio Connected Presentation
 
 Status: completed
 
-- 完成全量 tests/typecheck/build/diff-check/checklist validation；
-- 准备 independent review 所需的聚焦边界与证据；
-- Coding agent 不自行审批、`mark-done`、commit 或 push。
+- 接入自然语言输入、turn status、tool/evidence timeline；
+- 由 Gateway evidence 驱动 Three.js、inspector 与 EpisodePlayer；
+- 删除同一 connected path 中的浏览器写 authority。
 
-Round 1、Round 2、Round 3 combined verdict 均为 `changes_requested`，每轮 executable reviewer 都发现了新的 effective boundary 反例。最终实现改用 `Reflect.ownKeys + descriptor` admission，拒绝 non-enumerable、symbol、accessor、数组与 `__proto__`；trace key 在写入 null-prototype projection 前先截断，budget 整个 turn 共享。regression 证明 getter reads=0、surface calls=0、1 MiB key trace 小于 8 KiB 且 `__proto__` 作为 own key 安全保留。最终 full gate 为 48 tests / 0 fail / 304 assertions，typecheck/build/SDK smoke/diff-check/checklist validation 全部通过；product source digest 为 `1b3b6496f1f27fe7bd89f0db105f60745e027108922507eb3301f7f1ca594dae`。Round 4 GPT-5.6 Sol Max executable review 与 Kimi Code K3 Max static review 均为 `approved`，无 P0/P1/P2；实现可进入 harness closeout 与 operator `mark-done`。
+Evidence：Studio source boundary test 禁止 `RuntimeMvpHost`/`createInitialSnapshot`；真实 Chromium 中四工具 trace、Three.js Observation、75-frame Episode 回放与 PASS evidence 均由 Gateway projection 驱动，新 Session 能恢复为空 projection。
 
-## 错误记录
+### Phase 4 — Verification 与 Independent Review
 
-| 错误 | 尝试 | 处理 |
-| --- | --- | --- |
-| 实例化临时 harness runtime 时 `cp references/scripts/*` 遇到模板目录中的 `__pycache__` 并中止 | DH-005 harness init attempt 1 | 改为只复制 regular files；产品文件未受影响，也不把临时 runtime 纳入 Git。 |
-| walking skeleton test 把注册顺序 `read/write/edit/run` 错当成实际调用顺序 | Gateway GREEN attempt 1 | 测试改为断言真实任务调用顺序 `write/read/edit/run`；实现与 authority 状态无需修改。 |
-| 首次 Gateway typecheck 暴露 readonly tuple matcher 与 tool result union 的窄化缺口 | Gateway typecheck attempt 1 | 测试比较使用 mutable copy；`resultForModel` 返回类型收窄为 structured result，不增加 runtime 分支。 |
-| 合并文档 patch 假设 `runbook.md` 存在 `## 本地开发` 标题，context verification 失败 | Documentation attempt 1 | 原 patch 原子失败、未留下部分修改；先读取实际 runbook heading，再分文件做聚焦 patch。 |
-| harness 生成的 `current/review-packet.md` 末尾多出一个 blank line，`git diff --check` 拒绝 | Final gate attempt 1 | 只删除生成 artifact 的末尾空行；canonical plan 与产品实现不变。 |
-| Round 1 executable review 发现 `--no-tools`/`--no-extensions` 后仍有 8 个 ambient `mcp__*` tools，且 smoke 只验证 host-definition echo | Cross-review round 1 | 不补更多 CLI flags；删除完整 CLI/RPC composition，改用 OMP SDK `restrictToolNames + enableMCP:false + disableExtensionDiscovery` 的 restricted session，并在任何 prompt 前核验 active/enabled/mounted effective surface。 |
-| OMP session 会自动处理 slash/control 与 `@file` mention，可能绕过四工具读取文件或产生控制副作用 | Cross-review round 1 | Gateway admission 拒绝这两类 syntax；SDK prompt 同时关闭 prompt-template expansion 并标记 synthetic，regression 证明 prompt 前 fail closed。 |
-| 失败 turn 丢失 trace，cleanup error 可能覆盖 primary error | Cross-review round 1 | 新增 `OmpAgentTurnError`，保留 frozen bounded trace，并分别保存 primary 与 cleanup error。 |
-| Prompt syntax admission 仍晚于 OMP SDK session start | Cross-review round 2 | 在创建 tools、client 或 session 前先完成 `requirePrompt()`；regression 断言被拒绝输入不会调用 client factory。 |
-| error string 有界但 trace payload 与 entry count 无整体预算 | Cross-review round 2 | 对 tool input 和 trace data 建立显式 node/depth/string/char/collection budget；每 turn 最多 128 次 world tool calls，超限停止执行并使 turn 失败；新增 oversized input 与 129-call regressions。 |
-| non-enumerable/symbol/accessor own property 绕过 Gateway input admission | Cross-review round 3 | 使用 `Reflect.ownKeys` 与 data/enumerable descriptor admission；数组、symbol、accessor、non-enumerable 与 `__proto__` 均 fail closed，regression 证明 getter 与 surface 都未被调用。 |
-| 超长 object key 在 trace 中按原 key 写出，绕过 char budget | Cross-review round 3 | key 先经过 bounded projection 再写入 null-prototype trace object；trace budget 在整个 turn 共享；1 MiB key 与 `__proto__` regressions 验证 size 与保真边界。 |
+Status: completed
+
+- 完成 tests/typecheck/build/browser/diff/checklist gates；
+- 对 single authority、transport admission、断流恢复、run/adopt separation 做 executable review；
+- Coding agent 不自行批准 closeout、`mark-done`、commit 或 push。
+
+Current evidence：56 tests / 0 fail / 340 assertions，typecheck、build、real Chromium acceptance、diff-check 与 checklist validation 已通过；等待冻结 digest 上的 independent cross-review verdict。
+
+Round 1 cross-review：`changes_requested`。Kimi K3 Max 与 Sol Max 均确认并发 admission 可产生空 `200 NDJSON`；Sol executable probes 还证明空流被客户端当成功、断流不 resync、event/projection admission 过浅、UTF-8 byte/content-type bound 可绕过、internal error 泄露。Phase 4 保持 `in_progress`，按 `cross-review-verdict-round1.md` 的五项 root-fix direction 修复后再做 fresh review。
+
+Round 1 remediation 已完成：ProductSession 增加同步原子 `tryRunTurn` admission，竞争者在构造 stream 前得到 409；HTTP body 逐 chunk 按 UTF-8 bytes 限额并精确解析 media type；共享 product codec 深验 event lifecycle、identity、tool/evidence 与完整 world evidence DTO；空流、断流、parse、fetch/abort error 触发只读 resync，并以 `ProductSessionTurnError.projection` 替换 App partial cache；Gateway 只输出 `agent_turn_failed`/`world_tool_failed` 等 public code。新增 adversarial regressions 后 full gate 为 62/0/375。真实 Chromium 复验成功 turn 的 75-frame Episode/PASS/ref-v2，也验证同 session 第二 turn 只显示脱敏 failure、权威证据经 resync 保留；新 session 再次成功，console 无 warning/error。当前 candidate digest 为 `af5167ef946d4190127e5bf70d2ad290dbb50377bbc549f0197bbf42b87a02db`，等待 fresh focused cross-review。
+
+Round 2 cross-review：`changes_requested`。Kimi 静态 review 虽为 approved，但指出 producer/codec identity 上界不一致；Sol executable review 证明合法长 runId 会让 projection decode 失败，并复现 Abort 后单次 resync 永久停留 `running:true`、stale_ref identity 漂移、sparse/accessor codec 绕过与 failed trace input 泄露。按 `cross-review-verdict-round2.md` 从 settled recovery、descriptor-safe plain-data projection 与 producer-aligned identity/redaction 三个根部修复，再进入 fresh Round 3 review。
+
+Round 2 remediation 已完成：失败后最多 100 次、20ms 间隔读取 authoritative projection，直到 `running:false`，超限则 fail closed；product codec 先通过 own descriptor 投影为全新 plain-data graph，再做世界语义 validation，拒绝 sparse/accessor/non-enumerable/symbol/超预算数据；派生 identity 由整体 2M char/100k node budget 约束，不再使用错误的 256 字符局部上界；edit evidence 对 updated/stale_ref 都绑定 ref/snapshot，模型面只允许 advance；failed trace input 固定为 `[redacted]`。新增 regressions 后 full gate 为 68/0/395，真实 Chromium 再次验证 frame 7/75 → 75/75、sanitized failure+settled resync 与 fresh session success。Candidate digest 为 `b476912e93c8417e00e79c930597c6aa2a8711c2e3aa4e2a847f3f530cb5bff8`，等待 Round 3 fresh cross-review。
+
+Round 3 cross-review：`changes_requested`。Kimi K3 Max 静态 review approved，但把 recoverable failed tool 后 completed 当作未来 P2；Sol executable review 用当前 pinned OMP agent-core 与真实 API 证明 Gateway 已能合法产生 `failed → corrected → completed/PASS`，Studio 的 `sawFailedTool` 规则会误拒。同时，attempt-bounded resync 无法约束单次悬挂 GET。按 `cross-review-verdict-round3.md` 统一 terminal outcome authority，并改为包含每次 GET 的 wall-clock deadline。
+
+Round 3 remediation 已完成：Studio settled resync 使用单一 wall-clock deadline，每个 GET 共享剩余预算并接收 AbortSignal，同时由 Promise deadline 保证即使 fetch port 忽略 signal 也会拒绝；client 删除 `sawFailedTool` 派生 outcome，只有 terminal event 决定 turn 结果。新增当前 OMP producer 的 failure→correction→completed/PASS regression、悬挂 GET deadline 与 130-event 正边界测试。Full gate 为 71/0/403；Chromium 再验 frame 9/75 → 75/75、PASS/ref-v2、sanitized failure/resync 与空 console。Final candidate digest 为 `f1d58ab9a72c88edb53a5ca56a1eedb3a94727198da3360628349c0ece7f4a64`，等待 Round 4 final review。
+
+Round 4 final cross-review：`approved`。GPT-5.6 Sol Max executable review 与 Kimi Code K3 Max static review 均确认单一 wall-clock resync deadline、recoverable tool failure 与 terminal outcome authority、130/131 event 边界，以及 transport/identity/single-authority 快速回归。无 P0/P1；Kimi 记录成功路径客户端 timeout 纵深与 exact 512-char 正例缺失两项非阻断 P2。DH-006 已满足 reviewer gate，可进入 EXharness closeout packet；commit/push/merge/tag/deploy 与真实 provider prompt 仍需独立 authority。
+
+## 退出条件
+
+只有当用户能在本地 Studio 中通过自然语言触发一个可观察、可回放、可评测的真实世界历程，并且 executable evidence 证明 Gateway 是该 Product Session 的唯一世界事实面时，`DH-006` 才可进入 closeout review。
 ```
 
 ## Recent Progress Context
@@ -491,6 +542,45 @@ Independent review：
 - 最终修复使用 `Reflect.ownKeys + descriptor`，拒绝 hidden/symbol/accessor/array/`__proto__` input；trace key bounded 后写入 null-prototype projection，budget 整个 turn 共享；getter reads 与 surface calls 均为 0，1 MiB key trace 保持小于 8 KiB；
 - 最新 full gate 为 48 tests / 0 fail / 304 assertions，typecheck/build/no-prompt SDK smoke/diff-check/checklist validation 通过；final candidate digest 为 `1b3b6496f1f27fe7bd89f0db105f60745e027108922507eb3301f7f1ca594dae`。
 - Round 4 final cross-review 已双审批准：GPT-5.6 Sol Max executable review 与 Kimi Code K3 Max static review 均为 `approved`，P0/P1/P2 全无；允许进入 EXharness closeout 与 operator `mark-done`，但不包含真实 provider prompt、merge main、tag 或 deploy authority。
+
+## 2026-08-10 — DH-006 本地 Agent—Studio 闭环已规划
+
+- Human 确认下一条 vertical slice 是把已验证的 Agent Runtime 接成 Studio 可观察的本地产品闭环；
+- `DH-006` 采用 Gateway-owned Product Session 单一事实面：connected Studio 只提交输入并呈现权威 `Snapshot`、`Episode` 与 `EvaluationRecord`，不维护第二个可写 Host；
+- 当前 Gateway 对 `apps/studio/src` 的反向复用将在出现第二个真实调用方后提升为最小内部 world module，不用 transport patch 固化错误 ownership；
+- 首个传输选择 bounded HTTP streaming NDJSON 加只读 resync，不提前引入 WebSocket 或通用 event bus；
+- 首先使用 scripted/fake Agent 完成 `write → read → edit → run`，真实 provider/model prompt、credential 与费用仍需单独授权；
+- 已创建独立 `agent/codex/DH-006` branch/worktree 与 canonical plan，随后获得 Human implementation authority 并完成 ASSIGN/ACCEPT 激活；当前 authority 仍不包含真实 provider prompt、commit、push、merge、tag 或 deploy。
+
+## 2026-08-10 — DH-006 本地 Agent—Studio 闭环已实现，等待独立审查
+
+- 在 Studio 与 Gateway 成为两个真实调用方后，把既有 Kernel、Repository、MuJoCo Runtime、Evaluation、Host 与 world tools 提取为内部 workspace package `@demiurges/world`；Gateway 不再反向 import `apps/studio/src`，Presentation 与 OMP 均未进入共享 package；
+- 新增 Gateway-owned `ProductSession`：每个 session 私有持有唯一 `RuntimeMvpHost`，scripted Agent 按 `world_write → world_read → world_edit → world_run` 执行；`world_run` 返回 Episode、TerminalSnapshot 与 Evaluation，但 current ref 保持 authored edit version 2；
+- 新增 product-owned `ProductSessionEvent`/`ProductSessionProjection` contract；OMP observer 在 Gateway 内转换为产品证据，OMP message/event shape 不穿透 transport；
+- 新增本地 HTTP API：`POST /api/sessions`、只读 `GET /api/sessions/:id` resync，以及 bounded ordered `POST /api/sessions/:id/turns` NDJSON stream；未知 session、非法 route、oversized/非法输入 fail closed，未暴露 Agent-facing adopt route；
+- Studio 删除 connected path 的本地 Host，改用 `ProductSessionClient`；自然语言输入、四工具 trace、3D Observation、EpisodePlayer 与 PASS/FAIL 全部由 Gateway authoritative evidence 驱动；
+- TDD 增加 import boundary、single authority、Product Session、真实 Bun HTTP、NDJSON arbitrary-chunk parser 与 connected Studio source boundary tests；当前 full gate 为 56 tests / 0 fail / 340 assertions，`bun run typecheck`、`bun run build`、`git diff --check` 与 checklist validation 均通过；
+- 真实 Chromium 验收通过：首个 session 从空世界提交任务后显示四工具 trace，Episode timeline 从约 frame 8/75 继续推进到 frame 75/75，而非终态闪现；Evaluation 为 PASS，current ref 始终是 `snapshot:edit-1` version 2，terminal Snapshot identity 与 current ref 不同；新建第二个 session 后全部呈现状态清空，再次执行同样通过，浏览器无 warning/error；
+- 未发送真实 OMP/provider prompt，未读取 credential、未产生模型费用。现进入 Phase 4 independent cross-review；批准前不 `mark-done`、commit 或 push。
+- Round 1 Kimi Code K3 Max static review 与 GPT-5.6 Sol Max executable review 均为 `changes_requested`。两者共同确认并发 HTTP admission TOCTOU 会让竞争失败请求返回空 `200 NDJSON`；Sol 另以真实 probes 复现空流误判成功、断流不 resync、DTO/lifecycle admission 过浅、chunked UTF-8 byte/content-type bound 绕过，以及 synthetic internal/credential-like error 泄露；
+- Round 1 product digest 在 executable review 前后均为 `20ed24ff354f9ac178d8aef2560f959f44ef12bc984dcfc64f20503af28c755a`，56/0/340 与既有 gates 仍绿，但这些 green tests 未覆盖 transport adversarial boundary。Combined verdict 阻断 closeout，下一步从原子 reservation、严格 product admission、failure resync、真实 byte/media-type limit 与 public error code 五个根部修复，不 commit/push。
+- Round 1 remediation 已从 transport contract 根部完成：`ProductSession.tryRunTurn` 在构造 200 stream 前同步原子取得 turn authority；HTTP request 逐 chunk 统计 UTF-8 bytes、精确匹配 `application/json`；`@demiurges/world` 新增 product codec，深验 event lifecycle、session/turn identity、trace sequence、tool/evidence association 与 Snapshot/Ref/Episode/Evaluation DTO；
+- Studio 对空流、缺 terminal、断流、parse、fetch/abort error 都执行只读 resync，并通过 frozen `ProductSessionTurnError.projection` 覆盖 partial cache；Gateway failure trace/event 只暴露 `world_tool_failed`/`agent_turn_failed`，不转发 OMP、Host、path、credential-like internal message；import boundary regression 扩展为扫描全部非测试 source；
+- 新 adversarial tests 直接覆盖并发慢 body、chunked 18KB UTF-8 body、`application/jsonp`、synthetic secret/internal error、空 200、partial stream disconnect、cross-turn identity、负 trace sequence、tool/evidence mismatch、2.5MB malformed projection 与伪装 response media type；full gate 为 62 tests / 0 fail / 375 assertions，typecheck/build/diff/check/checklist 全绿；
+- 真实 Chromium Round 1 fix acceptance：session 1 首 turn 在约 120ms 显示 frame 7/75，最终 frame 75/75、PASS、current ref `snapshot:edit-1` v2；同 session 第二 turn 只显示 `agent_turn_failed` 与 failed `world_write`，经 resync 保留原权威 ref/Episode/Evaluation，DOM 与 console 无 internal 泄露；新建 session 2 后再次得到四工具、75-frame、PASS，console 无 warning/error。新 digest 为 `af5167ef946d4190127e5bf70d2ad290dbb50377bbc549f0197bbf42b87a02db`，等待 fresh focused cross-review；批准前不 close/commit/push。
+- Round 2 combined verdict 为 `changes_requested`：Kimi K3 Max 静态 review 为 approved，但明确发现 runId producer 与 256 字符 codec identity budget 不一致；Sol Max 以 executable probes 证明合法长 identity 已被错误拒绝，并复现断流后一次 resync 可永久卡在 `running:true`、stale_ref ref/snapshot 漂移、sparse/accessor codec 绕过和 failed trace input 泄露；
+- 由于可执行 P1 优先于静态 approved，本轮不关单、不提交。修复方向是 bounded settled resync、descriptor-safe plain-data projection、producer-aligned identity budget 与 failed trace input redaction；完成 RED regressions、full gates 和 Chromium 复验后再进行 Round 3 fresh cross-review。
+- Round 2 remediation 从 contract 根部完成：Studio 在失败后 bounded follow-up resync 到 `running:false`，预算耗尽则清空 partial authority；codec 在任何语义读取前以 own descriptors 复制全新 plain-data graph，拒绝 sparse/accessor/non-enumerable/symbol/超预算输入，getter regression 保持 0 reads；
+- 删除错误的 256 字符派生 identity 上界，合法 300 字符 runId 已通过真实 MuJoCo run、产生长 Episode/Evaluation identity 并被 projection codec 接纳；整体 2M char、100k node、64 depth 与 collection budget 继续 fail closed；
+- `world_edit` 对 updated/stale_ref 都绑定 ref/snapshot 且 Agent 只允许 advance；failed product trace input 固定为 `[redacted]`；单 turn 最多接受 start + 128 tool events + terminal；
+- 最新 full gate 为 68 tests / 0 fail / 395 assertions，typecheck/build/diff-check/checklist validation 通过。真实 Chromium 为 frame 7/75 → 75/75、PASS、ref v2；失败 turn 只显示 public code 并保留 resync evidence，DOM/console 无 internal marker；fresh session 再次成功。新 digest `b476912e93c8417e00e79c930597c6aa2a8711c2e3aa4e2a847f3f530cb5bff8` 进入 Round 3 fresh cross-review，批准前不 close/commit/push。
+- Round 3 combined verdict 为 `changes_requested`：Kimi K3 Max static approved；Sol Max executable review 证明 attempt count 不约束悬挂 resync GET，并用当前 OMP producer 复现 failed tool 经模型纠正后合法 completed/PASS 被 Studio 误拒；
+- 修复方向不是隐藏 failed tool，而是让 terminal event 成为 turn outcome authority，并用单一 wall-clock deadline 覆盖每个 resync GET。透明 Proxy traps 记录为 JSON wire 不可达的 P2，不引入 Node-only 复杂度。
+- Round 3 remediation 已完成：`#readSettledSession` 的单一 wall-clock deadline 覆盖首个与后续 GET，每次真实 fetch 带 AbortSignal，Promise deadline 同时覆盖忽略 signal 的 port；30ms 悬挂 GET regression 在 100ms 外部 guard 前稳定拒绝；
+- Studio 不再从历史 tool statuses 推导 turn outcome；failed tool 保持可见和脱敏，当前 OMP client 可纠正后继续四工具并以 `turn.completed`、Evaluation PASS 收口。130-event 正边界与 131-event 拒绝均有测试；
+- 最新 gate 为 71 tests / 0 fail / 403 assertions，typecheck/build/diff/check/checklist 通过。Chromium 为 frame 9/75 → 75/75、PASS/ref-v2；失败 turn 显示 public code并保留 resync evidence，DOM 无 internal marker、console 为空。Final digest `f1d58ab9a72c88edb53a5ca56a1eedb3a94727198da3360628349c0ece7f4a64` 进入 Round 4 final review，批准前不 close/commit/push。
+- Round 4 final cross-review 已双审批准：GPT-5.6 Sol Max executable review 与 Kimi Code K3 Max static review 均为 `approved`，无 P0/P1；Sol 独立复现悬挂 resync 的 wall-clock 拒绝、当前 OMP failure→correction→completed/PASS、130/131 event 边界与全部快速回归；
+- Kimi 记录两项非阻断 P2：成功路径的最终 projection GET/turn POST timeout 纵深，以及 exact 512-char runId 正例尚未单独落测。Final product digest 保持 `f1d58ab9a72c88edb53a5ca56a1eedb3a94727198da3360628349c0ece7f4a64`；DH-006 已满足 reviewer gate，可生成 closeout packet，但 commit/push/merge/tag/deploy 与真实 provider prompt 仍未授权。
 ```
 
 ## Current Review Content

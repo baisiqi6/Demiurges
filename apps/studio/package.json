@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@mujoco/mujoco": "3.11.0",
+    "@demiurges/world": "workspace:*",
     "solid-js": "1.9.14",
     "three": "0.185.1"
   },

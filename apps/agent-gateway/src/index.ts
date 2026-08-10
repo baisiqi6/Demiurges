@@ -13,4 +13,16 @@ export {
   type OmpAgentClientPort,
   type OmpHostTool,
   type OmpToolTraceEntry,
+  type OmpWorldToolObservation,
+  type OmpWorldToolObserver,
 } from "./omp-world-agent";
+export {
+  ProductSession,
+  createScriptedAgentClientFactory,
+  type ProductSessionEventSink,
+} from "./product-session";
+export type {
+  ProductSessionEvent,
+  ProductSessionProjection,
+} from "@demiurges/world";
+export { createProductSessionApi } from "./product-session-api";

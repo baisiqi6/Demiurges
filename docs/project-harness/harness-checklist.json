@@ -253,6 +253,49 @@
         "ttl_minutes": 120,
         "released_at": "2026-08-10T08:48:23Z"
       }
+    },
+    {
+      "id": "DH-006",
+      "title": "本地 Agent—Studio 单一事实面闭环",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-10",
+      "dependencies": [
+        "DH-005"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "一个本地 Product Session 的 Repository、Runtime 与 current ref 只由 Gateway Host 持有；Studio 通过 bounded、ordered、JSON-safe 的产品 transport 提交自然语言任务并呈现 world_write→world_read→world_edit→world_run trace，权威 Snapshot/Episode/EvaluationRecord 驱动 Three.js、EpisodePlayer 与 PASS/FAIL；run 不推进 ref、adopt 保持独立 control authority；Gateway 不再反向 import apps/studio/src；scripted Agent、tests/typecheck/build/Chromium/diff/checklist gates 通过，真实 provider prompt 不在本项范围。",
+      "verification": "71 tests / 0 fail / 403 assertions; typecheck, build, git diff --check, checklist validation pass; Chromium frame 9/75 to 75/75, PASS/ref-v2, sanitized failure/resync and empty console; product digest f1d58ab9a72c88edb53a5ca56a1eedb3a94727198da3360628349c0ece7f4a64; Round 4 Sol executable and Kimi K3 Max static reviews approved with no P0/P1; two non-blocking P2 recorded.",
+      "handoff": "Round 1 changes_requested evidence is preserved. Root remediation for atomic admission, strict product codec/lifecycle, failure resync, UTF-8 byte/media-type bounds, and public error codes is complete on agent/codex/DH-006. Fresh focused Kimi K3 Max + Sol Max review is required before mark-done/commit/push.",
+      "plan_path": "docs/project-harness/tasks/DH-006/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-10",
+        "branch": "agent/codex/DH-006"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-006",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "round4-kimi-k3-max-sol-max",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-10",
+        "summary": "Round 4 final cross-review approved on digest f1d58ab9a72c88edb53a5ca56a1eedb3a94727198da3360628349c0ece7f4a64; no P0/P1; final 71/0/403 and all product gates passed; two non-blocking P2 recorded."
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "codex-dh006-20260810-1",
+        "acquired_at": "2026-08-10T13:54:48Z",
+        "expires_at": "2026-08-10T15:54:48Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-10T15:35:12Z"
+      }
     }
   ]
 }

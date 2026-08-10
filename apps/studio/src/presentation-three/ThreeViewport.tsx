@@ -1,10 +1,10 @@
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import * as THREE from "three";
 
-import type { Entity, EpisodeSample, Snapshot } from "../kernel/types";
+import type { Entity, EpisodeSample, Snapshot } from "@demiurges/world";
 
 interface ThreeViewportProps {
-  readonly snapshot: Snapshot;
+  readonly snapshot?: Snapshot;
   readonly sample?: EpisodeSample;
 }
 
@@ -20,6 +20,40 @@ export function ThreeViewport(props: ThreeViewportProps) {
   const renderScene = () => {
     if (scene && camera && renderer) {
       renderer.render(scene, camera);
+    }
+  };
+
+  const disposeMesh = (mesh: THREE.Mesh) => {
+    mesh.geometry.dispose();
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    materials.forEach((material) => material.dispose());
+  };
+
+  const syncMeshes = (snapshot: Snapshot | undefined) => {
+    if (!scene) return;
+    const visibleRefs = new Set(snapshot?.entities.map((entity) => entity.ref) ?? []);
+    for (const [ref, mesh] of meshes) {
+      if (visibleRefs.has(ref)) continue;
+      scene.remove(mesh);
+      meshes.delete(ref);
+      disposeMesh(mesh);
+    }
+    for (const entity of snapshot?.entities ?? []) {
+      if (meshes.has(entity.ref)) continue;
+      const shape = entity.representations.visual;
+      const [hx, hy, hz] = shape.halfExtents;
+      const geometry = new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2);
+      const material = new THREE.MeshStandardMaterial({
+        color: shape.color,
+        roughness: entity.physics.bodyType === "static" ? 0.92 : 0.58,
+        metalness: 0.02,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.castShadow = entity.physics.bodyType === "dynamic";
+      mesh.receiveShadow = true;
+      mesh.name = entity.ref;
+      meshes.set(entity.ref, mesh);
+      scene.add(mesh);
     }
   };
 
@@ -51,23 +85,6 @@ export function ThreeViewport(props: ThreeViewportProps) {
     keyLight.shadow.mapSize.set(1024, 1024);
     scene.add(keyLight);
 
-    for (const entity of props.snapshot.entities) {
-      const shape = entity.representations.visual;
-      const [hx, hy, hz] = shape.halfExtents;
-      const geometry = new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2);
-      const material = new THREE.MeshStandardMaterial({
-        color: shape.color,
-        roughness: entity.physics.bodyType === "static" ? 0.92 : 0.58,
-        metalness: 0.02,
-      });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.castShadow = entity.physics.bodyType === "dynamic";
-      mesh.receiveShadow = true;
-      mesh.name = entity.ref;
-      meshes.set(entity.ref, mesh);
-      scene.add(mesh);
-    }
-
     const axes = new THREE.AxesHelper(0.65);
     axes.position.set(-2.7, -2.7, 0.01);
     scene.add(axes);
@@ -89,8 +106,9 @@ export function ThreeViewport(props: ThreeViewportProps) {
     if (!ready()) return;
     const sample = props.sample;
     const snapshot = props.snapshot;
+    syncMeshes(snapshot);
 
-    for (const entity of snapshot.entities) {
+    for (const entity of snapshot?.entities ?? []) {
       const mesh = meshes.get(entity.ref);
       if (!mesh) continue;
       const state = sample?.states[entity.ref] ?? entity.state;
@@ -105,9 +123,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
   onCleanup(() => {
     resizeObserver?.disconnect();
     for (const mesh of meshes.values()) {
-      mesh.geometry.dispose();
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      materials.forEach((material) => material.dispose());
+      disposeMesh(mesh);
     }
     renderer?.dispose();
     renderer?.domElement.remove();

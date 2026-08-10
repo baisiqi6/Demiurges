@@ -9,6 +9,7 @@
       "name": "@demiurges/agent-gateway",
       "version": "0.0.0",
       "dependencies": {
+        "@demiurges/world": "workspace:*",
         "@oh-my-pi/pi-coding-agent": "17.2.12",
       },
       "devDependencies": {
@@ -20,7 +21,7 @@
       "name": "@demiurges/studio",
       "version": "0.0.0",
       "dependencies": {
-        "@mujoco/mujoco": "3.11.0",
+        "@demiurges/world": "workspace:*",
         "solid-js": "1.9.14",
         "three": "0.185.1",
       },
@@ -31,6 +32,17 @@
         "typescript": "6.0.2",
         "vite": "8.2.1",
         "vite-plugin-solid": "2.11.14",
+      },
+    },
+    "packages/world": {
+      "name": "@demiurges/world",
+      "version": "0.0.0",
+      "dependencies": {
+        "@mujoco/mujoco": "3.11.0",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "typescript": "6.0.2",
       },
     },
   },
@@ -76,6 +88,8 @@
     "@demiurges/agent-gateway": ["@demiurges/agent-gateway@workspace:apps/agent-gateway"],
 
     "@demiurges/studio": ["@demiurges/studio@workspace:apps/studio"],
+
+    "@demiurges/world": ["@demiurges/world@workspace:packages/world"],
 
     "@dimforge/rapier3d-compat": ["@dimforge/rapier3d-compat@0.12.0", "https://mirrors.huaweicloud.com/repository/npm/@dimforge/rapier3d-compat/-/rapier3d-compat-0.12.0.tgz", {}, "sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow=="],
 

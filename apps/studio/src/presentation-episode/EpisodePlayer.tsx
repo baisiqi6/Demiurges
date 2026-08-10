@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 
-import type { Episode } from "../kernel/types";
+import type { Episode } from "@demiurges/world";
 import {
   clampSampleIndex,
   episodeTimeAtWallTime,
