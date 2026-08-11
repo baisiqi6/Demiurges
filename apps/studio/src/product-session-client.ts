@@ -3,6 +3,7 @@ import {
   decodeProductSessionProjection,
   type ProductSessionEvent,
   type ProductSessionProjection,
+  type WorldReadResult,
 } from "@demiurges/world";
 
 const MAX_EVENT_LINE_BYTES = 1_000_000;
@@ -29,6 +30,7 @@ export async function readProductSessionEvents(
   sink: EventSink,
   firstSequence = 1,
   signal?: AbortSignal,
+  initialWorld?: WorldReadResult | null,
 ): Promise<Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }>> {
   if (!response.ok) {
     throw new Error(`Agent Gateway turn request 失败：HTTP ${response.status}`);
@@ -60,6 +62,7 @@ export async function readProductSessionEvents(
   let nextTraceSequence = 1;
   let eventCount = 0;
   let terminal: Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }> | undefined;
+  let acceptedWorld: Pick<WorldReadResult, "ref" | "snapshot"> | null | undefined = initialWorld;
 
   const consumeLine = (line: string) => {
     if (line.length === 0) return;
@@ -76,7 +79,12 @@ export async function readProductSessionEvents(
     } catch {
       throw new Error("Product Session event 不是合法 JSON");
     }
-    const event = decodeProductSessionEvent(value, sessionId, expectedSequence++);
+    const event = decodeProductSessionEvent(
+      value,
+      sessionId,
+      expectedSequence++,
+      acceptedWorld,
+    );
     if (terminal) throw new Error("Product Session terminal event 后不能继续发送 event");
     if (turnId === undefined) {
       if (event.type !== "turn.started") {
@@ -90,6 +98,11 @@ export async function readProductSessionEvents(
       if (event.type === "tool.completed") {
         if (event.trace.sequence !== nextTraceSequence++) {
           throw new Error("Product Session tool trace sequence 漂移");
+        }
+        if (event.evidence?.tool === "read" || event.evidence?.tool === "write") {
+          acceptedWorld = event.evidence;
+        } else if (event.evidence?.tool === "edit") {
+          acceptedWorld = event.evidence.update;
         }
       }
       if (event.type === "turn.completed" || event.type === "turn.failed") {
@@ -303,6 +316,7 @@ export class ProductSessionClient {
     firstSequence: number,
     sink: EventSink,
     signal?: AbortSignal,
+    initialWorld?: WorldReadResult | null,
   ): Promise<ProductSessionProjection> {
     const deadline = Date.now() + this.#turnTimeoutMs;
     let terminal: Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }>;
@@ -327,6 +341,7 @@ export class ProductSessionClient {
             sink,
             firstSequence,
             operationSignal,
+            initialWorld,
           );
         },
       );

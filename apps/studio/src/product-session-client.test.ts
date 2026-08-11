@@ -2,6 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 import {
   CURRENT_WORLD_REF,
+  DIAGNOSTIC_RIGID_FIXTURE_ID,
+  RuntimeMvpHost,
+  WorldToolSurface,
   createInitialSnapshot,
   isDeepFrozen,
 } from "@demiurges/world";
@@ -75,6 +78,58 @@ describe("Studio Product Session client", () => {
     expect(events).toHaveLength(3);
     expect(isDeepFrozen(events)).toBe(false);
     expect(events.every((event) => isDeepFrozen(event))).toBe(true);
+  });
+
+  test("streamed world_run 必须绑定当前 authored world 的完整 EntityRef 证据链", async () => {
+    const surface = new WorldToolSurface(new RuntimeMvpHost());
+    surface.write({ cubeHeight: 2.4, fixtureId: DIAGNOSTIC_RIGID_FIXTURE_ID });
+    const world = surface.read();
+    const forgedRun = structuredClone(await surface.run({ runId: "run:stream-forged" }));
+    const firstStates = forgedRun.episode.samples[0]?.states;
+    if (!firstStates?.["entity:cube"]) throw new Error("fixture 缺少 cube sample");
+    const mutableStates = firstStates as Record<string, (typeof firstStates)[`entity:${string}`]>;
+    mutableStates["entity:spoof"] = firstStates["entity:cube"];
+    delete mutableStates["entity:cube"];
+
+    const lines = [
+      {
+        sequence: 1,
+        sessionId: "session:local-stream",
+        turnId: "turn:local-stream:1",
+        type: "turn.started",
+      },
+      {
+        sequence: 2,
+        sessionId: "session:local-stream",
+        turnId: "turn:local-stream:1",
+        type: "tool.completed",
+        tool: "world_run",
+        trace: {
+          sequence: 1,
+          tool: "world_run",
+          input: { runId: "run:stream-forged" },
+          status: "succeeded",
+          result: { tool: "run" },
+        },
+        evidence: forgedRun,
+      },
+      {
+        sequence: 3,
+        sessionId: "session:local-stream",
+        turnId: "turn:local-stream:1",
+        type: "turn.completed",
+        responseText: "完成",
+      },
+    ].map((event) => JSON.stringify(event)).join("\n") + "\n";
+
+    await expect(readProductSessionEvents(
+      chunkedResponse([lines]),
+      "session:local-stream",
+      () => undefined,
+      1,
+      undefined,
+      world,
+    )).rejects.toThrow("EntityRef 证据链");
   });
 
   test("sequence 缺口与 session identity 漂移 fail closed", async () => {

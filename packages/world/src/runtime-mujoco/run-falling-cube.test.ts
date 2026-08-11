@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
 import { evaluateLanding } from "../evaluation/evaluate-landing";
+import {
+  DIAGNOSTIC_RIGID_ASSET,
+  DIAGNOSTIC_RIGID_FIXTURE_ID,
+  createFixtureSnapshot,
+} from "../artifacts/diagnostic-rigid-fixture";
 import { ADOPT_RUNTIME_MVP_POLICY } from "../host/runtime-mvp-adopt-policy";
 import {
   CUBE_REF,
@@ -20,6 +25,100 @@ function explicitInputs(runId: ExplicitInputs["runId"]): ExplicitInputs {
 }
 
 describe("MuJoCo falling-cube Runtime", () => {
+  test("imported visual 不进入 MJCF，collision proxy 与 EntityRef 驱动同一 Episode", async () => {
+    const snapshot = createFixtureSnapshot(2.4, DIAGNOSTIC_RIGID_FIXTURE_ID);
+    const xml = createFallingCubeMjcf(snapshot, FALLING_CUBE_PROGRAM, MUJOCO_PROFILE);
+
+    expect(xml).toContain('body name="cube" pos="0 0 2.4"');
+    expect(xml).toContain('geom name="cube_geom" type="box" size="0.32 0.22 0.25"');
+    expect(xml).not.toContain(DIAGNOSTIC_RIGID_ASSET.assetId);
+    expect(xml).not.toContain(DIAGNOSTIC_RIGID_ASSET.repoPath);
+
+    const episode = await runFallingCube(
+      snapshot,
+      FALLING_CUBE_PROGRAM,
+      MUJOCO_PROFILE,
+      explicitInputs("run:imported-rigid"),
+    );
+    expect(episode.samples[0]?.states[CUBE_REF]?.pose.position[2]).toBeCloseTo(2.4, 12);
+    expect(episode.terminalSnapshot.entities.find((entity) => entity.ref === CUBE_REF)
+      ?.representations.visual).toBe(snapshot.entities.find((entity) => entity.ref === CUBE_REF)
+      ?.representations.visual);
+    expect(evaluateLanding(episode, LANDING_SUCCESS_CONTRACT).passed).toBe(true);
+  });
+
+  test("imported artifact identity 与 alignment transform 在 Runtime admission fail closed", () => {
+    const base = createFixtureSnapshot(2.4, DIAGNOSTIC_RIGID_FIXTURE_ID);
+    const forgedDigest = deepFreeze({
+      ...base,
+      id: "snapshot:forged-imported-digest" as const,
+      entities: base.entities.map((entity): Entity => {
+        if (entity.ref !== CUBE_REF || entity.representations.visual.kind !== "imported-rigid-mesh") {
+          return entity;
+        }
+        return {
+          ...entity,
+          representations: {
+            ...entity.representations,
+            visual: {
+              ...entity.representations.visual,
+              contentDigest: `sha256:${"0".repeat(64)}`,
+            },
+          },
+        };
+      }),
+    }) as Snapshot;
+    expect(() =>
+      createFallingCubeMjcf(forgedDigest, FALLING_CUBE_PROGRAM, MUJOCO_PROFILE),
+    ).toThrow("artifact identity");
+
+    const forgedScale = deepFreeze({
+      ...base,
+      id: "snapshot:forged-imported-scale" as const,
+      entities: base.entities.map((entity): Entity => {
+        if (entity.ref !== CUBE_REF || entity.representations.visual.kind !== "imported-rigid-mesh") {
+          return entity;
+        }
+        return {
+          ...entity,
+          representations: {
+            ...entity.representations,
+            visual: {
+              ...entity.representations.visual,
+              localTransform: {
+                ...entity.representations.visual.localTransform,
+                scale: [1, 0, 1],
+              },
+            },
+          },
+        };
+      }),
+    }) as Snapshot;
+    expect(() =>
+      createFallingCubeMjcf(forgedScale, FALLING_CUBE_PROGRAM, MUJOCO_PROFILE),
+    ).toThrow("alignment transform");
+
+    const forgedCollision = deepFreeze({
+      ...base,
+      id: "snapshot:forged-imported-collision" as const,
+      entities: base.entities.map((entity): Entity =>
+        entity.ref === CUBE_REF
+          ? {
+              ...entity,
+              representations: {
+                ...entity.representations,
+                collision: { kind: "box", halfExtents: [1, 1, 1] },
+              },
+            }
+          : entity,
+      ),
+    }) as Snapshot;
+    expect(() =>
+      createFallingCubeMjcf(forgedCollision, FALLING_CUBE_PROGRAM, MUJOCO_PROFILE),
+    ).toThrow("登记 proxy");
+  });
+
+
   test("由 Snapshot 编译 MJCF，并保留显式单位和 collision representation", () => {
     const xml = createFallingCubeMjcf(
       createInitialSnapshot(2.8),

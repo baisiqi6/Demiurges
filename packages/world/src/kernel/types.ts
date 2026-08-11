@@ -24,6 +24,28 @@ export interface BoxRepresentation {
   readonly color: string;
 }
 
+export interface BoxCollisionRepresentation {
+  readonly kind: "box";
+  readonly halfExtents: Vec3;
+}
+
+export interface ImportedRigidMeshRepresentation {
+  readonly kind: "imported-rigid-mesh";
+  readonly assetId: `asset:${string}`;
+  readonly contentDigest: `sha256:${string}`;
+  readonly sourceFrameRef: "frame:gltf-y-up";
+  readonly sourceUnitMeters: number;
+  readonly localTransform: {
+    readonly position: Vec3;
+    readonly rotation: Quaternion;
+    readonly scale: Vec3;
+  };
+}
+
+export type VisualRepresentation =
+  | BoxRepresentation
+  | ImportedRigidMeshRepresentation;
+
 export interface Entity {
   readonly ref: `entity:${string}`;
   readonly label: string;
@@ -31,8 +53,8 @@ export interface Entity {
   readonly unitSystemRef: "units:si";
   readonly state: EntityState;
   readonly representations: {
-    readonly visual: BoxRepresentation;
-    readonly collision: BoxRepresentation;
+    readonly visual: VisualRepresentation;
+    readonly collision: BoxCollisionRepresentation;
   };
   readonly physics: {
     readonly bodyType: "static" | "dynamic";

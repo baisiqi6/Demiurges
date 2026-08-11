@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import { RuntimeMvpHost } from "../host/runtime-mvp-host";
+import {
+  DIAGNOSTIC_RIGID_FIXTURE_ID,
+  PRIMITIVE_BOX_FIXTURE_ID,
+} from "../artifacts/diagnostic-rigid-fixture";
 import { isDeepFrozen } from "../kernel/world";
 import {
   WORLD_TOOL_NAMES,
@@ -88,6 +92,21 @@ describe("WorldToolSurface", () => {
     expect(tools.read().snapshot).toBe(run.episode.terminalSnapshot);
   });
 
+  test("同一四工具 surface 可创建并推演登记的 imported rigid fixture", async () => {
+    const tools = new WorldToolSurface(new RuntimeMvpHost());
+    const written = tools.write({
+      cubeHeight: 2.4,
+      fixtureId: DIAGNOSTIC_RIGID_FIXTURE_ID,
+    });
+    const target = written.snapshot.entities.find((entity) => entity.ref === "entity:cube")!;
+
+    expect(target.representations.visual.kind).toBe("imported-rigid-mesh");
+    const run = await tools.run({ runId: "run:imported-tool" });
+    expect(run.evaluation.passed).toBe(true);
+    expect(run.episode.samples[0]?.states[target.ref]).toBeDefined();
+    expect(tools.read().snapshot).toBe(written.snapshot);
+  });
+
   test("JSON round-trip expected ref 可用，stale edit 不改变 current", () => {
     const host = new RuntimeMvpHost();
     const tools = new WorldToolSurface(host);
@@ -128,6 +147,27 @@ describe("WorldToolSurface", () => {
         ignored: true,
       }),
     ).toThrow("字段");
+
+    expect(() =>
+      new WorldToolSurface(new RuntimeMvpHost()).write({
+        cubeHeight: 2,
+        fixtureId: "https://example.com/remote.glb",
+      }),
+    ).toThrow("fixtureId");
+
+    expect(() =>
+      new WorldToolSurface(new RuntimeMvpHost()).write({
+        cubeHeight: 2,
+        fixtureId: "/tmp/local.glb",
+      }),
+    ).toThrow("fixtureId");
+
+    expect(() =>
+      new WorldToolSurface(new RuntimeMvpHost()).write({
+        cubeHeight: 2,
+        fixtureId: PRIMITIVE_BOX_FIXTURE_ID,
+      }),
+    ).not.toThrow();
 
     const tools = new WorldToolSurface(new RuntimeMvpHost());
     tools.write({ cubeHeight: 2 });

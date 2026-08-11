@@ -339,6 +339,49 @@
         "ttl_minutes": 60,
         "released_at": "2026-08-11T01:40:25Z"
       }
+    },
+    {
+      "id": "DH-008",
+      "title": "Imported Rigid Entity Vertical Slice",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-11",
+      "dependencies": [
+        "DH-007"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "一个 repo-owned imported GLB rigid fixture 以稳定 EntityRef 对齐 immutable artifact identity/provenance、source frame、units、visual transform、独立 box collision proxy、MuJoCo state、Episode 与 Evaluation；Three.js selection/playback/reset 保持同一 identity；现有 primitive scenario 与 exact read/write/edit/run surface 保持；tests/typecheck/build/Chromium/diff/checklist 通过。",
+      "verification": "Final digest 7879c0cf637ea64092daebc4c51fe4cb32422cfc160b52b9e11268dd39aec5f7；98 tests / 0 fail / 523 assertions；typecheck/build/diff-check/GLB digest/final Chromium 通过；Round 3 Sol/Terra 与 closeout reviewer approved；Human 已授权 closeout、mark-done、commit、push。",
+      "handoff": "DH-008 已 done/closed；final digest 7879c0cf637ea64092daebc4c51fe4cb32422cfc160b52b9e11268dd39aec5f7。Human 已授权 commit/push agent/codex/DH-008；不包含 merge main、PR、tag、deploy 或真实 provider prompt。",
+      "plan_path": "docs/project-harness/tasks/DH-008/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-11",
+        "branch": "agent/codex/DH-008"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-008",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "gpt-5.6-terra-max-closeout",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-11",
+        "summary": "Closeout packet EOF clean；diff-check/checklist/digest/authority 一致，P0/P1/P2 无。"
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "codex-dh008-20260810-1",
+        "acquired_at": "2026-08-11T03:42:07Z",
+        "expires_at": "2026-08-11T05:42:07Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-11T05:01:06Z"
+      }
     }
   ]
 }

@@ -483,11 +483,17 @@ export function createOmpWorldTools(
     Object.freeze({
       name: "world_write",
       label: "Write world",
-      description: "创建 falling-cube root Snapshot。",
+      description: "创建 primitive box 或登记的 imported rigid fixture root Snapshot。",
       loadMode: "essential",
       approval: "write",
       parameters: toolSchema(
-        { cubeHeight: { type: "number", minimum: 0.5, maximum: 4 } },
+        {
+          cubeHeight: { type: "number", minimum: 0.5, maximum: 4 },
+          fixtureId: {
+            type: "string",
+            enum: ["fixture:primitive-box", "fixture:diagnostic-wedge-v1"],
+          },
+        },
         ["cubeHeight"],
       ),
       execute: wrap("world_write", (input) => surface.write(input)),

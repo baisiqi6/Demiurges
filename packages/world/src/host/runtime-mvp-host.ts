@@ -1,4 +1,7 @@
-import { evaluateLanding } from "../evaluation/evaluate-landing";
+import {
+  deriveLandingSuccessContract,
+  evaluateLanding,
+} from "../evaluation/evaluate-landing";
 import type {
   Episode,
   EvaluationRecord,
@@ -9,7 +12,6 @@ import type {
 } from "../kernel/types";
 import {
   FALLING_CUBE_PROGRAM,
-  LANDING_SUCCESS_CONTRACT,
   MUJOCO_PROFILE,
 } from "../kernel/world";
 import { createWorldRepositoryAuthority } from "../repository/world-repository";
@@ -67,7 +69,10 @@ export class RuntimeMvpHost {
 
   evaluateEpisode(episodeId: Episode["id"]): EvaluationRecord {
     const episode = this.#authority.repository.readEpisode(episodeId);
-    const evaluation = evaluateLanding(episode, LANDING_SUCCESS_CONTRACT);
+    const evaluation = evaluateLanding(
+      episode,
+      deriveLandingSuccessContract(episode),
+    );
     this.#authority.evidence.recordEvaluation(evaluation);
     return evaluation;
   }

@@ -11,6 +11,10 @@ import type {
   Snapshot,
   WorldProgram,
 } from "../kernel/types";
+import {
+  requireDiagnosticRigidCollision,
+  requireDiagnosticRigidVisual,
+} from "../artifacts/diagnostic-rigid-fixture";
 import { CUBE_REF, deepFreeze, findEntity, FLOOR_REF, isDeepFrozen } from "../kernel/world";
 
 const PROGRAM_ID = "program:falling-cube";
@@ -91,6 +95,20 @@ function requireUnitQuaternion(
   }
 }
 
+function requireExactOwnKeys(
+  value: object,
+  label: string,
+  expected: readonly string[],
+): void {
+  const keys = Reflect.ownKeys(value);
+  if (
+    keys.length !== expected.length ||
+    keys.some((key) => typeof key !== "string" || !expected.includes(key))
+  ) {
+    throw new Error(`${label} 字段非法`);
+  }
+}
+
 function requireEntity(entity: Entity): void {
   if (entity.frameRef !== "frame:world") {
     throw new Error(`${entity.ref} 必须使用 frame:world`);
@@ -104,12 +122,50 @@ function requireEntity(entity: Entity): void {
   requireFiniteVec(entity.state.angularVelocity, `${entity.ref} angularVelocity`);
 
   const collision = entity.representations.collision;
+  requireExactOwnKeys(collision, `${entity.ref} collision`, ["kind", "halfExtents"]);
   if (collision.kind !== "box") {
     throw new Error(`${entity.ref} 只支持 box collision`);
   }
   requireFiniteVec(collision.halfExtents, `${entity.ref} halfExtents`);
   for (let index = 0; index < 3; index += 1) {
     requirePositive(collision.halfExtents[index]!, `${entity.ref} halfExtents[${index}]`);
+  }
+
+  const visual = entity.representations.visual;
+  if (visual.kind === "box") {
+    requireExactOwnKeys(visual, `${entity.ref} box visual`, ["kind", "halfExtents", "color"]);
+    requireFiniteVec(visual.halfExtents, `${entity.ref} visual halfExtents`);
+    for (let index = 0; index < 3; index += 1) {
+      requirePositive(visual.halfExtents[index]!, `${entity.ref} visual halfExtents[${index}]`);
+    }
+    if (typeof visual.color !== "string" || visual.color.length === 0 || visual.color.length > 64) {
+      throw new Error(`${entity.ref} visual color 非法`);
+    }
+  } else if (visual.kind === "imported-rigid-mesh") {
+    requireExactOwnKeys(visual, `${entity.ref} imported visual`, [
+      "kind",
+      "assetId",
+      "contentDigest",
+      "sourceFrameRef",
+      "sourceUnitMeters",
+      "localTransform",
+    ]);
+    requireDiagnosticRigidVisual(visual);
+    requireDiagnosticRigidCollision(collision);
+    requirePositive(visual.sourceUnitMeters, `${entity.ref} sourceUnitMeters`);
+    requireExactOwnKeys(visual.localTransform, `${entity.ref} localTransform`, [
+      "position",
+      "rotation",
+      "scale",
+    ]);
+    requireFiniteVec(visual.localTransform.position, `${entity.ref} local position`);
+    requireUnitQuaternion(visual.localTransform.rotation, `${entity.ref} local rotation`);
+    requireFiniteVec(visual.localTransform.scale, `${entity.ref} local scale`);
+    for (let index = 0; index < 3; index += 1) {
+      requirePositive(visual.localTransform.scale[index]!, `${entity.ref} local scale[${index}]`);
+    }
+  } else {
+    throw new Error(`${entity.ref} visual kind 非法`);
   }
   if (!Number.isFinite(entity.physics.friction) || entity.physics.friction < 0) {
     throw new Error(`${entity.ref} friction 必须是有限非负数`);

@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "bun --cwd apps/studio dev",
     "dev:gateway": "bun --cwd apps/agent-gateway dev",
+    "generate:diagnostic-fixture": "bun scripts/generate-diagnostic-wedge-glb.mjs",
     "build": "bun --cwd apps/agent-gateway build && bun --cwd apps/studio build",
     "typecheck": "bun --cwd apps/agent-gateway typecheck && bun --cwd apps/studio typecheck",
     "test": "bun test"

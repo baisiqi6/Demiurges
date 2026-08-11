@@ -160,6 +160,16 @@ describe("OMP World Agent Gateway", () => {
     ]);
     expect(tools.map((tool) => tool.name)).toEqual([...OMP_WORLD_TOOL_NAMES]);
     expect(tools.some((tool) => tool.name === "adopt")).toBe(false);
+    const write = tools.find((tool) => tool.name === "world_write");
+    expect(write?.parameters).toMatchObject({
+      properties: {
+        fixtureId: {
+          enum: ["fixture:primitive-box", "fixture:diagnostic-wedge-v1"],
+        },
+      },
+      required: ["cubeHeight"],
+      additionalProperties: false,
+    });
     expect(OMP_RESTRICTED_SESSION_POLICY).toEqual({
       restrictToolNames: true,
       allowRestrictedCustomTools: true,

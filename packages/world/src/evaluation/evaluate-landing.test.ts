@@ -7,12 +7,32 @@ import {
   FALLING_CUBE_PROGRAM,
   LANDING_SUCCESS_CONTRACT,
   MUJOCO_PROFILE,
+  isDeepFrozen,
 } from "../kernel/world";
 import type { Entity, Episode } from "../kernel/types";
 import { runFallingCube } from "../runtime-mujoco/run-falling-cube";
-import { evaluateLanding, LANDING_EVALUATOR_ID } from "./evaluate-landing";
+import {
+  deriveLandingSuccessContract,
+  evaluateLanding,
+  LANDING_EVALUATOR_ID,
+} from "./evaluate-landing";
 
 describe("landing evaluator", () => {
+  test("Success Contract 的 center height 从 terminal collision proxy 推导", async () => {
+    const episode = await runFallingCube(
+      createInitialSnapshot(2),
+      FALLING_CUBE_PROGRAM,
+      MUJOCO_PROFILE,
+      deepFreeze({ runId: "run:collision-contract" }),
+    );
+    const contract = deriveLandingSuccessContract(episode);
+
+    expect(contract.targetRef).toBe(CUBE_REF);
+    expect(contract.expectedCenterHeight).toBeCloseTo(0.25, 12);
+    expect(evaluateLanding(episode, contract).passed).toBe(true);
+    expect(isDeepFrozen(contract)).toBe(true);
+  });
+
   test("EvaluationRecord 是带 evaluator/contract identity 的不可变证据", async () => {
     const episode = await runFallingCube(
       createInitialSnapshot(),

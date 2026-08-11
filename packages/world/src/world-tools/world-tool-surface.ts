@@ -7,10 +7,14 @@ import type {
   Snapshot,
 } from "../kernel/types";
 import {
-  createInitialSnapshot,
   CURRENT_WORLD_REF,
   deepFreeze,
 } from "../kernel/world";
+import {
+  PRIMITIVE_BOX_FIXTURE_ID,
+  createFixtureSnapshot,
+  requireRigidFixtureId,
+} from "../artifacts/diagnostic-rigid-fixture";
 
 export const WORLD_TOOL_NAMES = Object.freeze([
   "read",
@@ -49,6 +53,7 @@ function requireExactDataRecord(
   value: unknown,
   label: string,
   expectedKeys: readonly string[],
+  optionalKeys: readonly string[] = [],
 ): DataRecord {
   if (
     typeof value !== "object" ||
@@ -60,16 +65,19 @@ function requireExactDataRecord(
   }
 
   const ownKeys = Reflect.ownKeys(value);
+  const allowedKeys = new Set([...expectedKeys, ...optionalKeys]);
   if (
     ownKeys.some((key) => typeof key !== "string") ||
-    ownKeys.length !== expectedKeys.length ||
-    expectedKeys.some((key) => !ownKeys.includes(key))
+    expectedKeys.some((key) => !ownKeys.includes(key)) ||
+    ownKeys.some((key) => typeof key === "string" && !allowedKeys.has(key))
   ) {
-    throw new Error(`${label} 字段必须恰好为 ${expectedKeys.join(", ")}`);
+    throw new Error(
+      `${label} 必填字段为 ${expectedKeys.join(", ")}；可选字段为 ${optionalKeys.join(", ") || "<none>"}`,
+    );
   }
 
   const result: Record<string, unknown> = {};
-  for (const key of expectedKeys) {
+  for (const key of ownKeys as string[]) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
       throw new Error(`${label} 必须是 plain JSON data record`);
@@ -143,9 +151,17 @@ export class WorldToolSurface {
   }
 
   write(input: unknown): WorldWriteResult {
-    const record = requireExactDataRecord(input, "write input", ["cubeHeight"]);
+    const record = requireExactDataRecord(
+      input,
+      "write input",
+      ["cubeHeight"],
+      ["fixtureId"],
+    );
+    const fixtureId = record.fixtureId === undefined
+      ? PRIMITIVE_BOX_FIXTURE_ID
+      : requireRigidFixtureId(record.fixtureId);
     const snapshot = this.#host.write(
-      createInitialSnapshot(requireCubeHeight(record.cubeHeight)),
+      createFixtureSnapshot(requireCubeHeight(record.cubeHeight), fixtureId),
     );
     return deepFreeze({
       tool: "write",

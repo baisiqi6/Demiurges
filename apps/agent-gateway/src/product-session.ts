@@ -1,4 +1,6 @@
 import {
+  DIAGNOSTIC_RIGID_FIXTURE_ID,
+  PRIMITIVE_BOX_FIXTURE_ID,
   RuntimeMvpHost,
   WorldToolSurface,
   deepFreeze,
@@ -36,12 +38,18 @@ function resultDetails(
 class ScriptedAgentClient implements OmpAgentClientPort {
   readonly #tools: readonly OmpHostTool[];
   readonly #nextRunId: () => string;
+  readonly #fixtureId: typeof PRIMITIVE_BOX_FIXTURE_ID | typeof DIAGNOSTIC_RIGID_FIXTURE_ID;
   #started = false;
   #responseText: string | null = null;
 
-  constructor(tools: readonly OmpHostTool[], nextRunId: () => string) {
+  constructor(
+    tools: readonly OmpHostTool[],
+    nextRunId: () => string,
+    fixtureId: typeof PRIMITIVE_BOX_FIXTURE_ID | typeof DIAGNOSTIC_RIGID_FIXTURE_ID,
+  ) {
     this.#tools = tools;
     this.#nextRunId = nextRunId;
+    this.#fixtureId = fixtureId;
   }
 
   async start(): Promise<void> {
@@ -78,7 +86,12 @@ class ScriptedAgentClient implements OmpAgentClientPort {
       );
     };
 
-    await invoke("world_write", { cubeHeight: 2 });
+    await invoke("world_write", {
+      cubeHeight: 2,
+      ...(this.#fixtureId === PRIMITIVE_BOX_FIXTURE_ID
+        ? {}
+        : { fixtureId: this.#fixtureId }),
+    });
     const read = (await invoke("world_read", {})) as {
       ref: { name: string; snapshotId: string; version: number };
     };
@@ -87,8 +100,8 @@ class ScriptedAgentClient implements OmpAgentClientPort {
       runId: this.#nextRunId(),
     })) as { evaluation: { passed: boolean } };
     this.#responseText = run.evaluation.passed
-      ? "方块已经完成推演，确定性评测通过。"
-      : "方块推演未通过评测。";
+      ? "刚体已经完成推演，确定性评测通过。"
+      : "刚体推演未通过评测。";
   }
 
   async getLastAssistantText(): Promise<string | null> {
@@ -96,12 +109,15 @@ class ScriptedAgentClient implements OmpAgentClientPort {
   }
 }
 
-export function createScriptedAgentClientFactory(): OmpAgentClientFactory {
+export function createScriptedAgentClientFactory(
+  fixtureId: typeof PRIMITIVE_BOX_FIXTURE_ID | typeof DIAGNOSTIC_RIGID_FIXTURE_ID = PRIMITIVE_BOX_FIXTURE_ID,
+): OmpAgentClientFactory {
   let runSequence = 0;
   return (tools) =>
     new ScriptedAgentClient(
       tools,
       () => `run:scripted-${++runSequence}`,
+      fixtureId,
     );
 }
 

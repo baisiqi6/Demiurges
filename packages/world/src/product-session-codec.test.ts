@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { RuntimeMvpHost } from "./host/runtime-mvp-host";
+import { DIAGNOSTIC_RIGID_FIXTURE_ID } from "./artifacts/diagnostic-rigid-fixture";
 import { CURRENT_WORLD_REF } from "./kernel/world";
 import {
   decodeProductSessionEvent,
@@ -22,7 +23,122 @@ async function validProjection() {
   };
 }
 
+async function validImportedProjection() {
+  const surface = new WorldToolSurface(new RuntimeMvpHost());
+  surface.write({
+    cubeHeight: 2.4,
+    fixtureId: DIAGNOSTIC_RIGID_FIXTURE_ID,
+  });
+  return {
+    sessionId: "session:local-imported",
+    world: surface.read(),
+    lastRun: await surface.run({ runId: "run:imported-codec" }),
+    lastSequence: 5,
+    running: false,
+  };
+}
+
 describe("Product Session plain-data codec", () => {
+  test("imported visual projection 保留 EntityRef 并拒绝 artifact identity 漂移", async () => {
+    const projection = await validImportedProjection();
+    const decoded = decodeProductSessionProjection(
+      projection,
+      "session:local-imported",
+    );
+    const entity = decoded.world?.snapshot.entities.find(
+      (candidate) => candidate.ref === "entity:cube",
+    );
+    expect(entity?.representations.visual.kind).toBe("imported-rigid-mesh");
+    expect(decoded.lastRun?.episode.samples[0]?.states["entity:cube"]).toBeDefined();
+
+    const forged = structuredClone(projection);
+    const forgedEntity = forged.world.snapshot.entities.find(
+      (candidate) => candidate.ref === "entity:cube",
+    );
+    if (!forgedEntity || forgedEntity.representations.visual.kind !== "imported-rigid-mesh") {
+      throw new Error("fixture 缺少 imported visual");
+    }
+    forgedEntity.representations.visual.contentDigest = `sha256:${"0".repeat(64)}`;
+    expect(() => decodeProductSessionProjection(forged)).toThrow("artifact identity");
+  });
+
+  test("imported run 的 base、samples 与 terminal 必须闭合为同一 EntityRef/representation 证据链", async () => {
+    const projection = await validImportedProjection();
+
+    const spoofedSample = structuredClone(projection);
+    const firstStates = spoofedSample.lastRun.episode.samples[0]?.states;
+    if (!firstStates?.["entity:cube"]) throw new Error("fixture 缺少 cube sample");
+    firstStates["entity:spoof"] = firstStates["entity:cube"];
+    delete firstStates["entity:cube"];
+    expect(() => decodeProductSessionProjection(spoofedSample)).toThrow(
+      "EntityRef 证据链",
+    );
+
+    const renamedTerminal = structuredClone(projection);
+    const terminalCube = renamedTerminal.lastRun.episode.terminalSnapshot.entities.find(
+      (entity) => entity.ref === "entity:cube",
+    );
+    if (!terminalCube) throw new Error("fixture 缺少 terminal cube");
+    terminalCube.ref = "entity:other";
+    expect(() => decodeProductSessionProjection(renamedTerminal)).toThrow(
+      "EntityRef 证据链",
+    );
+
+    const changedRepresentation = structuredClone(projection);
+    const changedTerminalCube = changedRepresentation.lastRun.episode.terminalSnapshot.entities.find(
+      (entity) => entity.ref === "entity:cube",
+    );
+    const terminalFloor = changedRepresentation.lastRun.episode.terminalSnapshot.entities.find(
+      (entity) => entity.ref === "entity:floor",
+    );
+    if (!changedTerminalCube || !terminalFloor) throw new Error("fixture 缺少 terminal entities");
+    changedTerminalCube.representations = {
+      visual: structuredClone(terminalFloor.representations.visual),
+      collision: structuredClone(changedTerminalCube.representations.collision),
+    };
+    expect(() => decodeProductSessionProjection(changedRepresentation)).toThrow(
+      "representation 证据链",
+    );
+
+    const driftedBaseRef = structuredClone(projection);
+    driftedBaseRef.lastRun.baseRef = {
+      ...driftedBaseRef.lastRun.baseRef,
+      version: driftedBaseRef.lastRun.baseRef.version + 1,
+    };
+    expect(() => decodeProductSessionProjection(driftedBaseRef)).toThrow(
+      "base ref 证据链",
+    );
+
+    const conflictingTerminalIdentity = structuredClone(projection);
+    conflictingTerminalIdentity.lastRun.episode.terminalSnapshot.id =
+      conflictingTerminalIdentity.world.snapshot.id;
+    expect(() => decodeProductSessionProjection(conflictingTerminalIdentity)).toThrow(
+      "terminal Snapshot identity",
+    );
+
+    const runEvent = {
+      sequence: 1,
+      sessionId: "session:local-imported",
+      turnId: "turn:local-imported:1",
+      type: "tool.completed",
+      tool: "world_run",
+      trace: {
+        sequence: 1,
+        tool: "world_run",
+        input: { runId: "run:imported-codec" },
+        status: "succeeded",
+        result: { tool: "run" },
+      },
+      evidence: spoofedSample.lastRun,
+    };
+    expect(() => decodeProductSessionEvent(
+      runEvent,
+      "session:local-imported",
+      1,
+      projection.world,
+    )).toThrow("EntityRef 证据链");
+  });
+
   test("接受 producer 合法派生的长 identity，并返回独立 frozen projection", async () => {
     const projection = await validProjection();
     expect(projection.lastRun.episode.explicitInputs.runId).toHaveLength(512);

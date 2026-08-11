@@ -3,9 +3,21 @@ export type {
   Episode,
   EpisodeSample,
   EvaluationRecord,
+  ImportedRigidMeshRepresentation,
   RefRecord,
   Snapshot,
+  VisualRepresentation,
 } from "./kernel/types";
+export {
+  DIAGNOSTIC_RIGID_ASSET,
+  DIAGNOSTIC_RIGID_FIXTURE_ID,
+  PRIMITIVE_BOX_FIXTURE_ID,
+  createFixtureSnapshot,
+  requireDiagnosticRigidCollision,
+  requireDiagnosticRigidVisual,
+  requireRigidFixtureId,
+  type RigidFixtureId,
+} from "./artifacts/diagnostic-rigid-fixture";
 export {
   CUBE_REF,
   CURRENT_WORLD_REF,
@@ -17,6 +29,10 @@ export {
   isDeepFrozen,
 } from "./kernel/world";
 export { RuntimeMvpHost } from "./host/runtime-mvp-host";
+export {
+  deriveLandingSuccessContract,
+  evaluateLanding,
+} from "./evaluation/evaluate-landing";
 export {
   WorldToolSurface,
   type WorldEditResult,

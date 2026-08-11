@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { isDeepFrozen } from "@demiurges/world";
+import {
+  DIAGNOSTIC_RIGID_FIXTURE_ID,
+  isDeepFrozen,
+} from "@demiurges/world";
 import {
   ProductSession,
   createScriptedAgentClientFactory,
@@ -8,6 +11,25 @@ import {
 import type { OmpAgentClientFactory, OmpAgentClientPort } from "./omp-world-agent";
 
 describe("Gateway-owned ProductSession", () => {
+  test("scripted Product Session 通过同一四工具闭环 imported rigid fixture", async () => {
+    const session = new ProductSession(
+      "session:test-imported",
+      createScriptedAgentClientFactory(DIAGNOSTIC_RIGID_FIXTURE_ID),
+    );
+    const projection = await session.runTurn("运行 imported rigid fixture", () => undefined);
+    const target = projection.world?.snapshot.entities.find(
+      (entity) => entity.ref === "entity:cube",
+    );
+
+    expect(target?.representations.visual.kind).toBe("imported-rigid-mesh");
+    expect(projection.lastRun?.episode.samples[0]?.states["entity:cube"]).toBeDefined();
+    expect(projection.lastRun?.evaluation.passed).toBe(true);
+    expect(projection.world?.ref.version).toBe(2);
+    expect(projection.world?.snapshot.id).not.toBe(
+      projection.lastRun?.episode.terminalSnapshot.id,
+    );
+  });
+
   test("同一 Host 将自然语言 turn 展开为有序四工具 evidence，run 不推进 ref", async () => {
     const session = new ProductSession(
       "session:test-1",

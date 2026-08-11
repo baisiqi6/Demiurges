@@ -2,32 +2,32 @@
 
 ## Subject
 
-- Checklist item: `DH-007`
-- Reviewer: `cross-review-round5`
-- Updated at: `2026-08-10`
-- Canonical plan path: `docs/project-harness/tasks/DH-007/plan.md`
+- Checklist item: `DH-008`
+- Reviewer: `gpt-5.6-sol-max`
+- Updated at: `2026-08-11`
+- Canonical plan path: `docs/project-harness/tasks/DH-008/plan.md`
 
 ## Item Snapshot
 
-- Title: 真实 OMP Agent Canary
+- Title: Imported Rigid Entity Vertical Slice
 - Status: doing
-- Workflow status: changes_requested
+- Workflow status: running
 - Priority: p0
 - Owner: codex
-- Session: codex-dh007-20260810-1
-- Dependencies: DH-006
+- Session: codex-dh008-20260810-1
+- Dependencies: DH-007
 
 ## Acceptance
 
-Gateway product entry 使用真实 OMP client composition，scripted client 只作为注入式 test fixture；一个 Studio turn 的 POST、成功 final GET 与失败 settled resync 共享 wall-clock deadline；exact 512/513 runId、credential isolation、四工具 allowlist、failure correction 与 authoritative evidence 均有 offline executable coverage；真实 provider prompt 必须在独立审查后获得 Human 对唯一 provider/model、credential source、调用与费用边界的明确授权。
+一个 repo-owned imported GLB rigid fixture 以稳定 EntityRef 对齐 immutable artifact identity/provenance、source frame、units、visual transform、独立 box collision proxy、MuJoCo state、Episode 与 Evaluation；Three.js selection/playback/reset 保持同一 identity；现有 primitive scenario 与 exact read/write/edit/run surface 保持；tests/typecheck/build/Chromium/diff/checklist 通过。
 
 ## Verification
 
-
+96 tests / 0 fail / 516 assertions；typecheck、production build、git diff --check、deterministic GLB digest、真实 Chromium imported-mesh playback/Inspector/reset acceptance 通过；frozen product digest 66305bb2b078bb20f9181b63d263f35d0277ba61a20600cae94fada0a6a28281，等待 independent review。
 
 ## Handoff
 
-离线实现与独立审查完成后停在 live provider canary 授权门；未经 Human 明确授权不读取 credential value、不发送 prompt、不产生模型费用，也不 commit/push/merge。
+实现已完成并冻结至 digest 66305bb2b078bb20f9181b63d263f35d0277ba61a20600cae94fada0a6a28281；请按 tasks/DH-008/review-request-round1.md 严格只读审查。未经批准不 closeout/mark-done；未经 Human authority 不真实 prompt、commit、push、merge、tag 或 deploy。
 
 ## Review Inputs
 
@@ -40,122 +40,138 @@ Gateway product entry 使用真实 OMP client composition，scripted client 只�
 ## Canonical Plan Content
 
 ```md
-# DH-007 计划：真实 OMP Agent Canary
+# DH-008 计划：Imported Rigid Entity Vertical Slice
 
 ## 状态与 Authority
 
 - Status：`active`；
-- Branch：`agent/codex/DH-007`；
-- Worktree：`/Users/Admin/projects/WorkTrees/Demiurges-DH-007`；
-- Human 已授权创建并实现本 slice 的离线部分；
-- 当前 authority 不包含读取或输出 credential、发送真实 provider/model prompt、产生模型费用、commit、push、merge、tag 或 deploy；
-- 真实 canary 只在离线 gates 通过后，向 Human 单独确认唯一 provider/model、credential source、调用次数与费用边界。
+- Branch：`agent/codex/DH-008`；
+- Worktree：`/Users/Admin/projects/WorkTrees/Demiurges-DH-008`；
+- Base：`ac293318c8a6b2fe7433146df7417cc3c83e2726`；
+- Human 已授权建立本 item、worktree、canonical plan、checklist/lease 与本切片产品代码实现；
+- 当前 authority 包含 DH-008 的离线实现、测试、浏览器验收与独立审查；不包含真实 provider prompt、credential 使用、commit、push、merge、tag 或 deploy。
 
 ## Goal
 
-让 Studio 的产品启动路径使用真实 OMP SDK Agent Runtime composition，而不是 deterministic scripted Agent；用户自然语言必须沿 DH-006 已批准的 Product Session、四工具与权威证据链执行。scripted client 只保留为注入式 test fixture。
+让 Demiurges 第一次操作一个不由 primitive box 定义外观的刚体 Entity：同一个稳定 `EntityRef` 使用 imported GLB mesh 作为 visual representation，使用显式简化 collision proxy 参与 MuJoCo，并在 Snapshot、Three.js selection、Episode 与 Evaluation 中保持可检查的 frame、units、identity 与 alignment。
+
+本切片不是“让 Three.js 能加载一个 GLB”。它要证明 Entity 与 representation 已真正分离：视觉资产、碰撞代理和物理状态可以不同，但它们必须明确属于同一个 Entity，并能由结构化证据验证对齐。
 
 ## First-principles boundary
 
-真实模型不是新的世界 authority。它只决定下一次调用哪个既有 world tool：
-
 ```text
-Studio prompt
-  → Product Session
-  → restricted OMP Agent
-  → world_read / world_write / world_edit / world_run
-  → Gateway-owned Host
-  → Snapshot / Episode / Evaluation evidence
-  → Studio Presentation
+Immutable mesh artifact
+  ├── content identity + provenance
+  ├── source frame + units
+  └── local alignment transform
+                 │
+                 ▼
+EntityRef ── visual representation ──→ Three.js imported mesh
+   │
+   ├──── collision representation ──→ MuJoCo box proxy
+   ├──── physics/state ──────────────→ Snapshot / Episode
+   └──── semantic selection ─────────→ Studio inspector
 ```
 
-Provider latency、失败和不确定输出进入系统后，turn lifecycle 必须有统一 wall-clock deadline。credential 只属于 Gateway process/provider boundary，不能进入 Studio、product event、Snapshot、trace、assistant text、error 或 repo artifact。
+- mesh node、Three.js object、asset path 与 MuJoCo geom 都不是 Entity；
+- Snapshot 持有稳定 `EntityRef` 与 representation references，不持有 renderer/runtime object；
+- visual mesh 不自动成为 collision geometry；collision proxy 必须单独声明；
+- imported artifact 必须有不可变 content identity 与 provenance；不能把可变 URL 当作世界事实；
+- alignment 由显式 transform/tolerance 与 executable evidence 判定，不能依赖肉眼“差不多”。
+
+## Diagnostic fixture
+
+只登记一个 repo-owned、非对称、单一刚体 GLB fixture。非对称形状用于暴露轴向、旋转、缩放与原点错误；fixture 通过稳定 `assetId` 选择，包含：
+
+- local repo path；
+- media type；
+- SHA-256 content digest；
+- provenance/license note；
+- source frame；
+- source units 与 meters scale；
+- visual local transform；
+- 显式 box collision proxy 与 alignment tolerance。
+
+不允许 Agent 传入任意 URL、绝对路径、文件内容或未登记 asset。
 
 ## In scope
 
-1. 把 production `createProductSessionApi` composition 显式接到 `createDefaultOmpAgentClient`；默认 product path 不再实例化 scripted client。
-2. scripted client 继续作为 tests 注入的 deterministic fixture，不增加 runtime `mode` flag 或第二套 endpoint。
-3. 核对并冻结当前 OMP SDK 对 provider/model selection 的最小 composition seam；只支持一个显式选择，不建设 provider registry、model picker 或通用 Adapter SDK。
-4. 为 Studio turn POST、成功后的 final projection GET 与失败 settled resync 建立一个共享 wall-clock budget；调用方 abort 与内部 deadline 都必须生效。
-5. 保持四工具 exact allowlist、mounted tools 为空、slash/control 与 `@file` preprocessing fail closed。
-6. 增加 exact 512-char `runId` 正边界回归，保持 derived evidence identity、codec 与整体 data budget 一致。
-7. 用 injected fake/provider port 完成 offline product regression：真实 production composition 被选择，模型可经历 failed tool → correction → `turn.completed` / PASS，所有 failure evidence 保持脱敏。
-8. 完成 tests、typecheck、build、no-prompt OMP SDK smoke、diff/checklist 与本地 Chromium scripted fixture acceptance；不把这些证据误称为真实模型成功。
+1. 把当前 `BoxRepresentation`-only visual contract 扩展为最小 discriminated union：primitive box 或 imported rigid mesh；collision 在本切片仍只允许受支持的 box proxy。
+2. 增加只读、代码拥有的单 fixture artifact registry；按 `assetId + content digest` 解析，不建设上传、搜索、数据库或通用 asset service。
+3. 将 falling-cube 代码中真正属于“一个静态 floor + 一个动态 free-fall target”的语义从 `CUBE_REF`/box visual 假设中解开；MuJoCo 继续只消费 collision proxy，不读取 visual mesh。
+4. 让 landing evaluator 从受信 collision representation 推导 expected center height，不把 mesh bounds 或 assistant narration 当作物理真值。
+5. Three.js Presentation 按 visual representation kind 创建 primitive 或异步加载 GLB；选择、销毁、session reset 与 Episode playback 始终使用同一 `EntityRef`，不让 late asset load 恢复旧 session state。
+6. Inspector 显示 `EntityRef`、visual `assetId`/digest、frame、units、alignment transform、collision proxy 与当前 physics state。
+7. `world_write`/`world_edit` 继续是原有四工具中的静态 authoring 能力；用封闭 `fixtureId` 与显式高度/pose 选择受支持 fixture，不新增第五个 asset/file 工具。
+8. scripted Product Session 先证明 imported rigid fixture 的 write/edit/run/Episode/Evaluation；任何真实模型 canary 仍需独立 Human authority。
 
 ## Non-goals
 
-- 未经单独授权发送任何真实 provider prompt 或读取 credential value；
-- 多 provider、多 model UI、自动 fallback、router、计费系统或 credential 管理平台；
-- 新增第五个 model-facing world tool，或把 `adopt` 交给 Agent；
-- 修改 Kernel、Repository、Runtime 或 Evaluation 语义；
-- imported mesh、Spark/3DGS、机器人、VLM 或 world model；
-- 公网服务、鉴权、TLS、数据库、持久 session 或 deployment。
+- Spark、3DGS、point cloud、depth、latent observation 或 world-model provider；
+- 任意用户文件上传、远程 URL fetch、asset marketplace、数据库、CDN 或通用 Resource Library；
+- mesh collision、convex decomposition、compound proxy、开放容器内部空间或曲面接触精度；
+- procedural geometry、CSG、spline、loft、deformable 或 articulated robot；
+- 新增第五个 model-facing tool，或把 file/MCP/`@file` 能力重新带回 restricted OMP；
+- persistence、多用户、鉴权、TLS、cloud deployment 或第二 Evolution Runtime；
+- 为未来格式预建通用 Adapter SDK；首个实现只支持实际 fixture 需要的 GLB contract。
 
 ## Acceptance
 
-1. Gateway executable entry 明确使用真实 OMP client factory；product source 中 scripted factory 只被 tests 或显式 test composition 引用。
-2. no-prompt smoke 证明锁定 OMP runtime 能启动，active/enabled tools 恰好为四个且 mounted 为空；未发送 prompt。
-3. Studio 的一个 turn 共享单一 deadline，覆盖 POST stream、成功 final GET 与失败 settled resync；悬挂且忽略 AbortSignal 的 port 也会 bounded reject，App fail closed。
-4. exact 512-char `runId` 能产生并通过 codec 接纳的 Episode/TerminalSnapshot/Evaluation identity；513-char model input 在 world tool execution 前 fail closed。
-5. injected provider regression 证明 failed tool 可以纠正后 completed/PASS；tool/input/provider/credential/internal failure 不泄露到 product transport。
-6. scripted browser fixture 继续证明权威 Snapshot/Episode/Evaluation 驱动 Three.js 与逐帧 Episode；测试 UI 必须清楚标识 fixture，不伪称 live model。
-7. 真实 canary 前生成明确的授权请求，包含唯一 provider/model、最大 turn/tool budget、deadline、credential source 与预期费用；未获 Human 明确授权时停止。
+1. Kernel/codec 能表达 primitive visual 与 imported-mesh visual，但 collision 仍是独立受验 box proxy；所有 records 为 bounded plain immutable data。
+2. fixture 的 `assetId`、SHA-256、provenance、source frame、units scale 与 local transform 均有确定 source of truth；digest/format/frame/units/transform 非法时在进入 Presentation 或 Runtime authority 前 fail closed。
+3. 同一个 imported Entity 在 Snapshot、Studio selection、Three.js object mapping、Episode samples/terminal Snapshot 与 Evaluation 中保持同一 `EntityRef`；renderer node 与 MuJoCo geom ID 不穿透 product contract。
+4. MuJoCo MJCF 只由 collision proxy、physics 与 Entity state 编译；替换 visual mesh bytes 或 visual transform 不能静默改变 collision/physics semantics。
+5. imported fixture 完成 free-fall 后产生 deterministic Episode 与 Evaluation PASS；`run` 不推进 current ref，terminal adopt 仍属于独立 Harness control。
+6. 现有 primitive-box golden scenario 保持通过；新的 mesh fixture 不通过兼容 flag 或复制第二套 Runtime/Host 实现。
+7. Studio 实际显示 imported mesh，并在初始 Snapshot、播放中 Episode sample、terminal 与 session reset 时保持 Entity selection/alignment 正确；late GLB load 不污染已切换 session。
+8. model-facing surface 仍恰好为 `read/write/edit/run`，mounted 为空；任意 URL/path/file input 在 tool execution 前被拒绝。
+9. contract/unit/integration tests、typecheck、build、真实 Chromium acceptance、`git diff --check`、fixture sensitive-value/license/provenance check 与 harness validation 通过。
 
 ## Phases
 
-### Phase 1 — Harness activation and contract discovery
+### Phase 1 — Contract discovery and RED
 
 Status: completed
 
-- 创建 worktree、登记/激活 DH-007；
-- 只读核对本地锁定 OMP SDK 的 provider/model composition；
-- 记录 credential 与 live-call authority boundary。
+- 冻结 fixture provenance、digest、frame、units 与 alignment contract；
+- 先写 representation codec、artifact admission、Runtime visual/collision separation、late-load/session reset 与 four-tool surface regressions；
+- 证明当前 box-only Kernel、hard-coded cube Runtime 与 synchronous `BoxGeometry` Presentation 无法满足 acceptance。
 
-### Phase 2 — RED regressions
-
-Status: completed
-
-- production entry 仍使用 scripted client 的失败测试；
-- POST/final GET 悬挂 deadline 的失败测试；
-- exact 512/513 runId 边界测试；
-- provider/internal error transport redaction 回归。
-
-### Phase 3 — Minimal implementation
+### Phase 2 — Minimal representation and artifact authority
 
 Status: completed
 
-- product entry 接真实 OMP client factory；
-- 单一 turn deadline；
-- 最小显式 provider/model composition；
-- 保持 test fixture injection。
+- 增加最小 imported-mesh visual record 与单 fixture registry；
+- 保持 Snapshot 为 plain data，registry/loader 不进入 Kernel；
+- 对 artifact identity、units、frame、transform 与 budget fail closed。
 
-### Phase 4 — Offline verification
+### Phase 3 — Runtime and Evaluation generalization
 
 Status: completed
 
-- targeted/full tests、typecheck、build、no-prompt smoke；
-- Chromium scripted fixture acceptance；
-- product digest、diff-check、checklist validation。
+- 将 fixed cube target 收敛为一个受支持的 dynamic rigid target；
+- MuJoCo 只读取 collision proxy；
+- landing evaluator 从 collision evidence 推导 contract。
 
-### Phase 5 — Independent review and live-canary gate
+### Phase 4 — Three.js Product Presentation
 
-Status: in_progress
+Status: completed
 
-- 对 credential isolation、tool surface、deadline 与 evidence authority 做 independent review；
-- review 通过后向 Human 请求一次 bounded live provider canary；
-- 未授权则停在本阶段，不自行 close、commit 或 push。
+- 加载 GLB visual 并绑定稳定 EntityRef；
+- 完成 disposal、async cancellation、selection、Episode playback 与 session reset；
+- Inspector 呈现 alignment evidence。
 
-## Errors Encountered
+### Phase 5 — Agent/Product proof and independent review
 
-| Error | Attempt | Resolution |
-|---|---:|---|
-| 新 worktree 不包含 ignored `.artifacts/harness/harnessctl` | 1 | 不复制第二套 runtime；从同仓 DH-006 worktree 调用已实例化 harnessctl，并保持 cwd 为 DH-007 |
-| harnessctl 的 project root 绑定脚本所在 worktree，跨 worktree 调用仍写 DH-006 | 2 | 恢复旧 worktree 唯一 timestamp 变化；把已批准 runtime 机械复制到 DH-007 ignored `.artifacts/`，保持每个 worktree 独立派生状态 |
-| zsh 对未命中的 OMP `model*` source glob fail closed | 1 | 改用精确 `src/config/model-registry.ts` 与 `sdk.ts` 路径完成只读核对 |
+Status: in review
+
+- scripted Product Session 经现有四工具完成 imported fixture task；
+- 运行 full gates 与真实 Chromium acceptance；
+- 在冻结 digest 上进行 independent review；未经额外 authority 不发送真实 provider prompt，不 close、commit 或 push。
 
 ## Exit condition
 
-离线实现和独立审查只能证明真实 OMP product composition 已准备好。只有 Human 明确授权的真实 provider canary 产生四工具 trace、权威 Episode/Evaluation 与 bounded receipt 后，DH-007 才能宣称“真实模型 Agent 闭环成立”。
+只有当一个 imported rigid mesh 在可见外观、结构化 Entity identity、collision proxy、MuJoCo state、Episode 与 Evaluation 中形成同一条可检查证据链，并且旧 primitive scenario 保持成立时，DH-008 才能进入 closeout。仅在 Three.js 中“看到了模型”不算完成。
 ```
 
 ## Review Focus

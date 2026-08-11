@@ -1,8 +1,10 @@
 import {
   CUBE_REF,
+  DIAGNOSTIC_RIGID_ASSET,
   FALLING_CUBE_PROGRAM,
   MUJOCO_PROFILE,
   deepFreeze,
+  type Entity,
   type ProductSessionEvent,
   type ProductSessionProjection,
   type WorldReadResult,
@@ -28,7 +30,7 @@ type RuntimeStatus = "connecting" | "ready" | "running" | "completed" | "error";
 type ViewMode = "repository" | "episode";
 
 const DEFAULT_PROMPT =
-  "创建一个方块，把高度改到 2.8 米，然后让它落到地面并检查结果。";
+  "创建登记的 imported rigid wedge，把高度改到 2.8 米，然后让它落到地面并检查结果。";
 
 function formatNumber(value: number, digits = 3): string {
   return Number.isFinite(value) ? value.toFixed(digits) : "—";
@@ -44,6 +46,7 @@ export default function App() {
   const [responseText, setResponseText] = createSignal("");
   const [timelineIndex, setTimelineIndex] = createSignal(0);
   const [viewMode, setViewMode] = createSignal<ViewMode>("repository");
+  const [selectedRef, setSelectedRef] = createSignal<Entity["ref"]>(CUBE_REF);
   const [runtimeStatus, setRuntimeStatus] = createSignal<RuntimeStatus>("connecting");
   const [errorMessage, setErrorMessage] = createSignal<string>();
   let turnAbort: AbortController | undefined;
@@ -56,14 +59,23 @@ export default function App() {
   });
   const currentSnapshot = createMemo(() => world()?.snapshot);
   const currentRef = createMemo(() => world()?.ref);
-  const cubeState = createMemo(() => {
-    return (
-      activeSample()?.states[CUBE_REF] ??
-      currentSnapshot()?.entities.find((entity) => entity.ref === CUBE_REF)?.state
-    );
+  const selectedEntity = createMemo(() =>
+    currentSnapshot()?.entities.find((entity) => entity.ref === selectedRef()),
+  );
+  const selectedState = createMemo(() => {
+    const sample = activeSample();
+    return sample ? sample.states[selectedRef()] : selectedEntity()?.state;
+  });
+  const importedVisual = createMemo(() => {
+    const visual = selectedEntity()?.representations.visual;
+    return visual?.kind === "imported-rigid-mesh" ? visual : undefined;
   });
   const displayedSource = createMemo(() => {
-    if (viewMode() === "episode") return "episode-frame";
+    if (viewMode() === "episode") {
+      return activeSample()?.states[selectedRef()]
+        ? "episode-frame"
+        : "episode-state-unavailable";
+    }
     return currentSnapshot()?.source ?? "awaiting-authority";
   });
   const toolEvents = createMemo(() =>
@@ -90,6 +102,7 @@ export default function App() {
     setResponseText("");
     setTimelineIndex(0);
     setViewMode("repository");
+    setSelectedRef(CUBE_REF);
     try {
       useProjection(await client.createSession());
       setRuntimeStatus("ready");
@@ -161,6 +174,7 @@ export default function App() {
         current.lastSequence + 1,
         applyEvent,
         turnAbort.signal,
+        current.world,
       );
       useProjection(next);
       setRuntimeStatus("completed");
@@ -215,7 +229,7 @@ export default function App() {
           <div class="viewport-heading">
             <div>
               <span class="eyebrow">Authoritative observation</span>
-              <h1>Falling Cube</h1>
+              <h1>{selectedEntity()?.label ?? "Executable World"}</h1>
             </div>
             <dl class="view-readout">
               <div>
@@ -228,7 +242,12 @@ export default function App() {
               </div>
             </dl>
           </div>
-          <ThreeViewport snapshot={currentSnapshot()} sample={activeSample()} />
+          <ThreeViewport
+            snapshot={currentSnapshot()}
+            sample={activeSample()}
+            selectedRef={selectedRef()}
+            onSelect={setSelectedRef}
+          />
           <Show when={!currentSnapshot()}>
             <div class="viewport-empty" data-testid="viewport-empty">
               <span>等待 Gateway 创建第一个 Snapshot</span>
@@ -341,12 +360,43 @@ export default function App() {
 
         <div class="entity-evidence">
           <span class="eyebrow">Entity state</span>
-          <h2>{CUBE_REF}</h2>
+          <h2 data-testid="selected-entity-ref">{selectedRef()}</h2>
           <dl class="vector-grid">
-            <div><dt>position</dt><dd>{cubeState()?.pose.position.map((value) => formatNumber(value)).join("  ") ?? "—"}</dd></div>
-            <div><dt>velocity</dt><dd>{cubeState()?.linearVelocity.map((value) => formatNumber(value)).join("  ") ?? "—"}</dd></div>
-            <div><dt>geometry</dt><dd>box · 0.5 × 0.5 × 0.5 m</dd></div>
-            <div><dt>collision</dt><dd>box proxy · mass 1 kg</dd></div>
+            <div><dt>position</dt><dd>{selectedState()?.pose.position.map((value) => formatNumber(value)).join("  ") ?? "—"}</dd></div>
+            <div><dt>velocity</dt><dd>{selectedState()?.linearVelocity.map((value) => formatNumber(value)).join("  ") ?? "—"}</dd></div>
+            <div>
+              <dt>visual</dt>
+              <dd data-testid="visual-kind">
+                {importedVisual()?.assetId ?? selectedEntity()?.representations.visual.kind ?? "—"}
+              </dd>
+            </div>
+            <Show when={importedVisual()}>
+              {(visual) => (
+                <>
+                  <div><dt>digest</dt><dd data-testid="visual-digest">{visual().contentDigest}</dd></div>
+                  <div><dt>source frame</dt><dd>{visual().sourceFrameRef}</dd></div>
+                  <div><dt>source units</dt><dd>{formatNumber(visual().sourceUnitMeters)} m</dd></div>
+                  <div>
+                    <dt>alignment</dt>
+                    <dd data-testid="visual-alignment">
+                      pos {visual().localTransform.position.map((value) => formatNumber(value)).join(" ")}
+                      {" · "}q {Object.values(visual().localTransform.rotation).map((value) => formatNumber(value)).join(" ")}
+                      {" · "}tol {formatNumber(DIAGNOSTIC_RIGID_ASSET.alignment.toleranceMeters)} m
+                    </dd>
+                  </div>
+                  <div><dt>provenance</dt><dd>{DIAGNOSTIC_RIGID_ASSET.provenance.origin} · {DIAGNOSTIC_RIGID_ASSET.provenance.license}</dd></div>
+                </>
+              )}
+            </Show>
+            <div>
+              <dt>collision</dt>
+              <dd data-testid="collision-kind">
+                {selectedEntity()
+                  ? `${selectedEntity()?.representations.collision.kind} proxy · ${selectedEntity()?.representations.collision.halfExtents.map((value) => formatNumber(value * 2)).join(" × ")} m`
+                  : "—"}
+              </dd>
+            </div>
+            <div><dt>mass</dt><dd>{selectedEntity() ? `${formatNumber(selectedEntity()!.physics.massKg)} kg` : "—"}</dd></div>
           </dl>
         </div>
 
