@@ -134,8 +134,9 @@ export class ProductSession {
   runTurn(
     prompt: string,
     sink: ProductSessionEventSink,
+    signal?: AbortSignal,
   ): Promise<ProductSessionProjection> {
-    const turn = this.tryRunTurn(prompt, sink);
+    const turn = this.tryRunTurn(prompt, sink, signal);
     return turn ?? Promise.reject(
       new Error(`Product Session ${this.#sessionId} 已有 turn 正在运行`),
     );
@@ -144,6 +145,7 @@ export class ProductSession {
   tryRunTurn(
     prompt: string,
     sink: ProductSessionEventSink,
+    signal?: AbortSignal,
   ): Promise<ProductSessionProjection> | undefined {
     if (this.#running) {
       return undefined;
@@ -151,26 +153,30 @@ export class ProductSession {
     this.#running = true;
     const turnId = `turn:${this.#sessionId.slice("session:".length)}:${++this.#turnSequence}`;
 
-    return this.#runReservedTurn(turnId, prompt, sink);
+    return this.#runReservedTurn(turnId, prompt, sink, signal);
   }
 
   async #runReservedTurn(
     turnId: string,
     prompt: string,
     sink: ProductSessionEventSink,
+    signal?: AbortSignal,
   ): Promise<ProductSessionProjection> {
     try {
+      if (signal?.aborted) throw new Error("Product Session turn 已取消");
       await sink(this.#event(turnId, { type: "turn.started" }));
       const agent = new OmpWorldAgent(this.#surface, this.#clientFactory);
       const result = await agent.run(prompt, (observation) => {
         this.#observeTool(turnId, observation, sink);
-      });
+      }, signal);
+      if (signal?.aborted) throw new Error("Product Session turn 已取消");
       await sink(
         this.#event(turnId, {
           type: "turn.completed",
           responseText: result.responseText.slice(0, MAX_RESPONSE_TEXT_LENGTH),
         }),
       );
+      this.#running = false;
       return this.readProjection();
     } catch (error) {
       try {

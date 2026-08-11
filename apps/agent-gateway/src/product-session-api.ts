@@ -1,13 +1,11 @@
 import type { ProductSessionEvent } from "@demiurges/world";
 
 import type { OmpAgentClientFactory } from "./omp-world-agent";
-import {
-  ProductSession,
-  createScriptedAgentClientFactory,
-} from "./product-session";
+import { ProductSession } from "./product-session";
 
 const MAX_SESSIONS = 32;
 const MAX_TURN_BODY_BYTES = 16_384;
+const DEFAULT_GATEWAY_TURN_TIMEOUT_MS = 120_000;
 const PUBLIC_REQUEST_ERRORS = new Set([
   "invalid_content_type",
   "invalid_content_length",
@@ -139,8 +137,19 @@ class ProductSessionRegistry {
 function streamTurn(
   session: ProductSession,
   prompt: string,
+  requestSignal: AbortSignal,
+  turnTimeoutMs: number,
 ): Response | undefined {
   const encoder = new TextEncoder();
+  const turnAbort = new AbortController();
+  const abortTurn = () => turnAbort.abort();
+  const timeout = setTimeout(abortTurn, turnTimeoutMs);
+  if (requestSignal.aborted) abortTurn();
+  else requestSignal.addEventListener("abort", abortTurn, { once: true });
+  const cleanup = () => {
+    clearTimeout(timeout);
+    requestSignal.removeEventListener("abort", abortTurn);
+  };
   let canceled = false;
   let accepted = false;
   const stream = new ReadableStream<Uint8Array>({
@@ -149,8 +158,9 @@ function streamTurn(
         if (canceled) return;
         controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       };
-      const turn = session.tryRunTurn(prompt, emit);
+      const turn = session.tryRunTurn(prompt, emit, turnAbort.signal);
       if (!turn) {
+        cleanup();
         controller.close();
         return;
       }
@@ -158,11 +168,13 @@ function streamTurn(
       void turn
         .catch(() => undefined)
         .finally(() => {
+          cleanup();
           if (!canceled) controller.close();
         });
     },
     cancel() {
       canceled = true;
+      abortTurn();
     },
   });
   if (!accepted) return undefined;
@@ -177,8 +189,12 @@ function streamTurn(
 }
 
 export function createProductSessionApi(
-  clientFactory: OmpAgentClientFactory = createScriptedAgentClientFactory(),
+  clientFactory: OmpAgentClientFactory,
+  turnTimeoutMs = DEFAULT_GATEWAY_TURN_TIMEOUT_MS,
 ): { readonly fetch: (request: Request) => Promise<Response> } {
+  if (!Number.isFinite(turnTimeoutMs) || turnTimeoutMs <= 0) {
+    throw new Error("Gateway turn timeout 必须是正有限毫秒数");
+  }
   const sessions = new ProductSessionRegistry(clientFactory);
 
   return Object.freeze({
@@ -204,7 +220,7 @@ export function createProductSessionApi(
         try {
           const prompt = await readPrompt(request);
           return (
-            streamTurn(session, prompt) ??
+            streamTurn(session, prompt, request.signal, turnTimeoutMs) ??
             errorResponse(409, "session_turn_in_progress")
           );
         } catch (error) {

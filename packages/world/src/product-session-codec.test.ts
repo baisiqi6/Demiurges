@@ -12,7 +12,7 @@ async function validProjection() {
   const surface = new WorldToolSurface(new RuntimeMvpHost());
   surface.write({ cubeHeight: 2 });
   const world = surface.read();
-  const lastRun = await surface.run({ runId: `run:${"x".repeat(300)}` });
+  const lastRun = await surface.run({ runId: `run:${"x".repeat(508)}` });
   return {
     sessionId: "session:local-1",
     world,
@@ -25,6 +25,7 @@ async function validProjection() {
 describe("Product Session plain-data codec", () => {
   test("接受 producer 合法派生的长 identity，并返回独立 frozen projection", async () => {
     const projection = await validProjection();
+    expect(projection.lastRun.episode.explicitInputs.runId).toHaveLength(512);
     expect(projection.lastRun.episode.id.length).toBeGreaterThan(256);
     expect(projection.lastRun.evaluation.id.length).toBeGreaterThan(256);
 

@@ -42,25 +42,32 @@ Agent Gateway 固定使用 `@oh-my-pi/pi-coding-agent@17.2.12`。验证 SDK rest
 bun --cwd apps/agent-gateway smoke:sdk
 ```
 
-成功信号必须同时包含：从已安装 package manifest 读取的 runtime version 为 `17.2.12`；active/enabled tool names 恰好为 `world_read`、`world_write`、`world_edit`、`world_run`；mounted tools 为空；命令正常退出。该 smoke 只创建 restricted session、读取 effective state 并停止，不发送 prompt，也不证明任一 provider/model 可以完成世界任务。
+成功信号必须同时包含：从已安装 package manifest 读取的 runtime version 为 `17.2.12`；active/enabled tool names 恰好为 `world_read`、`world_write`、`world_edit`、`world_run`；mounted tools 为空；命令正常退出。该 smoke 只创建 restricted session、读取 effective state 并停止，不发送 prompt，也不证明任一 provider/model 可以完成世界任务。锁定 OMP SDK 在 session construction 中可能对已选 model host 执行 best-effort `fetch.preconnect`；因此该 smoke 不是“完全无 network/provider contact”的证明。需要严格 network-free evidence 时，应依赖 source/tests 或在 OS/network sandbox 中执行，不得把普通 smoke 的成功扩大解释。
 
 真实 Agent prompt 会使用本机 provider credential 并可能产生费用；必须获得单独的 credential/cost authority 后才能执行。不得为了 smoke 给 OMP 开启 filesystem、bash、edit、write、browser、web、subagent、MCP、skills、rules、extensions、IRC 或 LSP，也不得向它增加 `adopt`。Gateway 必须拒绝以 `/` 开头的 OMP control syntax 与可被 OMP 解析为 `@file` mention 的输入。
 
 ## 本地运行与浏览器验收
 
+离线 UI 验收必须使用显式 scripted fixture，避免误触真实 provider：
+
 ```bash
 bun install
 # terminal 1
-bun run dev:gateway
+DEMIURGES_GATEWAY_PORT=8787 bun --cwd apps/agent-gateway dev:scripted-fixture
 
 # terminal 2
-bun run dev -- --host 127.0.0.1 --port 5173 --strictPort
+DEMIURGES_GATEWAY_URL=http://127.0.0.1:8787 \
+  bun run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
+
+端口被其他 worktree 占用时，两处可以改成同一组空闲 loopback 端口；`DEMIURGES_GATEWAY_URL` 只控制 Vite dev proxy，不进入 production build contract。
+
+生产 Gateway 则使用 `bun run dev:gateway`，并要求在进程环境中显式提供 `DEMIURGES_OMP_MODEL=provider/model`。启动 production composition 本身不会发送 prompt，但从 Studio 提交 turn 会使用 OMP credential 并可能产生费用；未获 live-canary authority 时不得进行该提交。不要把 selector 或 credential 写入仓库、测试输出或产品事件。
 
 在真实浏览器中至少核对：
 
 1. 页面创建一个 Gateway Product Session，初始没有 current ref、Episode 或 Evaluation；
-2. 提交自然语言 falling-cube task 后，tool trace 严格按 `world_write → world_read → world_edit → world_run` 展示；
+2. 在 scripted fixture 中提交自然语言 falling-cube task 后，tool trace 严格按 `world_write → world_read → world_edit → world_run` 展示；
 3. WebGL canvas 根据 Gateway 返回的 authoritative Snapshot 显示 floor 与 cube；
 4. EpisodePlayer 使用真实 samples 从 frame 0 推进到 terminal frame，而不是直接跳到地面；
 5. 结构化 Evaluation 给出 `PASS`，并展示 Episode 与 terminal Snapshot identity；
@@ -96,7 +103,7 @@ Studio → ProductSessionClient → Three.js + EpisodePlayer
 
 ## 当前 execution profile
 
-当前使用 Standalone、file-backed 项目 authority。Studio 与本地 Bun Agent Gateway 已通过 loopback HTTP NDJSON/resync 建立 Product Session transport；每个 session 的 Repository、MuJoCo Runtime 与 current ref 只存在于 Gateway 内存，因此刷新或重启 Gateway 会丢失 session。OMP SDK restricted session 已存在，但当前可见产品闭环使用 scripted Agent client，不发送真实 provider/model prompt。canonical Git remote 为 private GitHub repository `https://github.com/baisiqi6/Demiurges`；当前不存在 Coordinate workspace、deployment target、鉴权/TLS、Spark/3DGS Runtime 或 world-model provider。
+当前使用 Standalone、file-backed 项目 authority。Studio 与本地 Bun Agent Gateway 已通过 loopback HTTP NDJSON/resync 建立 Product Session transport；每个 session 的 Repository、MuJoCo Runtime 与 current ref 只存在于 Gateway 内存，因此刷新或重启 Gateway 会丢失 session。Gateway production entry 要求显式设置 `DEMIURGES_OMP_MODEL=provider/model`，并使用 OMP SDK restricted session；凭证继续由 OMP 自身解析，Demiurges 不接收或传输 credential。scripted Agent client 仅保留为显式注入的 test fixture。真实 provider/model canary 尚未获授权、未执行。canonical Git remote 为 private GitHub repository `https://github.com/baisiqi6/Demiurges`；当前不存在 Coordinate workspace、deployment target、鉴权/TLS、Spark/3DGS Runtime 或 world-model provider。
 
 ## Commit 与 push 验证
 

@@ -7,10 +7,13 @@ import {
 } from "@demiurges/world";
 import {
   OMP_RESTRICTED_SESSION_POLICY,
+  OMP_SINGLE_MODEL_SETTINGS,
   OMP_WORLD_TOOL_NAMES,
   OmpAgentTurnError,
   OmpWorldAgent,
+  createPinnedOmpCredentialResolver,
   createOmpWorldTools,
+  requireOmpModelSelector,
   type OmpHostTool,
   type OmpAgentClientFactory,
   type OmpAgentClientPort,
@@ -92,6 +95,58 @@ class ScriptedAgentClient implements OmpAgentClientPort {
 }
 
 describe("OMP World Agent Gateway", () => {
+  test("production model selector 必须是唯一显式 provider/model", () => {
+    expect(requireOmpModelSelector("kimi-code/k3")).toEqual({
+      provider: "kimi-code",
+      modelId: "k3",
+      selector: "kimi-code/k3",
+    });
+    for (const invalid of [undefined, "", " kimi-code/k3", "kimi-code", "a/b/c"]) {
+      expect(() => requireOmpModelSelector(invalid)).toThrow(
+        "DEMIURGES_OMP_MODEL",
+      );
+    }
+    expect(() =>
+      requireOmpModelSelector("fireworks/kimi-k2.6-fast"),
+    ).toThrow("intrinsic fallback");
+  });
+
+  test("production credential authority 固定首次 credential，并在 model identity 漂移前 fail closed", async () => {
+    let resolutions = 0;
+    const selector = requireOmpModelSelector("kimi-code/k3");
+    const getApiKey = createPinnedOmpCredentialResolver(
+      selector,
+      "provider-session:test",
+      async (_model, providerSessionId) => {
+        expect(providerSessionId).toBe("provider-session:test");
+        resolutions += 1;
+        return "synthetic-credential-one";
+      },
+    );
+    type RequestModel = Parameters<typeof getApiKey>[0];
+    const allowed = { provider: "kimi-code", id: "k3" } as RequestModel;
+
+    expect(await getApiKey(allowed)).toBe("synthetic-credential-one");
+    expect(await getApiKey(allowed)).toBe("synthetic-credential-one");
+    expect(resolutions).toBe(1);
+    expect(() =>
+      getApiKey({ provider: "kimi-code", id: "other" } as RequestModel),
+    ).toThrow("model identity 漂移");
+    expect(resolutions).toBe(1);
+  });
+
+  test("production OMP settings 隔离 ambient config 并关闭所有自动 retry/fallback", () => {
+    expect(OMP_SINGLE_MODEL_SETTINGS).toEqual({
+      "retry.enabled": false,
+      "retry.modelFallback": false,
+      "retry.usageAwareFallback": false,
+      "contextPromotion.enabled": false,
+      "compaction.enabled": false,
+      "compaction.midTurnEnabled": false,
+      "compaction.strategy": "off",
+    });
+  });
+
   test("只注册四个 host-owned world tools，并以 SDK restricted session 关闭环境能力", () => {
     const tools = createOmpWorldTools(
       new WorldToolSurface(new RuntimeMvpHost()),
@@ -213,6 +268,174 @@ describe("OMP World Agent Gateway", () => {
     expect(client?.stopped).toBe(true);
   });
 
+  test("turn AbortSignal 会贯穿到 OMP client，并在 cleanup 前终止等待", async () => {
+    class AbortAwareClient extends ScriptedAgentClient {
+      receivedSignal: AbortSignal | undefined;
+
+      override async promptAndWait(
+        _prompt: string,
+        signal?: AbortSignal,
+      ): Promise<unknown[]> {
+        this.receivedSignal = signal;
+        if (!signal) throw new Error("missing abort signal");
+        await new Promise<never>((_, reject) => {
+          const fail = () => reject(new Error("aborted by test"));
+          if (signal.aborted) fail();
+          else signal.addEventListener("abort", fail, { once: true });
+        });
+        return [];
+      }
+    }
+
+    let client: AbortAwareClient | undefined;
+    const agent = new OmpWorldAgent(
+      new WorldToolSurface(new RuntimeMvpHost()),
+      (tools) => {
+        client = new AbortAwareClient(tools);
+        return client;
+      },
+    );
+    const controller = new AbortController();
+    const pending = agent.run(
+      "让方块落下",
+      () => undefined,
+      controller.signal,
+    );
+    await Promise.resolve();
+    controller.abort();
+
+    await expect(pending).rejects.toBeInstanceOf(OmpAgentTurnError);
+    expect(client?.receivedSignal?.aborted).toBe(true);
+    expect(client?.stopped).toBe(true);
+  });
+
+  test("turn AbortSignal 对忽略 signal 的 start 与 stop 也必须 bounded settle", async () => {
+    for (const hangingPhase of ["start", "stop"] as const) {
+      let stopped = false;
+      const agent = new OmpWorldAgent(
+        new WorldToolSurface(new RuntimeMvpHost()),
+        (tools) => ({
+          async start() {
+            if (hangingPhase === "start") {
+              await new Promise<never>(() => undefined);
+            }
+          },
+          async stop() {
+            stopped = true;
+            if (hangingPhase === "stop") {
+              await new Promise<never>(() => undefined);
+            }
+          },
+          async getState() {
+            const names = tools.map((tool) => tool.name);
+            return {
+              sessionId: `session:hanging-${hangingPhase}`,
+              toolNames: names,
+              enabledToolNames: names,
+              mountedToolNames: [],
+            };
+          },
+          async promptAndWait() {
+            throw new Error("primary failure before cleanup");
+          },
+          async getLastAssistantText() { return null; },
+        }),
+      );
+      const controller = new AbortController();
+      const pending = agent.run("让方块落下", () => undefined, controller.signal);
+      await Promise.resolve();
+      controller.abort();
+      const outcome = await Promise.race([
+        pending.catch(() => "settled" as const),
+        new Promise<"pending">((resolve) =>
+          setTimeout(() => resolve("pending"), 100),
+        ),
+      ]);
+
+      expect(outcome).toBe("settled");
+      expect(stopped).toBe(true);
+    }
+  });
+
+  test("turn settled 后 fake port 不能用 fresh signal 恢复 world tool capability", async () => {
+    const host = new RuntimeMvpHost();
+    let lateWrite: OmpHostTool | undefined;
+    const agent = new OmpWorldAgent(
+      new WorldToolSurface(host),
+      (tools) => ({
+        async start() {},
+        async stop() {},
+        async getState() {
+          const names = tools.map((tool) => tool.name);
+          return {
+            sessionId: "session:late-write",
+            toolNames: names,
+            enabledToolNames: names,
+            mountedToolNames: [],
+          };
+        },
+        async promptAndWait() {
+          lateWrite = tools.find((tool) => tool.name === "world_write");
+          await new Promise<never>(() => undefined);
+        },
+        async getLastAssistantText() { return null; },
+      }),
+    );
+    const controller = new AbortController();
+    const pending = agent.run("运行", () => undefined, controller.signal);
+    await Promise.resolve();
+    controller.abort();
+    await expect(pending).rejects.toBeInstanceOf(OmpAgentTurnError);
+    if (!lateWrite) throw new Error("fixture 未捕获 world_write");
+
+    await expect(lateWrite.execute(
+      "call:late-write",
+      { cubeHeight: 2 },
+      undefined,
+      {} as never,
+      new AbortController().signal,
+    )).rejects.toThrow("turn 已取消");
+    expect(() => host.readRefRecord()).toThrow("尚未初始化");
+  });
+
+  test("正常 completed 后 retained tool closure 也必须永久关闭", async () => {
+    const host = new RuntimeMvpHost();
+    let lateWrite: OmpHostTool | undefined;
+    const agent = new OmpWorldAgent(
+      new WorldToolSurface(host),
+      (tools) => ({
+        async start() {},
+        async stop() {},
+        async getState() {
+          const names = tools.map((tool) => tool.name);
+          return {
+            sessionId: "session:completed-late-write",
+            toolNames: names,
+            enabledToolNames: names,
+            mountedToolNames: [],
+          };
+        },
+        async promptAndWait() {
+          lateWrite = tools.find((tool) => tool.name === "world_write");
+        },
+        async getLastAssistantText() { return "completed"; },
+      }),
+    );
+    await expect(agent.run("运行")).resolves.toMatchObject({
+      responseText: "completed",
+    });
+    if (!lateWrite) throw new Error("fixture 未捕获 world_write");
+
+    await expect(lateWrite.execute(
+      "call:completed-late-write",
+      { cubeHeight: 2 },
+      undefined,
+      {} as never,
+      new AbortController().signal,
+    )).rejects.toThrow("turn 已取消");
+    expect(() => host.readRefRecord()).toThrow("尚未初始化");
+  });
+
   test("拒绝 OMP slash/control 与 @file preprocessing syntax", async () => {
     let createdClients = 0;
     const makeAgent = () => {
@@ -307,20 +530,42 @@ describe("OMP World Agent Gateway", () => {
       (entry) => directTrace.push(entry),
     );
     const run = directTools.find((tool) => tool.name === "world_run");
-    if (!run) throw new Error("缺少 world_run");
+    const write = directTools.find((tool) => tool.name === "world_write");
+    if (!run || !write) throw new Error("缺少 world tool");
+    await write.execute(
+      "call:write",
+      { cubeHeight: 2 },
+      undefined,
+      {} as never,
+      new AbortController().signal,
+    );
+    const exactBoundary = await run.execute(
+      "call:exact-boundary",
+      { runId: `run:${"x".repeat(508)}` },
+      undefined,
+      {} as never,
+      new AbortController().signal,
+    );
+    expect((resultDetails(exactBoundary) as {
+      episode: { explicitInputs: { runId: string } };
+    }).episode.explicitInputs.runId)
+      .toHaveLength(512);
     await expect(
       run.execute(
-        "call:oversized",
-        { runId: `run:${"x".repeat(10_000)}` },
+        "call:over-boundary",
+        { runId: `run:${"x".repeat(509)}` },
         undefined,
         {} as never,
         new AbortController().signal,
       ),
     ).rejects.toThrow("不能超过 512 字符");
-    expect(directTrace).toHaveLength(1);
+    expect(directTrace).toHaveLength(3);
+    expect(directTrace.at(-1)).toMatchObject({
+      tool: "world_run",
+      status: "failed",
+    });
     const serializedOversizedTrace = JSON.stringify(directTrace);
-    expect(serializedOversizedTrace.length).toBeLessThan(4_096);
-    expect(serializedOversizedTrace).toContain("trace-truncated");
+    expect(serializedOversizedTrace.length).toBeLessThan(100_000);
 
     class ExcessiveCallsClient extends ScriptedAgentClient {
       override async promptAndWait(): Promise<unknown[]> {

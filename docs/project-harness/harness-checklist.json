@@ -1,7 +1,7 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "updated_at": "2026-08-10",
+  "updated_at": "2026-08-11",
   "items": [
     {
       "id": "DH-000",
@@ -295,6 +295,49 @@
         "expires_at": "2026-08-10T15:54:48Z",
         "ttl_minutes": 120,
         "released_at": "2026-08-10T15:35:12Z"
+      }
+    },
+    {
+      "id": "DH-007",
+      "title": "真实 OMP Agent Canary",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-11",
+      "dependencies": [
+        "DH-006"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "Gateway product entry 使用真实 OMP client composition，scripted client 只作为注入式 test fixture；一个 Studio turn 的 POST、成功 final GET 与失败 settled resync 共享 wall-clock deadline；exact 512/513 runId、credential isolation、四工具 allowlist、failure correction 与 authoritative evidence 均有 offline executable coverage；真实 provider prompt 必须在独立审查后获得 Human 对唯一 provider/model、credential source、调用与费用边界的明确授权。",
+      "verification": "product digest 4b157dbb4c04946ce0a238aa9fbd71df1380ea37c07ac7d4ac5ff34a2023935b；87 tests / 0 fail / 459 assertions；typecheck/build/diff-check/checklist 通过；Round 5 Sol/Terra 双审 approved；kimi-code/k3 live canary 27,833 ms、3 个合法 world tool calls、76 samples、Evaluation PASS；receipt: docs/project-harness/tasks/DH-007/live-canary-receipt.md",
+      "handoff": "离线 gate 与唯一授权的 kimi-code/k3 live canary 均已通过；Gateway 已停止，代码 digest 未漂移。等待 Human 对 Operator closeout、mark-done 与 Git commit/push 的独立授权；不自行 merge/tag/deploy。",
+      "plan_path": "docs/project-harness/tasks/DH-007/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-11",
+        "branch": "agent/codex/DH-007"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-007",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "human-final-acceptance",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-11",
+        "summary": "Human 在看到 Round 5 双审批准、87/0/459 gates 与 kimi-code/k3 live canary receipt 后，明确授权 closeout 与 mark-done；此 final acceptance 不改写既有 reviewer 历史。"
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "codex-dh007-20260810-1",
+        "acquired_at": "2026-08-11T01:33:14Z",
+        "expires_at": "2026-08-11T02:33:14Z",
+        "ttl_minutes": 60,
+        "released_at": "2026-08-11T01:40:25Z"
       }
     }
   ]

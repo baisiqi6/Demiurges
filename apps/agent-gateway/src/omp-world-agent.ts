@@ -1,8 +1,12 @@
 import {
   AgentRegistry,
   createAgentSession,
+  discoverAuthStorage,
+  Settings,
+  type CreateAgentSessionOptions,
   type CustomTool,
 } from "@oh-my-pi/pi-coding-agent/sdk";
+import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 
@@ -35,12 +39,22 @@ export const OMP_RESTRICTED_SESSION_POLICY = Object.freeze({
   syntheticPrompt: true,
 } as const);
 
+export const OMP_SINGLE_MODEL_SETTINGS = Object.freeze({
+  "retry.enabled": false,
+  "retry.modelFallback": false,
+  "retry.usageAwareFallback": false,
+  "contextPromotion.enabled": false,
+  "compaction.enabled": false,
+  "compaction.midTurnEnabled": false,
+  "compaction.strategy": "off",
+} as const);
+
 export type OmpHostTool = CustomTool<any, unknown>;
 
 export interface OmpAgentClientPort {
-  start(): Promise<void>;
+  start(signal?: AbortSignal): Promise<void>;
   stop(): Promise<void>;
-  promptAndWait(message: string): Promise<unknown>;
+  promptAndWait(message: string, signal?: AbortSignal): Promise<unknown>;
   getLastAssistantText(): Promise<string | null>;
   getState(): Promise<{
     sessionId: string;
@@ -53,6 +67,73 @@ export interface OmpAgentClientPort {
 export type OmpAgentClientFactory = (
   tools: readonly OmpHostTool[],
 ) => OmpAgentClientPort;
+
+export interface OmpModelSelector {
+  readonly provider: string;
+  readonly modelId: string;
+  readonly selector: string;
+}
+
+type OmpGetApiKey = NonNullable<CreateAgentSessionOptions["getApiKey"]>;
+type OmpRequestModel = Parameters<OmpGetApiKey>[0];
+
+const OMP_MODEL_PART = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+
+export function requireOmpModelSelector(value: string | undefined): OmpModelSelector {
+  if (typeof value !== "string" || value.length === 0 || value.trim() !== value) {
+    throw new Error("DEMIURGES_OMP_MODEL 必须显式设置为 provider/model");
+  }
+  const parts = value.split("/");
+  const provider = parts[0] ?? "";
+  const modelId = parts[1] ?? "";
+  if (
+    parts.length !== 2 ||
+    provider.length > 64 ||
+    modelId.length > 256 ||
+    !OMP_MODEL_PART.test(provider) ||
+    !OMP_MODEL_PART.test(modelId)
+  ) {
+    throw new Error("DEMIURGES_OMP_MODEL 必须是唯一合法的 provider/model");
+  }
+  if (provider === "fireworks" && modelId.endsWith("-fast")) {
+    throw new Error(
+      "DEMIURGES_OMP_MODEL 不接受带 intrinsic fallback 的 Fireworks fast selector",
+    );
+  }
+  return Object.freeze({ provider, modelId, selector: value });
+}
+
+function requireOmpModelIdentity(
+  selector: OmpModelSelector,
+  model: Pick<OmpRequestModel, "provider" | "id">,
+): void {
+  if (model.provider !== selector.provider || model.id !== selector.modelId) {
+    throw new Error(
+      `OMP model identity 漂移：expected ${selector.selector}, actual ${model.provider}/${model.id}`,
+    );
+  }
+}
+
+export function createPinnedOmpCredentialResolver(
+  selector: OmpModelSelector,
+  providerSessionId: string,
+  resolveInitialCredential: (
+    model: OmpRequestModel,
+    providerSessionId: string,
+  ) => Promise<string | undefined>,
+): OmpGetApiKey {
+  if (providerSessionId.length === 0) {
+    throw new Error("OMP provider session identity 不能为空");
+  }
+  let pinnedCredential: Promise<string | undefined> | undefined;
+  return (model) => {
+    requireOmpModelIdentity(selector, model);
+    pinnedCredential ??= Promise.resolve().then(() =>
+      resolveInitialCredential(model, providerSessionId),
+    );
+    return pinnedCredential;
+  };
+}
 
 export interface OmpToolTraceEntry {
   readonly sequence: number;
@@ -314,6 +395,7 @@ export function createOmpWorldTools(
   surface: WorldToolSurface,
   sink: TraceSink = () => undefined,
   onToolLimit: ToolLimitSink = () => undefined,
+  turnSignal?: AbortSignal,
 ): OmpHostTool[] {
   let sequence = 0;
   const turnTraceBudget: TraceDataBudget = {
@@ -332,6 +414,7 @@ export function createOmpWorldTools(
       _context: unknown,
       _signal?: AbortSignal,
     ): Promise<StructuredToolResult> => {
+      if (turnSignal?.aborted) throw new Error("world tool turn 已取消");
       const currentSequence = ++sequence;
       if (currentSequence > MAX_WORLD_TOOL_CALLS_PER_TURN) {
         const error = new Error(
@@ -341,6 +424,7 @@ export function createOmpWorldTools(
         throw error;
       }
       try {
+        if (_signal?.aborted) throw new Error("world tool call 已取消");
         requireBoundedToolInput(input);
         const result = await execute(input);
         const modelResult = resultForModel(result);
@@ -476,60 +560,148 @@ function requireRestrictedWorldToolSurface(state: {
 
 class RestrictedOmpSdkClient implements OmpAgentClientPort {
   readonly #tools: readonly OmpHostTool[];
+  readonly #modelSelector: OmpModelSelector | undefined;
   #session: AgentSession | undefined;
+  #startPromise: Promise<void> | undefined;
+  #closeAuthStorage: (() => void) | undefined;
 
-  constructor(tools: readonly OmpHostTool[]) {
+  constructor(
+    tools: readonly OmpHostTool[],
+    modelSelector?: OmpModelSelector,
+  ) {
     this.#tools = tools;
+    this.#modelSelector = modelSelector;
   }
 
-  async start(): Promise<void> {
-    if (this.#session) throw new Error("OMP session 已启动");
+  async start(signal?: AbortSignal): Promise<void> {
+    if (this.#session || this.#startPromise) {
+      throw new Error("OMP session 已启动");
+    }
+    const starting = this.#start(signal);
+    this.#startPromise = starting;
+    try {
+      await starting;
+    } finally {
+      if (this.#startPromise === starting) this.#startPromise = undefined;
+    }
+  }
+
+  async #start(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) throw new Error("OMP session 启动已取消");
     const cwd = process.cwd();
-    const { session } = await createAgentSession({
-      cwd,
-      sessionManager: SessionManager.inMemory(cwd),
-      agentRegistry: new AgentRegistry(),
-      customTools: [...this.#tools],
-      toolNames: [...OMP_WORLD_TOOL_NAMES],
-      restrictToolNames: OMP_RESTRICTED_SESSION_POLICY.restrictToolNames,
-      allowRestrictedCustomTools:
-        OMP_RESTRICTED_SESSION_POLICY.allowRestrictedCustomTools,
-      disableExtensionDiscovery:
-        OMP_RESTRICTED_SESSION_POLICY.disableExtensionDiscovery,
-      enableMCP: OMP_RESTRICTED_SESSION_POLICY.enableMCP,
-      enableIrc: OMP_RESTRICTED_SESSION_POLICY.enableIrc,
-      enableLsp: OMP_RESTRICTED_SESSION_POLICY.enableLsp,
-      contextFiles: [],
-      skills: [],
-      rules: [],
-      promptTemplates: [],
-      slashCommands: [],
-      systemPrompt: [OMP_SYSTEM_PROMPT],
-      hasUI: false,
-      autoApprove: true,
-      skipPythonPreflight: true,
-      deadline: Date.now() + 120_000,
-    });
-    this.#session = session;
-    requireRestrictedWorldToolSurface(await this.getState());
+    const authStorage = await discoverAuthStorage();
+    if (signal?.aborted) {
+      authStorage.close();
+      throw new Error("OMP session 启动已取消");
+    }
+    const modelRegistry = new ModelRegistry(authStorage);
+    this.#closeAuthStorage = () => authStorage.close();
+    const sessionManager = SessionManager.inMemory(cwd);
+    const providerSessionId = sessionManager.getSessionId();
+    const getApiKey = this.#modelSelector
+      ? createPinnedOmpCredentialResolver(
+          this.#modelSelector,
+          providerSessionId,
+          (model, sessionId) => modelRegistry.getApiKey(model, sessionId),
+        )
+      : undefined;
+    let createdSession: AgentSession | undefined;
+    try {
+      const { session } = await createAgentSession({
+        cwd,
+        sessionManager,
+        providerSessionId,
+        agentRegistry: new AgentRegistry(),
+        settings: Settings.isolated(OMP_SINGLE_MODEL_SETTINGS),
+        modelRegistry,
+        ...(getApiKey ? { getApiKey } : {}),
+        customTools: [...this.#tools],
+        ...(this.#modelSelector
+          ? { modelPattern: this.#modelSelector.selector }
+          : {}),
+        toolNames: [...OMP_WORLD_TOOL_NAMES],
+        restrictToolNames: OMP_RESTRICTED_SESSION_POLICY.restrictToolNames,
+        allowRestrictedCustomTools:
+          OMP_RESTRICTED_SESSION_POLICY.allowRestrictedCustomTools,
+        disableExtensionDiscovery:
+          OMP_RESTRICTED_SESSION_POLICY.disableExtensionDiscovery,
+        enableMCP: OMP_RESTRICTED_SESSION_POLICY.enableMCP,
+        enableIrc: OMP_RESTRICTED_SESSION_POLICY.enableIrc,
+        enableLsp: OMP_RESTRICTED_SESSION_POLICY.enableLsp,
+        contextFiles: [],
+        skills: [],
+        rules: [],
+        promptTemplates: [],
+        slashCommands: [],
+        systemPrompt: [OMP_SYSTEM_PROMPT],
+        hasUI: false,
+        autoApprove: true,
+        skipPythonPreflight: true,
+        deadline: Date.now() + 120_000,
+      });
+      createdSession = session;
+      if (signal?.aborted) throw new Error("OMP session 启动已取消");
+      this.#session = session;
+      this.#requireModelIdentity();
+      requireRestrictedWorldToolSurface(await this.getState());
+    } catch (error) {
+      this.#session = undefined;
+      if (createdSession) {
+        try {
+          await createdSession.dispose();
+        } catch {
+          // Preserve the startup authority failure; cleanup is best effort here.
+        }
+      }
+      this.#closeOwnedAuthStorage();
+      throw error;
+    }
   }
 
   async stop(): Promise<void> {
+    const starting = this.#startPromise;
+    if (starting) {
+      try {
+        await starting;
+      } catch {
+        // Startup owns its partial-session cleanup before stop continues.
+      }
+    }
     const session = this.#session;
     this.#session = undefined;
-    if (session) await session.dispose();
+    try {
+      if (session) await session.dispose();
+    } finally {
+      this.#closeOwnedAuthStorage();
+    }
   }
 
-  async promptAndWait(message: string): Promise<void> {
+  async promptAndWait(message: string, signal?: AbortSignal): Promise<void> {
     const session = this.#requireSession();
-    const forwarded = await session.prompt(message, {
-      expandPromptTemplates:
-        OMP_RESTRICTED_SESSION_POLICY.expandPromptTemplates,
-      synthetic: OMP_RESTRICTED_SESSION_POLICY.syntheticPrompt,
-      userInitiated: true,
-    });
-    if (!forwarded) throw new Error("OMP prompt 未转发给模型");
-    await session.waitForIdle();
+    if (signal?.aborted) throw new Error("OMP turn 已取消");
+    let aborting: Promise<void> | undefined;
+    const abort = () => {
+      aborting ??= session.abort({
+        goalReason: "interrupted",
+        reason: "Demiurges turn aborted",
+      });
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    try {
+      const forwarded = await session.prompt(message, {
+        expandPromptTemplates:
+          OMP_RESTRICTED_SESSION_POLICY.expandPromptTemplates,
+        synthetic: OMP_RESTRICTED_SESSION_POLICY.syntheticPrompt,
+        userInitiated: true,
+      });
+      if (!forwarded) throw new Error("OMP prompt 未转发给模型");
+      await session.waitForIdle();
+      if (aborting) await aborting;
+      if (signal?.aborted) throw new Error("OMP turn 已取消");
+      this.#requireModelIdentity();
+    } finally {
+      signal?.removeEventListener("abort", abort);
+    }
   }
 
   async getLastAssistantText(): Promise<string | null> {
@@ -555,10 +727,33 @@ class RestrictedOmpSdkClient implements OmpAgentClientPort {
     if (!this.#session) throw new Error("OMP session 尚未启动");
     return this.#session;
   }
+
+  #requireModelIdentity(): void {
+    if (!this.#modelSelector) return;
+    const model = this.#requireSession().model;
+    if (!model) {
+      throw new Error(
+        `OMP model identity 漂移：expected ${this.#modelSelector.selector}, actual <unselected>`,
+      );
+    }
+    requireOmpModelIdentity(this.#modelSelector, model);
+  }
+
+  #closeOwnedAuthStorage(): void {
+    const close = this.#closeAuthStorage;
+    this.#closeAuthStorage = undefined;
+    close?.();
+  }
 }
 
 export const createDefaultOmpAgentClient: OmpAgentClientFactory = (tools) =>
   new RestrictedOmpSdkClient(tools);
+
+export function createOmpAgentClientFactory(
+  selector: OmpModelSelector,
+): OmpAgentClientFactory {
+  return (tools) => new RestrictedOmpSdkClient(tools, selector);
+}
 
 async function resolveInstalledOmpVersion(): Promise<string> {
   const sdkUrl = import.meta.resolve("@oh-my-pi/pi-coding-agent/sdk");
@@ -592,6 +787,33 @@ function requirePrompt(prompt: string): string {
   return prompt;
 }
 
+async function awaitAgentPhase<T>(
+  phase: string,
+  signal: AbortSignal | undefined,
+  operation: () => Promise<T>,
+): Promise<T> {
+  let pending: Promise<T>;
+  try {
+    pending = operation();
+  } catch (error) {
+    pending = Promise.reject(error);
+  }
+  if (!signal) return pending;
+  pending.catch(() => undefined);
+  let rejectAbort: ((error: Error) => void) | undefined;
+  const aborted = new Promise<never>((_, reject) => {
+    rejectAbort = reject;
+  });
+  const abort = () => rejectAbort?.(new Error(`Agent ${phase} 已取消`));
+  signal.addEventListener("abort", abort, { once: true });
+  if (signal.aborted) abort();
+  try {
+    return await Promise.race([pending, aborted]);
+  } finally {
+    signal.removeEventListener("abort", abort);
+  }
+}
+
 export class OmpWorldAgent {
   readonly #surface: WorldToolSurface;
   readonly #clientFactory: OmpAgentClientFactory;
@@ -607,14 +829,20 @@ export class OmpWorldAgent {
   async run(
     prompt: string,
     observer: OmpWorldToolObserver = () => undefined,
+    signal?: AbortSignal,
   ): Promise<OmpAgentTurnResult> {
     const admittedPrompt = requirePrompt(prompt);
+    if (signal?.aborted) throw new Error("Agent turn 已取消");
+    const toolAuthority = new AbortController();
+    const closeToolAuthority = () => toolAuthority.abort();
+    signal?.addEventListener("abort", closeToolAuthority, { once: true });
     const trace: OmpToolTraceEntry[] = [];
     let toolLimitError: Error | undefined;
     const tools = createOmpWorldTools(
       this.#surface,
       (entry, evidence) => {
         trace.push(entry);
+        if (toolAuthority.signal.aborted) return;
         try {
           observer(
             deepFreeze({
@@ -629,32 +857,51 @@ export class OmpWorldAgent {
       (error) => {
         toolLimitError ??= error;
       },
+      toolAuthority.signal,
     );
-    const client = this.#clientFactory(tools);
+    let client: OmpAgentClientPort;
+    try {
+      client = this.#clientFactory(tools);
+    } catch (error) {
+      closeToolAuthority();
+      signal?.removeEventListener("abort", closeToolAuthority);
+      throw error;
+    }
 
     let result: OmpAgentTurnResult | undefined;
     let primaryError: unknown;
     try {
-      await client.start();
-      const state = await client.getState();
+      await awaitAgentPhase("start", signal, () => client.start(signal));
+      const state = await awaitAgentPhase("tool surface check", signal, () =>
+        client.getState(),
+      );
       requireRestrictedWorldToolSurface(state);
-      await client.promptAndWait(admittedPrompt);
+      await awaitAgentPhase("prompt", signal, () =>
+        client.promptAndWait(admittedPrompt, signal),
+      );
+      closeToolAuthority();
       if (toolLimitError) throw toolLimitError;
-      const responseText = (await client.getLastAssistantText()) ?? "";
+      const responseText =
+        (await awaitAgentPhase("response", signal, () =>
+          client.getLastAssistantText(),
+        )) ?? "";
       result = deepFreeze({
         responseText,
         trace: [...trace].sort((left, right) => left.sequence - right.sequence),
       }) as OmpAgentTurnResult;
     } catch (error) {
+      closeToolAuthority();
       primaryError = error;
     }
 
     let cleanupError: unknown;
     try {
-      await client.stop();
+      await awaitAgentPhase("stop", signal, () => client.stop());
     } catch (error) {
       cleanupError = error;
     }
+    closeToolAuthority();
+    signal?.removeEventListener("abort", closeToolAuthority);
 
     const frozenTrace = [...trace].sort(
       (left, right) => left.sequence - right.sequence,

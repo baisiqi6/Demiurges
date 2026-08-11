@@ -15,12 +15,13 @@ describe("Gateway-owned ProductSession", () => {
     );
     const events: unknown[] = [];
 
-    await session.runTurn(
+    const returnedProjection = await session.runTurn(
       "创建一个方块，把高度改到 2.8 米，然后让它落到地面并检查结果。",
       (event) => {
         events.push(event);
       },
     );
+    expect(returnedProjection.running).toBe(false);
 
     expect(
       events
@@ -71,6 +72,96 @@ describe("Gateway-owned ProductSession", () => {
     );
     releaseFirst?.();
     await first;
+  });
+
+  test("abort 后迟到 client 即使用 fresh signal 也不能污染后续世界 authority", async () => {
+    let lateWrite: Parameters<OmpAgentClientFactory>[0][number] | undefined;
+    const factory: OmpAgentClientFactory = (tools) => ({
+      async start() {},
+      async stop() {},
+      async getState() {
+        const names = tools.map((tool) => tool.name);
+        return {
+          sessionId: "session:late-product-write",
+          toolNames: names,
+          enabledToolNames: names,
+          mountedToolNames: [],
+        };
+      },
+      async promptAndWait() {
+        lateWrite = tools.find((tool) => tool.name === "world_write");
+        await new Promise<never>(() => undefined);
+      },
+      async getLastAssistantText() { return null; },
+    });
+    const session = new ProductSession("session:test-late-write", factory);
+    const controller = new AbortController();
+    const pending = session.runTurn("运行", () => undefined, controller.signal);
+    await Promise.resolve();
+    controller.abort();
+    await expect(pending).rejects.toThrow();
+    expect(session.readProjection()).toMatchObject({
+      running: false,
+      world: null,
+      lastRun: null,
+    });
+    if (!lateWrite) throw new Error("fixture 未捕获 world_write");
+
+    await expect(lateWrite.execute(
+      "call:late-product-write",
+      { cubeHeight: 2 },
+      undefined,
+      {} as never,
+      new AbortController().signal,
+    )).rejects.toThrow("turn 已取消");
+    expect(session.readProjection()).toMatchObject({
+      running: false,
+      world: null,
+      lastRun: null,
+    });
+  });
+
+  test("正常 completed 后 retained tool closure 不能产生晚到 world 或 event", async () => {
+    let lateWrite: Parameters<OmpAgentClientFactory>[0][number] | undefined;
+    const factory: OmpAgentClientFactory = (tools) => ({
+      async start() {},
+      async stop() {},
+      async getState() {
+        const names = tools.map((tool) => tool.name);
+        return {
+          sessionId: "session:completed-product-write",
+          toolNames: names,
+          enabledToolNames: names,
+          mountedToolNames: [],
+        };
+      },
+      async promptAndWait() {
+        lateWrite = tools.find((tool) => tool.name === "world_write");
+      },
+      async getLastAssistantText() { return "completed"; },
+    });
+    const events: unknown[] = [];
+    const session = new ProductSession("session:test-completed-write", factory);
+    const completed = await session.runTurn("运行", (event) => {
+      events.push(event);
+    });
+    expect(completed).toMatchObject({
+      running: false,
+      world: null,
+      lastRun: null,
+      lastSequence: 2,
+    });
+    if (!lateWrite) throw new Error("fixture 未捕获 world_write");
+
+    await expect(lateWrite.execute(
+      "call:completed-product-write",
+      { cubeHeight: 2 },
+      undefined,
+      {} as never,
+      new AbortController().signal,
+    )).rejects.toThrow("turn 已取消");
+    expect(session.readProjection()).toEqual(completed);
+    expect(events).toHaveLength(2);
   });
 
   test("失败 product trace 不复制原始 tool input", async () => {

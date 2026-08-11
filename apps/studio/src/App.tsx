@@ -381,7 +381,7 @@ export default function App() {
       <footer class="statusbar">
         <span>Authority: Gateway Product Session</span>
         <span>Presentation: Three.js</span>
-        <span>Runtime: @mujoco/mujoco · Agent: scripted canary</span>
+        <span>Runtime: @mujoco/mujoco · Agent: restricted four-tool session</span>
       </footer>
     </main>
   );

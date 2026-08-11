@@ -10,6 +10,7 @@ const MAX_JSON_RESPONSE_BYTES = 2_000_000;
 const MAX_TURN_EVENTS = 130;
 const SETTLED_RESYNC_ATTEMPTS = 100;
 const SETTLED_RESYNC_DELAY_MS = 20;
+const DEFAULT_TURN_TIMEOUT_MS = 120_000;
 
 type EventSink = (event: ProductSessionEvent) => void;
 type FetchPort = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -27,6 +28,7 @@ export async function readProductSessionEvents(
   sessionId: string,
   sink: EventSink,
   firstSequence = 1,
+  signal?: AbortSignal,
 ): Promise<Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }>> {
   if (!response.ok) {
     throw new Error(`Agent Gateway turn request 失败：HTTP ${response.status}`);
@@ -37,6 +39,20 @@ export async function readProductSessionEvents(
   if (!response.body) throw new Error("Agent Gateway turn response 缺少 body");
 
   const reader = response.body.getReader();
+  let removeAbortListener: () => void = () => undefined;
+  const abortFailure = new Promise<never>((_, reject) => {
+    if (!signal) return;
+    const fail = () => {
+      void reader.cancel(signal.reason).catch(() => undefined);
+      reject(new Error("Agent Gateway turn 已取消"));
+    };
+    if (signal.aborted) {
+      fail();
+      return;
+    }
+    signal.addEventListener("abort", fail, { once: true });
+    removeAbortListener = () => signal.removeEventListener("abort", fail);
+  });
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let buffer = "";
   let expectedSequence = firstSequence;
@@ -85,7 +101,7 @@ export async function readProductSessionEvents(
 
   try {
     while (true) {
-      const { value, done } = await reader.read();
+      const { value, done } = await Promise.race([reader.read(), abortFailure]);
       buffer += decoder.decode(value, { stream: !done });
       let newline = buffer.indexOf("\n");
       while (newline >= 0) {
@@ -102,6 +118,8 @@ export async function readProductSessionEvents(
   } catch (error) {
     await reader.cancel(error).catch(() => undefined);
     throw error;
+  } finally {
+    removeAbortListener();
   }
   if (!turnId || !terminal) {
     throw new Error("Product Session stream 缺少完整 turn lifecycle");
@@ -169,17 +187,17 @@ export class ProductSessionTurnError extends Error {
 
 export class ProductSessionClient {
   readonly #fetch: FetchPort;
-  readonly #settledResyncTimeoutMs: number;
+  readonly #turnTimeoutMs: number;
 
   constructor(
     fetchPort: FetchPort = globalThis.fetch.bind(globalThis),
-    settledResyncTimeoutMs = 2_000,
+    turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
   ) {
-    if (!Number.isFinite(settledResyncTimeoutMs) || settledResyncTimeoutMs <= 0) {
-      throw new Error("settled resync timeout 必须是正有限毫秒数");
+    if (!Number.isFinite(turnTimeoutMs) || turnTimeoutMs <= 0) {
+      throw new Error("turn timeout 必须是正有限毫秒数");
     }
     this.#fetch = fetchPort;
-    this.#settledResyncTimeoutMs = settledResyncTimeoutMs;
+    this.#turnTimeoutMs = turnTimeoutMs;
   }
 
   async createSession(): Promise<ProductSessionProjection> {
@@ -198,16 +216,24 @@ export class ProductSessionClient {
     return decodeProductSessionProjection(await responseJson(response), sessionId);
   }
 
-  async #readSettledSession(sessionId: string): Promise<ProductSessionProjection> {
-    const deadline = Date.now() + this.#settledResyncTimeoutMs;
-    let projection = await this.#readSessionBeforeDeadline(sessionId, deadline);
+  async #readSettledSession(
+    sessionId: string,
+    deadline: number,
+    signal?: AbortSignal,
+  ): Promise<ProductSessionProjection> {
+    let projection = await this.#readSessionBeforeDeadline(sessionId, deadline, signal);
     for (let attempt = 1; projection.running && attempt < SETTLED_RESYNC_ATTEMPTS; attempt += 1) {
       const remaining = deadline - Date.now();
       if (remaining <= 0) break;
-      await new Promise<void>((resolve) =>
-        setTimeout(resolve, Math.min(SETTLED_RESYNC_DELAY_MS, remaining)),
+      await this.#beforeDeadline(
+        deadline,
+        signal,
+        "session resync delay",
+        () => new Promise<void>((resolve) =>
+          setTimeout(resolve, Math.min(SETTLED_RESYNC_DELAY_MS, remaining)),
+        ),
       );
-      projection = await this.#readSessionBeforeDeadline(sessionId, deadline);
+      projection = await this.#readSessionBeforeDeadline(sessionId, deadline, signal);
     }
     if (projection.running) {
       throw new Error("Agent Gateway session 未在 resync budget 内 settled");
@@ -218,26 +244,56 @@ export class ProductSessionClient {
   async #readSessionBeforeDeadline(
     sessionId: string,
     deadline: number,
+    signal?: AbortSignal,
   ): Promise<ProductSessionProjection> {
+    return this.#beforeDeadline(
+      deadline,
+      signal,
+      "session resync GET",
+      (operationSignal) => this.readSession(sessionId, operationSignal),
+    );
+  }
+
+  async #beforeDeadline<T>(
+    deadline: number,
+    signal: AbortSignal | undefined,
+    label: string,
+    operation: (signal: AbortSignal) => Promise<T>,
+  ): Promise<T> {
     const remaining = deadline - Date.now();
-    if (remaining <= 0) {
-      throw new Error("Agent Gateway session 未在 resync deadline 内 settled");
-    }
+    if (remaining <= 0) throw new Error(`Agent Gateway ${label} 超过 turn deadline`);
     const controller = new AbortController();
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let removeAbortListener: () => void = () => undefined;
     const deadlineFailure = new Promise<never>((_, reject) => {
       timeout = setTimeout(() => {
         controller.abort();
-        reject(new Error("Agent Gateway session resync GET 超过 deadline"));
+        reject(new Error(`Agent Gateway ${label} 超过 turn deadline`));
       }, remaining);
+    });
+    const abortFailure = new Promise<never>((_, reject) => {
+      if (!signal) return;
+      const fail = () => {
+        controller.abort(signal.reason);
+        reject(new Error("Agent Gateway turn 已取消"));
+      };
+      if (signal.aborted) {
+        fail();
+        return;
+      }
+      signal.addEventListener("abort", fail, { once: true });
+      removeAbortListener = () => signal.removeEventListener("abort", fail);
     });
     try {
       return await Promise.race([
-        this.readSession(sessionId, controller.signal),
+        operation(controller.signal),
         deadlineFailure,
+        abortFailure,
       ]);
     } finally {
       if (timeout !== undefined) clearTimeout(timeout);
+      removeAbortListener();
+      controller.abort();
     }
   }
 
@@ -248,31 +304,45 @@ export class ProductSessionClient {
     sink: EventSink,
     signal?: AbortSignal,
   ): Promise<ProductSessionProjection> {
+    const deadline = Date.now() + this.#turnTimeoutMs;
     let terminal: Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }>;
     try {
-      const response = await this.#fetch(
-        `/api/sessions/${encodeURIComponent(sessionId)}/turns`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ prompt }),
-          signal,
+      terminal = await this.#beforeDeadline(
+        deadline,
+        signal,
+        "turn POST/stream",
+        async (operationSignal) => {
+          const response = await this.#fetch(
+            `/api/sessions/${encodeURIComponent(sessionId)}/turns`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ prompt }),
+              signal: operationSignal,
+            },
+          );
+          return readProductSessionEvents(
+            response,
+            sessionId,
+            sink,
+            firstSequence,
+            operationSignal,
+          );
         },
       );
-      terminal = await readProductSessionEvents(
-        response,
-        sessionId,
-        sink,
-        firstSequence,
-      );
     } catch (error) {
-      const projection = await this.#readSettledSession(sessionId);
+      const projection = await this.#readSettledSession(sessionId, deadline, signal);
       throw new ProductSessionTurnError(
         error instanceof Error ? error.message : "Agent Gateway turn stream 失败",
         projection,
       );
     }
-    const projection = await this.readSession(sessionId);
+    const projection = await this.#beforeDeadline(
+      deadline,
+      signal,
+      "final projection GET",
+      (operationSignal) => this.readSession(sessionId, operationSignal),
+    );
     if (terminal.type === "turn.failed") {
       throw new ProductSessionTurnError(terminal.error, projection);
     }

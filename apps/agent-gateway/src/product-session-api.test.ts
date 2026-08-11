@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { createProductSessionApi } from "./product-session-api";
+import { createScriptedAgentClientFactory } from "./product-session";
 import type {
   OmpAgentClientFactory,
   OmpAgentClientPort,
@@ -14,7 +15,7 @@ afterEach(() => {
 });
 
 async function startApi(): Promise<URL> {
-  const api = createProductSessionApi();
+  const api = createProductSessionApi(createScriptedAgentClientFactory());
   server = Bun.serve({ port: 0, fetch: api.fetch });
   return new URL(server.url.toString());
 }
@@ -52,6 +53,173 @@ function controlledBody(
 }
 
 describe("Product Session HTTP API", () => {
+  test("Gateway absolute deadline 会 abort ProductSession/Agent 并恢复 settled authority", async () => {
+    let receivedSignal: AbortSignal | undefined;
+    const waitingFactory: OmpAgentClientFactory = (tools) => ({
+      async start() {},
+      async stop() {},
+      async getState() {
+        const names = tools.map((tool) => tool.name);
+        return {
+          sessionId: "session:waiting",
+          toolNames: names,
+          enabledToolNames: names,
+          mountedToolNames: [],
+        };
+      },
+      async promptAndWait(_message: string, signal?: AbortSignal) {
+        receivedSignal = signal;
+        if (!signal) return new Promise<never>(() => undefined);
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) resolve();
+          else signal.addEventListener("abort", () => resolve(), { once: true });
+        });
+        const write = tools.find((tool) => tool.name === "world_write");
+        if (!write) throw new Error("缺少 world_write");
+        await write.execute(
+          "call:after-abort",
+          { cubeHeight: 2 },
+          undefined,
+          {} as never,
+          signal,
+        );
+      },
+      async getLastAssistantText() { return null; },
+    });
+    const api = createProductSessionApi(waitingFactory, 30);
+    const created = await api.fetch(
+      new Request("http://local.test/api/sessions", { method: "POST" }),
+    );
+    const { sessionId } = (await created.json()) as { sessionId: string };
+    const response = await api.fetch(
+      turnRequest(sessionId, JSON.stringify({ prompt: "运行" })),
+    );
+    const outcome = await Promise.race([
+      response.text().then((text) => ({ kind: "settled", text })),
+      new Promise<{ kind: "pending" }>((resolve) =>
+        setTimeout(() => resolve({ kind: "pending" }), 150),
+      ),
+    ]);
+
+    expect(outcome.kind).toBe("settled");
+    expect(receivedSignal?.aborted).toBe(true);
+    if (outcome.kind !== "settled") throw new Error("Gateway turn 未 settled");
+    const events = outcome.text.trim().split("\n").map((line) => JSON.parse(line));
+    expect(events.map((event) => event.type)).toEqual([
+      "turn.started",
+      "turn.failed",
+    ]);
+    const projection = await api.fetch(
+      new Request(`http://local.test/api/sessions/${sessionId}`),
+    );
+    expect(await projection.json()).toMatchObject({
+      running: false,
+      world: null,
+      lastRun: null,
+    });
+  });
+
+  test("HTTP request abort 会贯穿到 Agent，不等待 Gateway max timeout", async () => {
+    let receivedSignal: AbortSignal | undefined;
+    const waitingFactory: OmpAgentClientFactory = (tools) => ({
+      async start() {},
+      async stop() {},
+      async getState() {
+        const names = tools.map((tool) => tool.name);
+        return {
+          sessionId: "session:request-abort",
+          toolNames: names,
+          enabledToolNames: names,
+          mountedToolNames: [],
+        };
+      },
+      async promptAndWait(_message: string, signal?: AbortSignal) {
+        receivedSignal = signal;
+        if (!signal) return new Promise<never>(() => undefined);
+        await new Promise<never>((_, reject) => {
+          const fail = () => reject(new Error("request aborted"));
+          if (signal.aborted) fail();
+          else signal.addEventListener("abort", fail, { once: true });
+        });
+      },
+      async getLastAssistantText() { return null; },
+    });
+    const api = createProductSessionApi(waitingFactory, 5_000);
+    const created = await api.fetch(
+      new Request("http://local.test/api/sessions", { method: "POST" }),
+    );
+    const { sessionId } = (await created.json()) as { sessionId: string };
+    const abort = new AbortController();
+    const response = await api.fetch(new Request(
+      `http://local.test/api/sessions/${sessionId}/turns`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt: "运行" }),
+        signal: abort.signal,
+      },
+    ));
+    const settled = response.text();
+    abort.abort();
+
+    const outcome = await Promise.race([
+      settled.then(() => "settled"),
+      new Promise<string>((resolve) => setTimeout(() => resolve("pending"), 150)),
+    ]);
+    expect(outcome).toBe("settled");
+    expect(receivedSignal?.aborted).toBe(true);
+  });
+
+  test("Gateway deadline 覆盖忽略 signal 的 OMP start/stop lifecycle 并恢复 running:false", async () => {
+    for (const hangingPhase of ["start", "stop"] as const) {
+      const factory: OmpAgentClientFactory = (tools) => ({
+        async start() {
+          if (hangingPhase === "start") {
+            await new Promise<never>(() => undefined);
+          }
+        },
+        async stop() {
+          if (hangingPhase === "stop") {
+            await new Promise<never>(() => undefined);
+          }
+        },
+        async getState() {
+          const names = tools.map((tool) => tool.name);
+          return {
+            sessionId: `session:hanging-${hangingPhase}`,
+            toolNames: names,
+            enabledToolNames: names,
+            mountedToolNames: [],
+          };
+        },
+        async promptAndWait() {
+          throw new Error("synthetic lifecycle failure");
+        },
+        async getLastAssistantText() { return null; },
+      });
+      const api = createProductSessionApi(factory, 30);
+      const created = await api.fetch(
+        new Request("http://local.test/api/sessions", { method: "POST" }),
+      );
+      const { sessionId } = (await created.json()) as { sessionId: string };
+      const response = await api.fetch(
+        turnRequest(sessionId, JSON.stringify({ prompt: "运行" })),
+      );
+      const outcome = await Promise.race([
+        response.text().then(() => "settled" as const),
+        new Promise<"pending">((resolve) =>
+          setTimeout(() => resolve("pending"), 150),
+        ),
+      ]);
+
+      expect(outcome).toBe("settled");
+      const projection = await api.fetch(
+        new Request(`http://local.test/api/sessions/${sessionId}`),
+      );
+      expect(await projection.json()).toMatchObject({ running: false });
+    }
+  });
+
   test("创建 session、流式执行 scripted turn，并从同一 authority resync", async () => {
     const baseUrl = await startApi();
     const createdResponse = await fetch(new URL("/api/sessions", baseUrl), {
@@ -138,7 +306,7 @@ describe("Product Session HTTP API", () => {
   });
 
   test("同一 session 的并发 HTTP turn 只有一个能原子取得 execution authority", async () => {
-    const api = createProductSessionApi();
+    const api = createProductSessionApi(createScriptedAgentClientFactory());
     const created = await api.fetch(
       new Request("http://local.test/api/sessions", { method: "POST" }),
     );
@@ -171,7 +339,7 @@ describe("Product Session HTTP API", () => {
   });
 
   test("HTTP admission 按真实 UTF-8 bytes 限额并精确解析 JSON media type", async () => {
-    const api = createProductSessionApi();
+    const api = createProductSessionApi(createScriptedAgentClientFactory());
     const created = await api.fetch(
       new Request("http://local.test/api/sessions", { method: "POST" }),
     );

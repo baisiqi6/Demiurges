@@ -244,6 +244,85 @@ describe("Studio Product Session client", () => {
     expect(calls).toBe(2);
   });
 
+  test("单一 turn deadline 约束忽略 AbortSignal 的悬挂 POST", async () => {
+    const client = new ProductSessionClient(
+      async () => new Promise<Response>(() => undefined),
+      30,
+    );
+
+    const outcome = await Promise.race([
+      client.runTurn("session:local-1", "运行", 1, () => undefined).then(
+        () => "resolved",
+        () => "rejected",
+      ),
+      new Promise<string>((resolve) => setTimeout(() => resolve("still_pending"), 120)),
+    ]);
+
+    expect(outcome).toBe("rejected");
+  });
+
+  test("同一 turn deadline 也约束 terminal stream 后悬挂的 final GET", async () => {
+    let calls = 0;
+    const completed = [
+      {
+        sequence: 1,
+        sessionId: "session:local-1",
+        turnId: "turn:local-1:1",
+        type: "turn.started",
+      },
+      {
+        sequence: 2,
+        sessionId: "session:local-1",
+        turnId: "turn:local-1:1",
+        type: "turn.completed",
+        responseText: "完成",
+      },
+    ];
+    const client = new ProductSessionClient(async () => {
+      calls += 1;
+      if (calls === 1) {
+        return chunkedResponse([
+          `${completed.map((event) => JSON.stringify(event)).join("\n")}\n`,
+        ]);
+      }
+      return new Promise<Response>(() => undefined);
+    }, 30);
+
+    const outcome = await Promise.race([
+      client.runTurn("session:local-1", "运行", 1, () => undefined).then(
+        () => "resolved",
+        () => "rejected",
+      ),
+      new Promise<string>((resolve) => setTimeout(() => resolve("still_pending"), 120)),
+    ]);
+
+    expect(outcome).toBe("rejected");
+    expect(calls).toBe(2);
+  });
+
+  test("调用方 abort 即使遇到忽略 signal 的 port 也会 bounded reject", async () => {
+    const controller = new AbortController();
+    const client = new ProductSessionClient(
+      async () => new Promise<Response>(() => undefined),
+      5_000,
+    );
+    const pending = client.runTurn(
+      "session:local-1",
+      "运行",
+      1,
+      () => undefined,
+      controller.signal,
+    );
+
+    controller.abort();
+    const outcome = await Promise.race([
+      pending.then(() => "resolved", () => "rejected"),
+      new Promise<string>((resolve) => setTimeout(() => resolve("still_pending"), 100)),
+    ]);
+
+    expect(outcome).toBe("rejected");
+  });
+
   test("tool failure 是可恢复中间 evidence，turn outcome 由 terminal event 决定", async () => {
     const events = [
       {
