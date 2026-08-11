@@ -101,7 +101,7 @@ connected Product Session 的唯一可写 `RuntimeMvpHost` 位于 Gateway。Stud
 
 这个 product contract 不是只靠 TypeScript cast：共享 codec 先通过 own property descriptor 把输入复制为全新 plain-data graph，再对 event lifecycle、session/turn identity、trace sequence、tool/evidence association、Snapshot/Ref/Episode/Evaluation DTO 与整体 node/depth/string/collection budget 做 fail-closed admission。派生 identity 服从真实 producer contract，不以与 runId 派生规则冲突的局部长度猜测误拒合法 evidence。Gateway 在构造 `200 NDJSON` 前原子取得 turn authority；request body 按真实 UTF-8 bytes 限额并精确解析 media type。任何 stream/parse/abort failure 都在单一 wall-clock deadline 下 bounded follow-up resync，每个 GET 共享剩余预算；只有取得 `running:false` 的 settled projection 才算恢复，预算耗尽则清空 partial authority。tool failure 是可恢复的中间 evidence，只有 `turn.completed`/`turn.failed` 决定 outcome；failure trace 只保留 `[redacted]` 与稳定 public code，不转发原始 tool input、OMP、Host、path、credential-like message 或 stack。
 
-当前闭环只注入 deterministic scripted Agent client，验证自然语言输入、四工具调用、权威证据、逐帧 Episode 回放与评测的产品链路。真实 provider/model prompt、credential 与费用尚未获授权，不能把 scripted product loop 描述为模型能力已经接入。
+`DH-007` 已把 production composition 切换为显式 `DEMIURGES_OMP_MODEL=provider/model` 的 restricted OMP client；deterministic scripted Agent 只保留为显式 test/browser fixture。真实 `kimi-code/k3` bounded canary 已通过同一 Product Session contract 自主执行 `world_write → world_edit → world_run`，产生 76-sample Episode 与确定性 Evaluation PASS，current ref 保持 authored edit v2。该结果证明真实模型路径已经接入，但不扩大模型 authority：模型仍只能调用四个 world tools，credential 只存在于 OMP/Gateway provider boundary，terminal Snapshot 仍需独立 Harness control 才能 adopt。
 
 ## 防止架构漂移的规则
 

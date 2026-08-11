@@ -103,7 +103,7 @@ Studio → ProductSessionClient → Three.js + EpisodePlayer
 
 ## 当前 execution profile
 
-当前使用 Standalone、file-backed 项目 authority。Studio 与本地 Bun Agent Gateway 已通过 loopback HTTP NDJSON/resync 建立 Product Session transport；每个 session 的 Repository、MuJoCo Runtime 与 current ref 只存在于 Gateway 内存，因此刷新或重启 Gateway 会丢失 session。Gateway production entry 要求显式设置 `DEMIURGES_OMP_MODEL=provider/model`，并使用 OMP SDK restricted session；凭证继续由 OMP 自身解析，Demiurges 不接收或传输 credential。scripted Agent client 仅保留为显式注入的 test fixture。真实 provider/model canary 尚未获授权、未执行。canonical Git remote 为 private GitHub repository `https://github.com/baisiqi6/Demiurges`；当前不存在 Coordinate workspace、deployment target、鉴权/TLS、Spark/3DGS Runtime 或 world-model provider。
+当前使用 Standalone、file-backed 项目 authority。Studio 与本地 Bun Agent Gateway 已通过 loopback HTTP NDJSON/resync 建立 Product Session transport；每个 session 的 Repository、MuJoCo Runtime 与 current ref 只存在于 Gateway 内存，因此刷新或重启 Gateway 会丢失 session。Gateway production entry 要求显式设置 `DEMIURGES_OMP_MODEL=provider/model`，并使用 OMP SDK restricted session；凭证继续由 OMP 自身解析，Demiurges 不接收或传输 credential。scripted Agent client 仅保留为显式注入的 test fixture。`DH-007` 的唯一授权 `kimi-code/k3` live canary 已执行并通过，脱敏 receipt 位于 `docs/project-harness/tasks/DH-007/live-canary-receipt.md`；它不构成持续 provider 调用 authority。canonical Git remote 为 private GitHub repository `https://github.com/baisiqi6/Demiurges`；当前不存在 Coordinate workspace、deployment target、鉴权/TLS、Spark/3DGS Runtime 或 world-model provider。
 
 ## Commit 与 push 验证
 
