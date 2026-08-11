@@ -435,3 +435,71 @@ Independent review：
 - Human 授权后完成 closeout packet、fresh closeout approval 与正常 `mark-done`，未使用 force override；
 - CLOSE event `evt-20260811T050106Z-c2088c45`，DH-008 为 `done/closed` 且 lease 已释放；
 - 下一动作仅为提交并 push `agent/codex/DH-008`，不隐含 merge `main`、PR、tag、deploy 或真实 provider prompt。
+
+## 2026-08-10 — DH-008 集成完成，DH-009 3DGS / Spark 切片已规划
+
+- `main` 已从 `ac293318c8a6b2fe7433146df7417cc3c83e2726` fast-forward 到 `fdbbf680122c06810f58da37d9973d4f0aa2c984` 并推送，远端 `main` SHA 已回查一致；
+- 从新 `main` 创建 `agent/codex/DH-009` 与 `/Users/Admin/projects/WorkTrees/Demiurges-DH-009`；
+- canonical plan 把 3DGS 明确为同一 imported rigid Entity 的独立 `observation` representation：GLB visual、box collision proxy、MuJoCo state 与 Episode authority 保持不变，Spark 只在 Presentation 层消费经过 digest/frame/units/alignment 校验的 repo-owned bytes；
+- 计划选择一个确定性生成的小型 PLY diagnostic fixture、单一 SparkRenderer、`mesh / 3dgs / overlay` Studio-local mode，以及来自真实 loaded bounds 与 Episode pose 的结构化 AlignmentEvidence；不建立通用 Artifact SDK、远程资产通道或第五个 world tool；
+- 只读 dependency gate 确认候选 `@sparkjsdev/spark@2.1.0` 为 MIT、要求 `three >=0.180.0`，当前 `three 0.185.1` 满足。精确 dependency 只在实现阶段按 plan 锁定；
+- 当前 Human authority 要求计划完成后再进入实现，但不包含 `DH-009` commit/push、真实 provider prompt、PR、merge、tag 或 deploy。
+
+## 2026-08-10 — DH-009 3DGS Observation / Spark Presentation 已实现
+
+- 同一 imported rigid Entity 现在同时持有 GLB visual、repo-owned 3DGS observation 与 box collision proxy；observation 不能绑定 primitive，Product codec、Runtime admission 与跨 Episode evidence closure 均 fail closed；
+- Spark 在现有 Three.js scene 内呈现经过 digest 验证的 2,048-splat PLY，Studio 提供 GLB/3DGS/overlay 与 measured AlignmentEvidence；MuJoCo trajectory/Evaluation 不消费 3DGS；四工具 surface 未扩张；
+- 最终 operator gate 为 102 tests / 0 fail / 2,615 assertions，typecheck/build/diff-check、deterministic asset、harness validation 与真实 Chromium playback/reset 通过；Spark disposal race 已从根部关闭；
+- 下一步是冻结 product digest 并进行 fresh independent cross-review。批准前不 closeout/mark-done，Human 未授权前不 commit/push。
+
+## 2026-08-10 — DH-009 product candidate frozen for Round 1 review
+
+- 最终 product digest 为 `e9d9b1eb1a51f04342cc3aff4ab7211714e705021a910117ccd6d75bb54a5053`；digest 排除 harness/review 文档，纳入所有 tracked diff 与 untracked product bytes；
+- final Chromium 重新验证 resize、GLB/3DGS/overlay、frame 12/75、alignment PASS、Evaluation PASS、reset 清空与第二 Session 重载；无 page error、非 favicon console/HTTP error，server log 只剩 Spark 的 `THREE.Clock` upstream warning；
+- 现进入两个 fresh reviewer 互相隔离的 Round 1 gate，未 closeout/mark-done/commit/push。
+
+## 2026-08-10 — DH-009 Round 1 cross-review blocked
+
+- Sol/Terra 对 digest `e9d9b1eb1a51f04342cc3aff4ab7211714e705021a910117ccd6d75bb54a5053` 均给出 `changes_requested`；
+- blockers 为 quaternion/bounds 可产生虚假 alignment PASS、observation 可绑定错误 EntityRef、Splat initialized rejection 资源泄漏；另有 stale error dataset P2；
+- Round 1 历史已保留，进入根部 remediation 与新 digest gate，不 closeout/commit/push。
+
+## 2026-08-10 — DH-009 Round 1 remediation frozen for Round 2
+
+- codec/Runtime 已把 observation 锁到 `entity:cube`，并拒绝非单位 Entity pose；alignment 独立拒绝非法 pose、reversed/sparse/non-finite bounds 与 observation transform；
+- Splat reject/stale 路径现在先释放实例，observation dataset 在 loading/error/reset 成组清理；
+- remediation gate 为 102/0/2,626，typecheck/build/diff/artifact/harness/Chromium 通过；新 digest `03550f8693a990a20f5a4555c11635831dbf6c1653400590596a2fa3f328939b` 进入 fresh Round 2，仍未 closeout/commit/push。
+
+## 2026-08-10 — DH-009 Round 2 combined alias blocked
+
+- Terra approved，Sol `changes_requested`：同时交换 Ref 与 representations 可让 observation 位于名义 `entity:cube`、实际 static floor record；
+- Product decoder 正与唯一 Runtime role contract 对齐，验证精确 floor/cube、static/dynamic、mass/velocity/friction 与 positive geometry，并加入 JSON round-trip 组合反例；
+- Round 1/2 verdict 永久保留，未 closeout/commit/push。
+
+## 2026-08-10 — DH-009 fixed-role final candidate
+
+- Product decoder 已与 falling-cube Runtime role contract 对齐，组合 Ref/representation/state/event alias regression fail closed；
+- final gate 102/0/2,627、typecheck/build/diff/harness/Chromium 通过；digest `79b9050ee69ea8c6869fb51521aa9b128da40d070b6ad27b0e27249fe2aebec5` 进入 Round 3 final cross-review；
+- 仍未 closeout/mark-done/commit/push。
+
+## 2026-08-10 — DH-009 Round 3 final cross-review approved
+
+- Sol/Terra 在 final digest `79b9050ee69ea8c6869fb51521aa9b128da40d070b6ad27b0e27249fe2aebec5` 上双审批准，P0/P1/P2 无；
+- fixed-role identity、Round 1 alignment/lifecycle、四工具、artifact、Runtime/Episode/Evaluation authority 全部闭合；
+- item 进入 Human closeout gate，未 closeout/mark-done/commit/push。
+
+## 2026-08-10 — DH-009 closeout authorized
+
+- Human 已授权 closeout、mark-done、commit 与 push feature branch；不授权 merge `main`、PR、tag、deploy 或真实 prompt；
+- closeout 继续绑定 final digest `79b9050ee69ea8c6869fb51521aa9b128da40d070b6ad27b0e27249fe2aebec5` 与 Round 3 双审证据。
+
+## 2026-08-10 — DH-009 closeout audit approved
+
+- fresh closeout auditor 批准当前 packet，P0/P1/P2 无；digest 前后一致，diff/checklist 通过；
+- 正常 mark-done gate 已满足，不使用 force。
+
+## 2026-08-10 — DH-009 Operator close completed
+
+- closeout review `evt-20260811T064924Z-c2d5a8f6`、CLOSE `evt-20260811T064924Z-55360c81` 已顺序落盘；
+- item 为 `done/closed`，lease 已释放，未使用 force；
+- 发布只包含 commit/push feature branch，不包含 main merge、PR、tag、deploy 或真实 prompt。

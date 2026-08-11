@@ -8,6 +8,7 @@ import {
   createInitialSnapshot,
   deepFreeze,
 } from "../kernel/world";
+import { createDiagnosticGaussianSplatObservation } from "./diagnostic-gaussian-splat";
 
 export const PRIMITIVE_BOX_FIXTURE_ID = "fixture:primitive-box" as const;
 export const DIAGNOSTIC_RIGID_FIXTURE_ID = "fixture:diagnostic-wedge-v1" as const;
@@ -127,6 +128,7 @@ export function createFixtureSnapshot(
                 localTransform: DIAGNOSTIC_RIGID_ASSET.alignment.localTransform,
               },
               collision: DIAGNOSTIC_RIGID_ASSET.alignment.collisionProxy,
+              observation: createDiagnosticGaussianSplatObservation(),
             },
           }
         : entity,

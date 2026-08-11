@@ -60,6 +60,79 @@ describe("Product Session plain-data codec", () => {
     }
     forgedEntity.representations.visual.contentDigest = `sha256:${"0".repeat(64)}`;
     expect(() => decodeProductSessionProjection(forged)).toThrow("artifact identity");
+
+    const forgedObservation = structuredClone(projection);
+    const observationEntity = forgedObservation.world.snapshot.entities.find(
+      (candidate) => candidate.ref === "entity:cube",
+    );
+    if (!observationEntity?.representations.observation) {
+      throw new Error("fixture 缺少 3DGS observation");
+    }
+    observationEntity.representations.observation.contentDigest = `sha256:${"0".repeat(64)}`;
+    expect(() => decodeProductSessionProjection(forgedObservation)).toThrow(
+      "3DGS observation",
+    );
+
+    const primitiveWithObservation = structuredClone(await validProjection());
+    const primitiveCube = primitiveWithObservation.world.snapshot.entities.find(
+      (candidate) => candidate.ref === "entity:cube",
+    );
+    if (!primitiveCube || !observationEntity.representations.observation) {
+      throw new Error("fixture 缺少 observation closure evidence");
+    }
+    primitiveCube.representations.observation = structuredClone(
+      observationEntity.representations.observation,
+    );
+    expect(() => decodeProductSessionProjection(primitiveWithObservation)).toThrow(
+      "只允许绑定登记 imported visual",
+    );
+
+    const wrongEntityBinding = structuredClone(projection);
+    for (const snapshot of [
+      wrongEntityBinding.world.snapshot,
+      wrongEntityBinding.lastRun.episode.terminalSnapshot,
+    ]) {
+      const floor = snapshot.entities.find((candidate) => candidate.ref === "entity:floor");
+      const cube = snapshot.entities.find((candidate) => candidate.ref === "entity:cube");
+      if (!floor || !cube) throw new Error("fixture 缺少 floor/cube");
+      const floorRepresentations = floor.representations;
+      floor.representations = cube.representations;
+      cube.representations = floorRepresentations;
+    }
+    expect(() => decodeProductSessionProjection(wrongEntityBinding)).toThrow(
+      "必须绑定 entity:cube",
+    );
+
+    const combinedAlias = JSON.parse(JSON.stringify(projection)) as typeof projection;
+    for (const snapshot of [
+      combinedAlias.world.snapshot,
+      combinedAlias.lastRun.episode.terminalSnapshot,
+    ]) {
+      const floor = snapshot.entities.find((candidate) => candidate.ref === "entity:floor");
+      const cube = snapshot.entities.find((candidate) => candidate.ref === "entity:cube");
+      if (!floor || !cube) throw new Error("fixture 缺少 floor/cube");
+      const floorRepresentations = floor.representations;
+      floor.ref = "entity:cube";
+      cube.ref = "entity:floor";
+      floor.representations = cube.representations;
+      cube.representations = floorRepresentations;
+    }
+    for (const sample of combinedAlias.lastRun.episode.samples) {
+      const floorState = sample.states["entity:floor"];
+      const cubeState = sample.states["entity:cube"];
+      if (!floorState || !cubeState) throw new Error("fixture 缺少 sample states");
+      sample.states["entity:floor"] = cubeState;
+      sample.states["entity:cube"] = floorState;
+    }
+    for (const event of combinedAlias.lastRun.episode.events) {
+      event.entities = event.entities.map((ref) =>
+        ref === "entity:floor" ? "entity:cube" :
+          ref === "entity:cube" ? "entity:floor" : ref,
+      );
+    }
+    expect(() => decodeProductSessionProjection(combinedAlias)).toThrow(
+      "static floor",
+    );
   });
 
   test("imported run 的 base、samples 与 terminal 必须闭合为同一 EntityRef/representation 证据链", async () => {
@@ -74,15 +147,13 @@ describe("Product Session plain-data codec", () => {
       "EntityRef 证据链",
     );
 
-    const renamedTerminal = structuredClone(projection);
-    const terminalCube = renamedTerminal.lastRun.episode.terminalSnapshot.entities.find(
-      (entity) => entity.ref === "entity:cube",
+    const renamedTerminal = JSON.parse(JSON.stringify(projection)) as typeof projection;
+    const renamedFloor = renamedTerminal.lastRun.episode.terminalSnapshot.entities.find(
+      (entity) => entity.ref === "entity:floor",
     );
-    if (!terminalCube) throw new Error("fixture 缺少 terminal cube");
-    terminalCube.ref = "entity:other";
-    expect(() => decodeProductSessionProjection(renamedTerminal)).toThrow(
-      "EntityRef 证据链",
-    );
+    if (!renamedFloor) throw new Error("fixture 缺少 terminal floor");
+    renamedFloor.ref = "entity:other";
+    expect(() => decodeProductSessionProjection(renamedTerminal)).toThrow("只支持");
 
     const changedRepresentation = structuredClone(projection);
     const changedTerminalCube = changedRepresentation.lastRun.episode.terminalSnapshot.entities.find(
@@ -95,6 +166,7 @@ describe("Product Session plain-data codec", () => {
     changedTerminalCube.representations = {
       visual: structuredClone(terminalFloor.representations.visual),
       collision: structuredClone(changedTerminalCube.representations.collision),
+      observation: null,
     };
     expect(() => decodeProductSessionProjection(changedRepresentation)).toThrow(
       "representation 证据链",
@@ -160,6 +232,26 @@ describe("Product Session plain-data codec", () => {
     if (!cube) throw new Error("fixture 缺少 cube");
     cube.state.linearVelocity = new Array(3) as [number, number, number];
     expect(() => decodeProductSessionProjection(projection)).toThrow("dense array");
+
+    const nonUnitPose = structuredClone(await validImportedProjection());
+    const forgedRotation = { x: 0, y: 0, z: 0, w: 2 };
+    const authoredCube = nonUnitPose.world.snapshot.entities.find(
+      (entity) => entity.ref === "entity:cube",
+    );
+    const terminalCube = nonUnitPose.lastRun.episode.terminalSnapshot.entities.find(
+      (entity) => entity.ref === "entity:cube",
+    );
+    if (!authoredCube || !terminalCube) throw new Error("fixture 缺少 cube pose");
+    authoredCube.state.pose.rotation = forgedRotation;
+    terminalCube.state.pose.rotation = forgedRotation;
+    for (const sample of nonUnitPose.lastRun.episode.samples) {
+      const sampleCube = sample.states["entity:cube"];
+      if (!sampleCube) throw new Error("fixture 缺少 cube sample");
+      sampleCube.pose.rotation = forgedRotation;
+    }
+    expect(() => decodeProductSessionProjection(nonUnitPose)).toThrow(
+      "必须是单位 quaternion",
+    );
 
     let getterReads = 0;
     const event = {

@@ -42,6 +42,20 @@ export interface ImportedRigidMeshRepresentation {
   };
 }
 
+export interface GaussianSplatObservationRepresentation {
+  readonly kind: "gaussian-splat";
+  readonly role: "observation";
+  readonly assetId: `asset:${string}`;
+  readonly contentDigest: `sha256:${string}`;
+  readonly sourceFrameRef: "frame:gltf-y-up";
+  readonly sourceUnitMeters: number;
+  readonly localTransform: {
+    readonly position: Vec3;
+    readonly rotation: Quaternion;
+    readonly scale: Vec3;
+  };
+}
+
 export type VisualRepresentation =
   | BoxRepresentation
   | ImportedRigidMeshRepresentation;
@@ -55,6 +69,7 @@ export interface Entity {
   readonly representations: {
     readonly visual: VisualRepresentation;
     readonly collision: BoxCollisionRepresentation;
+    readonly observation: GaussianSplatObservationRepresentation | null;
   };
   readonly physics: {
     readonly bodyType: "static" | "dynamic";

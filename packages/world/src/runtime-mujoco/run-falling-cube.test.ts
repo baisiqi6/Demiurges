@@ -6,6 +6,10 @@ import {
   DIAGNOSTIC_RIGID_FIXTURE_ID,
   createFixtureSnapshot,
 } from "../artifacts/diagnostic-rigid-fixture";
+import {
+  DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET,
+  createDiagnosticGaussianSplatObservation,
+} from "../artifacts/diagnostic-gaussian-splat";
 import { ADOPT_RUNTIME_MVP_POLICY } from "../host/runtime-mvp-adopt-policy";
 import {
   CUBE_REF,
@@ -33,6 +37,8 @@ describe("MuJoCo falling-cube Runtime", () => {
     expect(xml).toContain('geom name="cube_geom" type="box" size="0.32 0.22 0.25"');
     expect(xml).not.toContain(DIAGNOSTIC_RIGID_ASSET.assetId);
     expect(xml).not.toContain(DIAGNOSTIC_RIGID_ASSET.repoPath);
+    expect(xml).not.toContain(DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.assetId);
+    expect(xml).not.toContain(DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.repoPath);
 
     const episode = await runFallingCube(
       snapshot,
@@ -44,7 +50,51 @@ describe("MuJoCo falling-cube Runtime", () => {
     expect(episode.terminalSnapshot.entities.find((entity) => entity.ref === CUBE_REF)
       ?.representations.visual).toBe(snapshot.entities.find((entity) => entity.ref === CUBE_REF)
       ?.representations.visual);
+    expect(episode.terminalSnapshot.entities.find((entity) => entity.ref === CUBE_REF)
+      ?.representations.observation).toBe(snapshot.entities.find((entity) => entity.ref === CUBE_REF)
+      ?.representations.observation);
     expect(evaluateLanding(episode, LANDING_SUCCESS_CONTRACT).passed).toBe(true);
+  });
+
+  test("3DGS observation 不改变 MuJoCo trajectory 或 landing metrics", async () => {
+    const withObservation = createFixtureSnapshot(2.4, DIAGNOSTIC_RIGID_FIXTURE_ID);
+    const withoutObservation = deepFreeze({
+      ...withObservation,
+      id: "snapshot:base-diagnostic-wedge-no-observation" as const,
+      entities: withObservation.entities.map((entity): Entity =>
+        entity.ref === CUBE_REF
+          ? {
+              ...entity,
+              representations: { ...entity.representations, observation: null },
+            }
+          : entity,
+      ),
+    }) as Snapshot;
+    const left = await runFallingCube(
+      withObservation,
+      FALLING_CUBE_PROGRAM,
+      MUJOCO_PROFILE,
+      explicitInputs("run:observation-present"),
+    );
+    const right = await runFallingCube(
+      withoutObservation,
+      FALLING_CUBE_PROGRAM,
+      MUJOCO_PROFILE,
+      explicitInputs("run:observation-absent"),
+    );
+
+    expect(left.samples.map((sample) => ({
+      timeSeconds: sample.timeSeconds,
+      state: sample.states[CUBE_REF],
+      contactCount: sample.contactCount,
+    }))).toEqual(right.samples.map((sample) => ({
+      timeSeconds: sample.timeSeconds,
+      state: sample.states[CUBE_REF],
+      contactCount: sample.contactCount,
+    })));
+    expect(evaluateLanding(left, LANDING_SUCCESS_CONTRACT).metrics).toEqual(
+      evaluateLanding(right, LANDING_SUCCESS_CONTRACT).metrics,
+    );
   });
 
   test("imported artifact identity 与 alignment transform 在 Runtime admission fail closed", () => {
@@ -116,8 +166,50 @@ describe("MuJoCo falling-cube Runtime", () => {
     expect(() =>
       createFallingCubeMjcf(forgedCollision, FALLING_CUBE_PROGRAM, MUJOCO_PROFILE),
     ).toThrow("登记 proxy");
-  });
 
+    const primitive = createInitialSnapshot(2.4);
+    const primitiveWithObservation = deepFreeze({
+      ...primitive,
+      id: "snapshot:primitive-with-observation" as const,
+      entities: primitive.entities.map((entity): Entity =>
+        entity.ref === CUBE_REF
+          ? {
+              ...entity,
+              representations: {
+                ...entity.representations,
+                observation: createDiagnosticGaussianSplatObservation(),
+              },
+            }
+          : entity,
+      ),
+    }) as Snapshot;
+    expect(() =>
+      createFallingCubeMjcf(
+        primitiveWithObservation,
+        FALLING_CUBE_PROGRAM,
+        MUJOCO_PROFILE,
+      ),
+    ).toThrow("只允许绑定登记 imported visual");
+
+    const wrongEntityBinding = deepFreeze({
+      ...base,
+      id: "snapshot:observation-on-floor" as const,
+      entities: base.entities.map((entity): Entity => {
+        const counterpart = base.entities.find((candidate) =>
+          candidate.ref === (entity.ref === CUBE_REF ? FLOOR_REF : CUBE_REF),
+        );
+        if (!counterpart) throw new Error("fixture 缺少 counterpart");
+        return { ...entity, representations: counterpart.representations };
+      }),
+    }) as Snapshot;
+    expect(() =>
+      createFallingCubeMjcf(
+        wrongEntityBinding,
+        FALLING_CUBE_PROGRAM,
+        MUJOCO_PROFILE,
+      ),
+    ).toThrow("observation 必须绑定 entity:cube");
+  });
 
   test("由 Snapshot 编译 MJCF，并保留显式单位和 collision representation", () => {
     const xml = createFallingCubeMjcf(

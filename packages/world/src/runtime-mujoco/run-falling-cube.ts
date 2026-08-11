@@ -11,6 +11,7 @@ import type {
   Snapshot,
   WorldProgram,
 } from "../kernel/types";
+import { requireDiagnosticGaussianSplatObservation } from "../artifacts/diagnostic-gaussian-splat";
 import {
   requireDiagnosticRigidCollision,
   requireDiagnosticRigidVisual,
@@ -166,6 +167,26 @@ function requireEntity(entity: Entity): void {
     }
   } else {
     throw new Error(`${entity.ref} visual kind 非法`);
+  }
+  const observation = entity.representations.observation;
+  if (observation !== null) {
+    if (entity.ref !== CUBE_REF) {
+      throw new Error(`${entity.ref} observation 必须绑定 ${CUBE_REF}`);
+    }
+    if (visual.kind !== "imported-rigid-mesh") {
+      throw new Error(`${entity.ref} observation 只允许绑定登记 imported visual`);
+    }
+    requireDiagnosticRigidCollision(collision);
+    requireExactOwnKeys(observation, `${entity.ref} observation`, [
+      "kind",
+      "role",
+      "assetId",
+      "contentDigest",
+      "sourceFrameRef",
+      "sourceUnitMeters",
+      "localTransform",
+    ]);
+    requireDiagnosticGaussianSplatObservation(observation);
   }
   if (!Number.isFinite(entity.physics.friction) || entity.physics.friction < 0) {
     throw new Error(`${entity.ref} friction 必须是有限非负数`);

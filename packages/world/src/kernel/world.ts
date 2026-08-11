@@ -62,6 +62,7 @@ export function createInitialSnapshot(cubeHeight = 2): Snapshot {
       representations: {
         visual: { kind: "box", halfExtents: floorHalfExtents, color: "#c7ccc5" },
         collision: { kind: "box", halfExtents: floorHalfExtents },
+        observation: null,
       },
       physics: { bodyType: "static", massKg: 0, friction: 0.85 },
     },
@@ -74,6 +75,7 @@ export function createInitialSnapshot(cubeHeight = 2): Snapshot {
       representations: {
         visual: { kind: "box", halfExtents: cubeHalfExtents, color: "#df6b45" },
         collision: { kind: "box", halfExtents: cubeHalfExtents },
+        observation: null,
       },
       physics: { bodyType: "dynamic", massKg: 1, friction: 0.8 },
     },

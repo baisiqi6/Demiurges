@@ -20,7 +20,11 @@ import {
 } from "solid-js";
 
 import { EpisodePlayer } from "./presentation-episode/EpisodePlayer";
-import { ThreeViewport } from "./presentation-three/ThreeViewport";
+import {
+  ThreeViewport,
+  type PresentationMode,
+} from "./presentation-three/ThreeViewport";
+import type { AlignmentEvidence } from "./presentation-three/alignment-evidence";
 import {
   ProductSessionClient,
   ProductSessionTurnError,
@@ -47,6 +51,8 @@ export default function App() {
   const [timelineIndex, setTimelineIndex] = createSignal(0);
   const [viewMode, setViewMode] = createSignal<ViewMode>("repository");
   const [selectedRef, setSelectedRef] = createSignal<Entity["ref"]>(CUBE_REF);
+  const [presentationMode, setPresentationMode] = createSignal<PresentationMode>("3dgs");
+  const [alignmentEvidence, setAlignmentEvidence] = createSignal<AlignmentEvidence>();
   const [runtimeStatus, setRuntimeStatus] = createSignal<RuntimeStatus>("connecting");
   const [errorMessage, setErrorMessage] = createSignal<string>();
   let turnAbort: AbortController | undefined;
@@ -103,6 +109,8 @@ export default function App() {
     setTimelineIndex(0);
     setViewMode("repository");
     setSelectedRef(CUBE_REF);
+    setPresentationMode("3dgs");
+    setAlignmentEvidence(undefined);
     try {
       useProjection(await client.createSession());
       setRuntimeStatus("ready");
@@ -246,7 +254,9 @@ export default function App() {
             snapshot={currentSnapshot()}
             sample={activeSample()}
             selectedRef={selectedRef()}
+            presentationMode={presentationMode()}
             onSelect={setSelectedRef}
+            onAlignmentEvidence={setAlignmentEvidence}
           />
           <Show when={!currentSnapshot()}>
             <div class="viewport-empty" data-testid="viewport-empty">
@@ -255,6 +265,20 @@ export default function App() {
           </Show>
           <div class="axis-key" aria-label="坐标轴图例">
             <span class="axis-x">X</span><span class="axis-y">Y</span><span class="axis-z">Z</span>
+          </div>
+          <div class="presentation-switch" role="group" aria-label="Presentation representation">
+            <For each={(["mesh", "3dgs", "overlay"] as const)}>
+              {(mode) => (
+                <button
+                  type="button"
+                  data-testid={`presentation-${mode}`}
+                  aria-pressed={presentationMode() === mode}
+                  onClick={() => setPresentationMode(mode)}
+                >
+                  {mode === "mesh" ? "GLB" : mode === "3dgs" ? "3DGS" : "对齐"}
+                </button>
+              )}
+            </For>
           </div>
         </div>
 
@@ -388,6 +412,25 @@ export default function App() {
                 </>
               )}
             </Show>
+            <Show when={selectedEntity()?.representations.observation}>
+              {(observation) => (
+                <>
+                  <div><dt>observation</dt><dd data-testid="observation-asset">{observation().assetId}</dd></div>
+                  <div><dt>role</dt><dd>{observation().role} · Spark Presentation</dd></div>
+                  <div>
+                    <dt>alignment</dt>
+                    <dd
+                      data-testid="alignment-status"
+                      data-pass={alignmentEvidence()?.passed ?? false}
+                    >
+                      {alignmentEvidence()
+                        ? `${alignmentEvidence()!.passed ? "PASS" : "FAIL"} · bounds ${formatNumber(alignmentEvidence()!.maxBoundsErrorMeters, 6)} m · pose ${formatNumber(alignmentEvidence()!.poseTranslationErrorMeters, 6)} m / ${formatNumber(alignmentEvidence()!.poseAngularErrorRadians, 6)} rad · tol ${formatNumber(alignmentEvidence()!.toleranceMeters, 4)} m`
+                        : "等待 Spark observation"}
+                    </dd>
+                  </div>
+                </>
+              )}
+            </Show>
             <div>
               <dt>collision</dt>
               <dd data-testid="collision-kind">
@@ -430,7 +473,7 @@ export default function App() {
 
       <footer class="statusbar">
         <span>Authority: Gateway Product Session</span>
-        <span>Presentation: Three.js</span>
+        <span>Presentation: Three.js + Spark · {presentationMode()}</span>
         <span>Runtime: @mujoco/mujoco · Agent: restricted four-tool session</span>
       </footer>
     </main>

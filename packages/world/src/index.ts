@@ -3,11 +3,17 @@ export type {
   Episode,
   EpisodeSample,
   EvaluationRecord,
+  GaussianSplatObservationRepresentation,
   ImportedRigidMeshRepresentation,
   RefRecord,
   Snapshot,
   VisualRepresentation,
 } from "./kernel/types";
+export {
+  DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET,
+  createDiagnosticGaussianSplatObservation,
+  requireDiagnosticGaussianSplatObservation,
+} from "./artifacts/diagnostic-gaussian-splat";
 export {
   DIAGNOSTIC_RIGID_ASSET,
   DIAGNOSTIC_RIGID_FIXTURE_ID,

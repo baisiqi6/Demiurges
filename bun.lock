@@ -22,6 +22,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@demiurges/world": "workspace:*",
+        "@sparkjsdev/spark": "2.1.0",
         "solid-js": "1.9.14",
         "three": "0.185.1",
       },
@@ -286,6 +287,8 @@
     "@rolldown/binding-win32-x64-msvc": ["@rolldown/binding-win32-x64-msvc@1.2.3", "https://mirrors.huaweicloud.com/repository/npm/@rolldown/binding-win32-x64-msvc/-/binding-win32-x64-msvc-1.2.3.tgz", { "os": "win32", "cpu": "x64" }, "sha512-ekcqMMkI2PlhYnfzQnB/cEdYUVVJViWvoUyLrbzgDoi3Snfc1mVBwdnc306ufA5ejy8JSPjT2RlW1nQSjW7efg=="],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.1", "https://mirrors.huaweicloud.com/repository/npm/@rolldown/pluginutils/-/pluginutils-1.0.1.tgz", {}, "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw=="],
+
+    "@sparkjsdev/spark": ["@sparkjsdev/spark@2.1.0", "https://mirrors.huaweicloud.com/repository/npm/@sparkjsdev/spark/-/spark-2.1.0.tgz", { "dependencies": { "fflate": "^0.8.2" }, "peerDependencies": { "three": ">=0.180.0" } }, "sha512-BRw+MuMzx0B3K8fDLQygt2OHEhYUV+41RX7btq9pZ3rCVrq42o57jW34VAIvC7JO/84DJh/1AutACV9ym6BfVg=="],
 
     "@tailwindcss/node": ["@tailwindcss/node@4.3.3", "https://mirrors.huaweicloud.com/repository/npm/@tailwindcss/node/-/node-4.3.3.tgz", { "dependencies": { "@jridgewell/remapping": "^2.3.5", "enhanced-resolve": "^5.24.1", "jiti": "^2.7.0", "lightningcss": "1.32.0", "magic-string": "^0.30.21", "source-map-js": "^1.2.1", "tailwindcss": "4.3.3" } }, "sha512-/T8IKEsf9VTU6tLjgC7+sv2mOPtQxzE2jMw7u4Tt40Tx+QSZxpzh95/H6cMKoja9XuW7iMdLJYBB0o9G1CaAgg=="],
 

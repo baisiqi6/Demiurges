@@ -1,43 +1,80 @@
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { SparkRenderer, SplatFileType, SplatMesh } from "@sparkjsdev/spark";
 
 import {
+  DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET,
   DIAGNOSTIC_RIGID_ASSET,
   type Entity,
   type EpisodeSample,
   type Snapshot,
 } from "@demiurges/world";
+import {
+  createAlignmentEvidence,
+  type AlignmentEvidence,
+  type Bounds3,
+} from "./alignment-evidence";
 
 const DIAGNOSTIC_RIGID_ASSET_URL = new URL(
   "../../../../packages/world/assets/diagnostic-wedge-v1.glb",
   import.meta.url,
 ).href;
+const DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET_URL = new URL(
+  "../../../../packages/world/assets/diagnostic-wedge-3dgs-v1.ply",
+  import.meta.url,
+).href;
+
+export type PresentationMode = "mesh" | "3dgs" | "overlay";
 
 interface ThreeViewportProps {
   readonly snapshot?: Snapshot;
   readonly sample?: EpisodeSample;
   readonly selectedRef?: Entity["ref"];
+  readonly presentationMode: PresentationMode;
   readonly onSelect?: (ref: Entity["ref"]) => void;
+  readonly onAlignmentEvidence?: (evidence: AlignmentEvidence | undefined) => void;
 }
 
 interface EntityObject {
   readonly root: THREE.Object3D;
   readonly signature: string;
+  readonly visualRoot?: THREE.Group;
+  readonly observationRoot?: THREE.Group;
+  readonly pickProxy?: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>;
   active: boolean;
+  splat?: SplatMesh;
+  observedSourceBounds?: Bounds3;
 }
 
 function visualSignature(entity: Entity): string {
-  return JSON.stringify(entity.representations.visual);
+  return JSON.stringify(entity.representations);
 }
 
 function disposeObject(root: THREE.Object3D): void {
   root.traverse((object) => {
+    if (object instanceof SplatMesh) return;
     if (!(object instanceof THREE.Mesh)) return;
     object.geometry.dispose();
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     for (const material of materials) material.dispose();
   });
+}
+
+async function sha256(bytes: ArrayBuffer): Promise<`sha256:${string}`> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return `sha256:${[...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function applyPresentationMode(record: EntityObject, mode: PresentationMode): void {
+  if (record.visualRoot) record.visualRoot.visible = mode !== "3dgs";
+  if (record.observationRoot) record.observationRoot.visible = mode !== "mesh";
+  if (record.pickProxy) {
+    record.pickProxy.material.opacity = mode === "overlay" ? 0.58 : 0;
+    record.pickProxy.material.depthWrite = mode === "overlay";
+  }
 }
 
 function setSelected(root: THREE.Object3D, selected: boolean): void {
@@ -53,6 +90,22 @@ function setSelected(root: THREE.Object3D, selected: boolean): void {
   });
 }
 
+function disposeSparkWhenIdle(spark: SparkRenderer): void {
+  spark.autoUpdate = false;
+  spark.onDirty = undefined;
+  if (spark.updateTimeoutId !== -1) clearTimeout(spark.updateTimeoutId);
+  if (spark.sortTimeoutId !== -1) clearTimeout(spark.sortTimeoutId);
+
+  const finish = () => {
+    if (spark.sorting) {
+      window.setTimeout(finish, 16);
+      return;
+    }
+    spark.dispose();
+  };
+  finish();
+}
+
 export function ThreeViewport(props: ThreeViewportProps) {
   let container!: HTMLDivElement;
   const [ready, setReady] = createSignal(false);
@@ -63,11 +116,22 @@ export function ThreeViewport(props: ThreeViewportProps) {
   let scene: THREE.Scene | undefined;
   let camera: THREE.PerspectiveCamera | undefined;
   let renderer: THREE.WebGLRenderer | undefined;
+  let spark: SparkRenderer | undefined;
   let resizeObserver: ResizeObserver | undefined;
+  let renderFrame: number | undefined;
+  let resizeFrame: number | undefined;
+  let pendingSize: { width: number; height: number } | undefined;
   let disposed = false;
 
   const renderScene = () => {
+    renderFrame = undefined;
+    if (disposed) return;
     if (scene && camera && renderer) renderer.render(scene, camera);
+  };
+
+  const scheduleRender = () => {
+    if (disposed || renderFrame !== undefined) return;
+    renderFrame = requestAnimationFrame(renderScene);
   };
 
   const removeObject = (ref: Entity["ref"]) => {
@@ -76,7 +140,109 @@ export function ThreeViewport(props: ThreeViewportProps) {
     current.active = false;
     scene?.remove(current.root);
     objects.delete(ref);
+    current.splat?.dispose();
     disposeObject(current.root);
+  };
+
+  const evidenceFor = (
+    entity: Entity,
+    state: NonNullable<EpisodeSample["states"][Entity["ref"]]>,
+    record: EntityObject,
+  ): AlignmentEvidence | undefined => {
+    const observation = entity.representations.observation;
+    if (!observation || !record.observedSourceBounds) return undefined;
+    return createAlignmentEvidence(
+      entity.ref,
+      observation,
+      record.observedSourceBounds,
+      state.pose,
+      {
+        position: [record.root.position.x, record.root.position.y, record.root.position.z],
+        rotation: {
+          x: record.root.quaternion.x,
+          y: record.root.quaternion.y,
+          z: record.root.quaternion.z,
+          w: record.root.quaternion.w,
+        },
+      },
+    );
+  };
+
+  const loadObservation = async (
+    entity: Entity,
+    record: EntityObject,
+  ): Promise<void> => {
+    const observation = entity.representations.observation;
+    const observationRoot = record.observationRoot;
+    if (!observation || !observationRoot) return;
+    container.dataset.observationStatus = "loading";
+    delete container.dataset.observationError;
+    delete container.dataset.observationEntityRef;
+    delete container.dataset.alignmentStatus;
+    let stage = "fetch";
+    let splat: SplatMesh | undefined;
+    try {
+      const response = await fetch(DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET_URL);
+      if (!response.ok) throw new Error("3DGS bytes 无法读取");
+      const bytes = await response.arrayBuffer();
+      stage = "identity";
+      if (
+        bytes.byteLength !== DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.byteLength ||
+        await sha256(bytes) !== observation.contentDigest
+      ) {
+        throw new Error("3DGS bytes 与登记 artifact identity 不一致");
+      }
+      if (disposed || !record.active || objects.get(entity.ref) !== record) return;
+
+      stage = "spark-initialize";
+      splat = new SplatMesh({
+        fileBytes: bytes,
+        fileType: SplatFileType.PLY,
+        fileName: "diagnostic-wedge-3dgs-v1.ply",
+        editable: false,
+        raycastable: false,
+      });
+      await splat.initialized;
+      if (disposed || !record.active || objects.get(entity.ref) !== record) {
+        splat.dispose();
+        return;
+      }
+      stage = "bounds";
+      const bounds = splat.getBoundingBox(true);
+      record.observedSourceBounds = {
+        min: [bounds.min.x, bounds.min.y, bounds.min.z],
+        max: [bounds.max.x, bounds.max.y, bounds.max.z],
+      };
+      record.splat = splat;
+      observationRoot.add(splat);
+      applyPresentationMode(record, props.presentationMode);
+      container.dataset.observationStatus = "loaded";
+      delete container.dataset.observationError;
+      container.dataset.observationEntityRef = entity.ref;
+      const state = props.sample ? props.sample.states[entity.ref] : entity.state;
+      const evidence = state ? evidenceFor(entity, state, record) : undefined;
+      if (props.selectedRef === entity.ref) props.onAlignmentEvidence?.(evidence);
+      if (evidence) {
+        container.dataset.alignmentStatus = evidence.passed ? "pass" : "fail";
+      } else {
+        delete container.dataset.alignmentStatus;
+      }
+      renderScene();
+    } catch {
+      if (splat) {
+        observationRoot.remove(splat);
+        if (record.splat === splat) record.splat = undefined;
+        splat.dispose();
+      }
+      if (!record.active || objects.get(entity.ref) !== record) return;
+      record.observedSourceBounds = undefined;
+      container.dataset.observationStatus = "error";
+      container.dataset.observationError = stage;
+      delete container.dataset.observationEntityRef;
+      container.dataset.alignmentStatus = "fail";
+      if (props.selectedRef === entity.ref) props.onAlignmentEvidence?.(undefined);
+      renderScene();
+    }
   };
 
   const createObject = (entity: Entity): EntityObject => {
@@ -107,9 +273,27 @@ export function ThreeViewport(props: ThreeViewportProps) {
     const root = new THREE.Group();
     root.name = entity.ref;
     root.userData.entityRef = entity.ref;
+    const visualRoot = new THREE.Group();
+    const observationRoot = new THREE.Group();
+    root.add(visualRoot, observationRoot);
+    const [hx, hy, hz] = entity.representations.collision.halfExtents;
+    const pickProxy = new THREE.Mesh(
+      new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2),
+      new THREE.MeshBasicMaterial({
+        color: "#db9d48",
+        transparent: true,
+        opacity: 0,
+        wireframe: true,
+      }),
+    );
+    pickProxy.userData.entityRef = entity.ref;
+    root.add(pickProxy);
     const record: EntityObject = {
       root,
       signature: visualSignature(entity),
+      visualRoot,
+      observationRoot,
+      pickProxy,
       active: true,
     };
     container.dataset.assetStatus = "loading";
@@ -139,7 +323,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
           object.castShadow = true;
           object.receiveShadow = true;
         });
-        root.add(content);
+        visualRoot.add(content);
         container.dataset.assetStatus = "loaded";
         container.dataset.assetEntityRef = entity.ref;
         setSelected(root, props.selectedRef === entity.ref);
@@ -152,6 +336,22 @@ export function ThreeViewport(props: ThreeViewportProps) {
         renderScene();
       },
     );
+    const observation = entity.representations.observation;
+    if (observation) {
+      const transform = observation.localTransform;
+      observationRoot.position.set(...transform.position);
+      observationRoot.quaternion.set(
+        transform.rotation.x,
+        transform.rotation.y,
+        transform.rotation.z,
+        transform.rotation.w,
+      );
+      observationRoot.scale.setScalar(
+        transform.scale[0] * observation.sourceUnitMeters,
+      );
+      void loadObservation(entity, record);
+    }
+    applyPresentationMode(record, props.presentationMode);
     return record;
   };
 
@@ -177,6 +377,16 @@ export function ThreeViewport(props: ThreeViewportProps) {
     if (!hasImportedVisual) {
       delete container.dataset.assetStatus;
       delete container.dataset.assetEntityRef;
+    }
+    const hasObservation = [...entities.values()].some(
+      (entity) => entity.representations.observation !== null,
+    );
+    if (!hasObservation) {
+      delete container.dataset.observationStatus;
+      delete container.dataset.observationError;
+      delete container.dataset.observationEntityRef;
+      delete container.dataset.alignmentStatus;
+      props.onAlignmentEvidence?.(undefined);
     }
   };
 
@@ -211,7 +421,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
     camera.position.set(4.4, -5.4, 3.4);
     camera.lookAt(0, 0, 0.55);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
@@ -220,6 +430,12 @@ export function ThreeViewport(props: ThreeViewportProps) {
     renderer.domElement.setAttribute("aria-label", "Demiurges 三维世界观察窗口");
     renderer.domElement.addEventListener("pointerdown", selectAtPointer);
     container.append(renderer.domElement);
+
+    spark = new SparkRenderer({
+      renderer,
+      onDirty: scheduleRender,
+    });
+    scene.add(spark);
 
     scene.add(new THREE.HemisphereLight("#f4f0e6", "#53635d", 2.2));
     const keyLight = new THREE.DirectionalLight("#fff0dc", 3.2);
@@ -236,10 +452,18 @@ export function ThreeViewport(props: ThreeViewportProps) {
       if (!entry || !camera || !renderer) return;
       const { width, height } = entry.contentRect;
       if (width === 0 || height === 0) return;
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height, false);
-      renderScene();
+      pendingSize = { width, height };
+      if (resizeFrame !== undefined) return;
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = undefined;
+        const size = pendingSize;
+        pendingSize = undefined;
+        if (disposed || !size || !camera || !renderer) return;
+        camera.aspect = size.width / size.height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(size.width, size.height, false);
+        renderScene();
+      });
     });
     resizeObserver.observe(container);
     setReady(true);
@@ -250,11 +474,15 @@ export function ThreeViewport(props: ThreeViewportProps) {
     const sample = props.sample;
     const snapshot = props.snapshot;
     const selectedRef = props.selectedRef;
+    const presentationMode = props.presentationMode;
     syncObjects(snapshot);
 
+    let selectedEvidence: AlignmentEvidence | undefined;
+
     for (const entity of snapshot?.entities ?? []) {
-      const object = objects.get(entity.ref)?.root;
-      if (!object) continue;
+      const record = objects.get(entity.ref);
+      const object = record?.root;
+      if (!record || !object) continue;
       const state = sample ? sample.states[entity.ref] : entity.state;
       if (!state) {
         object.visible = false;
@@ -266,15 +494,31 @@ export function ThreeViewport(props: ThreeViewportProps) {
       object.position.set(x, y, z);
       object.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
       setSelected(object, selectedRef === entity.ref);
+      applyPresentationMode(record, presentationMode);
+      if (selectedRef === entity.ref) {
+        selectedEvidence = evidenceFor(entity, state, record);
+      }
+    }
+    props.onAlignmentEvidence?.(selectedEvidence);
+    if (selectedEvidence) {
+      container.dataset.alignmentStatus = selectedEvidence.passed ? "pass" : "fail";
+    } else {
+      delete container.dataset.alignmentStatus;
     }
     renderScene();
   });
 
   onCleanup(() => {
     disposed = true;
+    if (renderFrame !== undefined) cancelAnimationFrame(renderFrame);
+    if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
     resizeObserver?.disconnect();
     renderer?.domElement.removeEventListener("pointerdown", selectAtPointer);
     for (const ref of [...objects.keys()]) removeObject(ref);
+    if (spark) {
+      scene?.remove(spark);
+      disposeSparkWhenIdle(spark);
+    }
     renderer?.dispose();
     renderer?.domElement.remove();
   });

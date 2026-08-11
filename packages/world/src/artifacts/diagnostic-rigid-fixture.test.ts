@@ -11,9 +11,16 @@ import {
   createFixtureSnapshot,
   requireDiagnosticRigidVisual,
 } from "./diagnostic-rigid-fixture";
+import {
+  DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET,
+  requireDiagnosticGaussianSplatObservation,
+} from "./diagnostic-gaussian-splat";
 
 const ASSET_PATH = fileURLToPath(
   new URL("../../assets/diagnostic-wedge-v1.glb", import.meta.url),
+);
+const SPLAT_ASSET_PATH = fileURLToPath(
+  new URL("../../assets/diagnostic-wedge-3dgs-v1.ply", import.meta.url),
 );
 
 describe("Diagnostic imported rigid fixture", () => {
@@ -78,7 +85,64 @@ describe("Diagnostic imported rigid fixture", () => {
       DIAGNOSTIC_RIGID_ASSET.localBoundsMeters.halfExtents[2],
       DIAGNOSTIC_RIGID_ASSET.localBoundsMeters.halfExtents[1],
     ]).toEqual(entity.representations.collision.halfExtents);
+    expect(entity.representations.observation).toMatchObject({
+      kind: "gaussian-splat",
+      role: "observation",
+      assetId: DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.assetId,
+      contentDigest: DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.contentDigest,
+    });
     expect(isDeepFrozen(snapshot)).toBe(true);
+  });
+
+  test("repo-owned PLY bytes 与登记 3DGS identity/bounds 完全一致", () => {
+    const bytes = readFileSync(SPLAT_ASSET_PATH);
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    const headerEndMarker = Buffer.from("end_header\n");
+    const bodyOffset = bytes.indexOf(headerEndMarker) + headerEndMarker.byteLength;
+    const header = bytes.subarray(0, bodyOffset).toString("utf8");
+
+    expect(header).toContain("format binary_little_endian 1.0");
+    expect(header).toContain(`element vertex ${DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.splatCount}`);
+    expect(header).toContain("comment license CC0-1.0");
+    expect(bytes.byteLength).toBe(DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.byteLength);
+    expect(`sha256:${digest}`).toBe(DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.contentDigest);
+    expect(bytes.byteLength - bodyOffset).toBe(
+      DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.splatCount * 56,
+    );
+
+    const bounds = {
+      min: [Infinity, Infinity, Infinity],
+      max: [-Infinity, -Infinity, -Infinity],
+    };
+    for (let index = 0; index < DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.splatCount; index += 1) {
+      const offset = bodyOffset + index * 56;
+      for (let axis = 0; axis < 3; axis += 1) {
+        const value = bytes.readFloatLE(offset + axis * 4);
+        bounds.min[axis] = Math.min(bounds.min[axis]!, value);
+        bounds.max[axis] = Math.max(bounds.max[axis]!, value);
+      }
+      expect(Number.isFinite(bytes.readFloatLE(offset + 12))).toBe(true);
+    }
+    bounds.min.forEach((value, axis) => {
+      expect(value).toBeCloseTo(
+        DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.sourceCenterBoundsMeters.min[axis]!,
+        7,
+      );
+    });
+    bounds.max.forEach((value, axis) => {
+      expect(value).toBeCloseTo(
+        DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.sourceCenterBoundsMeters.max[axis]!,
+        7,
+      );
+    });
+    expect(DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET.provenance).toEqual({
+      origin: "generated-in-repo",
+      generator: "scripts/generate-diagnostic-wedge-ply.mjs",
+      seed: 3_540_605_463,
+      license: "CC0-1.0",
+    });
+    expect(isDeepFrozen(DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET)).toBe(true);
+    expect(header).not.toMatch(/api[_-]?key|credential|secret|token/i);
   });
 
   test("artifact digest、frame 或 units 漂移时 fail closed", () => {
@@ -99,5 +163,19 @@ describe("Diagnostic imported rigid fixture", () => {
         sourceUnitMeters: 0.01,
       }),
     ).toThrow("artifact identity");
+
+    const observation = entity.representations.observation;
+    if (!observation) throw new Error("fixture 缺少 3DGS observation");
+    expect(() => requireDiagnosticGaussianSplatObservation({
+      ...observation,
+      contentDigest: `sha256:${"0".repeat(64)}`,
+    })).toThrow("artifact identity");
+    expect(() => requireDiagnosticGaussianSplatObservation({
+      ...observation,
+      localTransform: {
+        ...observation.localTransform,
+        scale: [1, 2, 1],
+      },
+    })).toThrow("alignment transform");
   });
 });

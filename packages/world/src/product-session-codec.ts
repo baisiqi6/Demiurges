@@ -6,7 +6,8 @@ import type {
   RefRecord,
   Snapshot,
 } from "./kernel/types";
-import { deepFreeze } from "./kernel/world";
+import { CUBE_REF, deepFreeze, FLOOR_REF } from "./kernel/world";
+import { requireDiagnosticGaussianSplatObservation } from "./artifacts/diagnostic-gaussian-splat";
 import {
   requireDiagnosticRigidCollision,
   requireDiagnosticRigidVisual,
@@ -184,7 +185,12 @@ function entityState(value: unknown, label: string): EntityState {
   const pose = record(state.pose, `${label}.pose`, ["position", "rotation"]);
   vec3(pose.position, `${label}.pose.position`);
   const rotation = record(pose.rotation, `${label}.pose.rotation`, ["x", "y", "z", "w"]);
-  for (const key of ["x", "y", "z", "w"] as const) finite(rotation[key], `${label}.pose.rotation.${key}`);
+  const quaternion = (["x", "y", "z", "w"] as const).map((key) =>
+    finite(rotation[key], `${label}.pose.rotation.${key}`),
+  );
+  if (Math.abs(Math.hypot(...quaternion) - 1) > 1e-9) {
+    throw new Error(`${label}.pose.rotation 必须是单位 quaternion`);
+  }
   vec3(state.linearVelocity, `${label}.linearVelocity`);
   vec3(state.angularVelocity, `${label}.angularVelocity`);
   return state as unknown as EntityState;
@@ -194,6 +200,9 @@ function boxVisual(value: unknown, label: string): void {
   const representation = record(value, label, ["kind", "halfExtents", "color"]);
   if (representation.kind !== "box") throw new Error(`${label}.kind 非法`);
   vec3(representation.halfExtents, `${label}.halfExtents`);
+  (representation.halfExtents as number[]).forEach((component) => {
+    if (component <= 0) throw new Error(`${label}.halfExtents 必须为正数`);
+  });
   boundedString(representation.color, `${label}.color`, 64);
 }
 
@@ -201,6 +210,9 @@ function boxCollision(value: unknown, label: string): void {
   const representation = record(value, label, ["kind", "halfExtents"]);
   if (representation.kind !== "box") throw new Error(`${label}.kind 非法`);
   vec3(representation.halfExtents, `${label}.halfExtents`);
+  (representation.halfExtents as number[]).forEach((component) => {
+    if (component <= 0) throw new Error(`${label}.halfExtents 必须为正数`);
+  });
 }
 
 function importedVisual(value: unknown, label: string): void {
@@ -250,6 +262,58 @@ function importedVisual(value: unknown, label: string): void {
   requireDiagnosticRigidVisual(representation as never);
 }
 
+function gaussianSplatObservation(value: unknown, label: string): void {
+  const representation = record(value, label, [
+    "kind",
+    "role",
+    "assetId",
+    "contentDigest",
+    "sourceFrameRef",
+    "sourceUnitMeters",
+    "localTransform",
+  ]);
+  if (representation.kind !== "gaussian-splat" || representation.role !== "observation") {
+    throw new Error(`${label}.kind/role 非法`);
+  }
+  id(representation.assetId, "asset:", `${label}.assetId`);
+  if (
+    typeof representation.contentDigest !== "string" ||
+    !/^sha256:[a-f0-9]{64}$/.test(representation.contentDigest)
+  ) {
+    throw new Error(`${label}.contentDigest 非法`);
+  }
+  if (representation.sourceFrameRef !== "frame:gltf-y-up") {
+    throw new Error(`${label}.sourceFrameRef 非法`);
+  }
+  if (finite(representation.sourceUnitMeters, `${label}.sourceUnitMeters`) <= 0) {
+    throw new Error(`${label}.sourceUnitMeters 必须是正数`);
+  }
+  const transform = record(representation.localTransform, `${label}.localTransform`, [
+    "position",
+    "rotation",
+    "scale",
+  ]);
+  vec3(transform.position, `${label}.localTransform.position`);
+  vec3(transform.scale, `${label}.localTransform.scale`);
+  const scale = transform.scale as number[];
+  scale.forEach((component) => {
+    if (component <= 0) throw new Error(`${label}.localTransform.scale 必须为正数`);
+  });
+  if (scale[0] !== scale[1] || scale[1] !== scale[2]) {
+    throw new Error(`${label}.localTransform.scale 必须是 uniform scale`);
+  }
+  const rotation = record(transform.rotation, `${label}.localTransform.rotation`, [
+    "x", "y", "z", "w",
+  ]);
+  const values = [rotation.x, rotation.y, rotation.z, rotation.w].map((component, index) =>
+    finite(component, `${label}.localTransform.rotation[${index}]`),
+  );
+  if (Math.abs(Math.hypot(...values) - 1) > 1e-9) {
+    throw new Error(`${label}.localTransform.rotation 必须是单位 quaternion`);
+  }
+  requireDiagnosticGaussianSplatObservation(representation as never);
+}
+
 function snapshot(value: unknown, label: string): Snapshot {
   const data = record(value, label, ["schemaVersion", "id", "parentId", "source", "entities"]);
   if (data.schemaVersion !== 1) throw new Error(`${label}.schemaVersion 非法`);
@@ -275,7 +339,7 @@ function snapshot(value: unknown, label: string): Snapshot {
     }
     entityState(entity.state, `${label}.entities[${index}].state`);
     const representations = record(entity.representations, `${label}.entities[${index}].representations`, [
-      "visual", "collision",
+      "visual", "collision", "observation",
     ]);
     const visual = record(
       representations.visual,
@@ -290,15 +354,56 @@ function snapshot(value: unknown, label: string): Snapshot {
     if (visual.kind === "imported-rigid-mesh") {
       requireDiagnosticRigidCollision(representations.collision as never);
     }
+    if (representations.observation !== null) {
+      if (ref !== CUBE_REF) {
+        throw new Error(
+          `${label}.entities[${index}].representations.observation 必须绑定 ${CUBE_REF}`,
+        );
+      }
+      if (visual.kind !== "imported-rigid-mesh") {
+        throw new Error(
+          `${label}.entities[${index}].representations.observation 只允许绑定登记 imported visual`,
+        );
+      }
+      requireDiagnosticRigidCollision(representations.collision as never);
+      gaussianSplatObservation(
+        representations.observation,
+        `${label}.entities[${index}].representations.observation`,
+      );
+    }
     const physics = record(entity.physics, `${label}.entities[${index}].physics`, [
       "bodyType", "massKg", "friction",
     ]);
     if (physics.bodyType !== "static" && physics.bodyType !== "dynamic") {
       throw new Error(`${label}.entities bodyType 非法`);
     }
-    finite(physics.massKg, `${label}.entities massKg`);
-    finite(physics.friction, `${label}.entities friction`);
+    const massKg = finite(physics.massKg, `${label}.entities massKg`);
+    const friction = finite(physics.friction, `${label}.entities friction`);
+    if (massKg < 0 || friction < 0) {
+      throw new Error(`${label}.entities massKg/friction 必须非负`);
+    }
   });
+  if (
+    data.entities.length !== 2 ||
+    !refs.has(FLOOR_REF) ||
+    !refs.has(CUBE_REF)
+  ) {
+    throw new Error(`${label} 只支持 ${FLOOR_REF} 与 ${CUBE_REF}`);
+  }
+  const entities = data.entities as unknown as Entity[];
+  const floor = entities.find((entity) => entity.ref === FLOOR_REF)!;
+  const cube = entities.find((entity) => entity.ref === CUBE_REF)!;
+  if (
+    floor.physics.bodyType !== "static" ||
+    floor.physics.massKg !== 0 ||
+    floor.state.linearVelocity.some((value) => value !== 0) ||
+    floor.state.angularVelocity.some((value) => value !== 0)
+  ) {
+    throw new Error(`${label} 要求 0 mass/velocity 的 static floor`);
+  }
+  if (cube.physics.bodyType !== "dynamic" || cube.physics.massKg <= 0) {
+    throw new Error(`${label} 要求 positive-mass dynamic cube`);
+  }
   return data as unknown as Snapshot;
 }
 

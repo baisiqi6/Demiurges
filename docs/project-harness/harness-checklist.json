@@ -382,6 +382,49 @@
         "ttl_minutes": 120,
         "released_at": "2026-08-11T05:01:06Z"
       }
+    },
+    {
+      "id": "DH-009",
+      "title": "3DGS Observation / Spark Presentation 对齐切片",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-11",
+      "dependencies": [
+        "DH-008"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "同一个 imported rigid Entity 以独立 3DGS observation、GLB visual、box collision proxy 与 MuJoCo state 形成可测量证据链；repo-owned artifact 的 digest/provenance/frame/units/alignment fail closed，Spark 只负责 Presentation，Episode playback 与 structured AlignmentEvidence 在明确 tolerance 内 PASS；四工具、Kernel 与 ref authority 不扩张；tests/typecheck/build/Chromium/diff/checklist 通过。",
+      "verification": "Final digest 79b9050ee69ea8c6869fb51521aa9b128da40d070b6ad27b0e27249fe2aebec5; 102 tests / 0 fail / 2,627 assertions; typecheck/build/deterministic asset/diff/harness/Chromium passed; Round 3 Sol + Terra and fresh closeout auditor approved P0/P1/P2 none.",
+      "handoff": "Human authorized closeout, normal mark-done, commit and push agent/codex/DH-009. Do not create PR, merge main, tag, deploy or send a real provider prompt.",
+      "plan_path": "docs/project-harness/tasks/DH-009/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-11",
+        "branch": "agent/codex/DH-009"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-009",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "closeout-auditor",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-11",
+        "summary": "Fresh closeout audit approved: digest 79b9050e..., 102/0/2627, Round3 dual approval, authority limited to close/mark-done/commit/push feature branch."
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "codex-dh009-20260810-1",
+        "acquired_at": "2026-08-11T05:43:45Z",
+        "expires_at": "2026-08-11T07:43:45Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-11T06:49:24Z"
+      }
     }
   ]
 }
