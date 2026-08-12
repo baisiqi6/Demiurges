@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { evaluateLanding } from "../evaluation/evaluate-landing";
+import { evaluateEpisode } from "../evaluation/evaluate-episode";
 import {
   DIAGNOSTIC_RIGID_ASSET,
   DIAGNOSTIC_RIGID_FIXTURE_ID,
@@ -12,6 +12,11 @@ import {
 } from "../artifacts/diagnostic-gaussian-splat";
 import { ADOPT_RUNTIME_MVP_POLICY } from "../host/runtime-mvp-adopt-policy";
 import {
+  VESSEL_REF,
+  createBallVesselSnapshot,
+} from "../artifacts/ball-vessel-fixture";
+import {
+  BALL_VESSEL_PROGRAM,
   CUBE_REF,
   createInitialSnapshot,
   deepFreeze,
@@ -29,6 +34,30 @@ function explicitInputs(runId: ExplicitInputs["runId"]): ExplicitInputs {
 }
 
 describe("MuJoCo falling-cube Runtime", () => {
+  test("Runtime 在编译前拒绝 registered falling-rigid floor 与 ball-vessel physics identity 漂移", () => {
+    const drifted = structuredClone(createInitialSnapshot());
+    const floor = drifted.entities.find((entity) => entity.ref === FLOOR_REF)!;
+    if (floor.representations.collision.kind !== "box") {
+      throw new Error("fixture floor 必须是 box collision");
+    }
+    floor.representations.collision.halfExtents = [9.9, 9.9, 0.05];
+    const frozen = deepFreeze(drifted) as Snapshot;
+
+    expect(() => createFallingCubeMjcf(
+      frozen,
+      FALLING_CUBE_PROGRAM,
+      MUJOCO_PROFILE,
+    )).toThrow("fixture registry 漂移");
+
+    const ballVesselDrift = structuredClone(createBallVesselSnapshot());
+    ballVesselDrift.entities.find((entity) => entity.ref === VESSEL_REF)!.physics.friction = 0.01;
+    expect(() => createFallingCubeMjcf(
+      deepFreeze(ballVesselDrift) as Snapshot,
+      BALL_VESSEL_PROGRAM,
+      MUJOCO_PROFILE,
+    )).toThrow("vessel physics 与 fixture registry 漂移");
+  });
+
   test("imported visual 不进入 MJCF，collision proxy 与 EntityRef 驱动同一 Episode", async () => {
     const snapshot = createFixtureSnapshot(2.4, DIAGNOSTIC_RIGID_FIXTURE_ID);
     const xml = createFallingCubeMjcf(snapshot, FALLING_CUBE_PROGRAM, MUJOCO_PROFILE);
@@ -53,7 +82,7 @@ describe("MuJoCo falling-cube Runtime", () => {
     expect(episode.terminalSnapshot.entities.find((entity) => entity.ref === CUBE_REF)
       ?.representations.observation).toBe(snapshot.entities.find((entity) => entity.ref === CUBE_REF)
       ?.representations.observation);
-    expect(evaluateLanding(episode, LANDING_SUCCESS_CONTRACT).passed).toBe(true);
+    expect(evaluateEpisode(episode, LANDING_SUCCESS_CONTRACT).passed).toBe(true);
   });
 
   test("3DGS observation 不改变 MuJoCo trajectory 或 landing metrics", async () => {
@@ -92,8 +121,8 @@ describe("MuJoCo falling-cube Runtime", () => {
       state: sample.states[CUBE_REF],
       contactCount: sample.contactCount,
     })));
-    expect(evaluateLanding(left, LANDING_SUCCESS_CONTRACT).metrics).toEqual(
-      evaluateLanding(right, LANDING_SUCCESS_CONTRACT).metrics,
+    expect(evaluateEpisode(left, LANDING_SUCCESS_CONTRACT).metrics).toEqual(
+      evaluateEpisode(right, LANDING_SUCCESS_CONTRACT).metrics,
     );
   });
 
@@ -137,7 +166,7 @@ describe("MuJoCo falling-cube Runtime", () => {
               ...entity.representations.visual,
               localTransform: {
                 ...entity.representations.visual.localTransform,
-                scale: [1, 0, 1],
+                scale: [1, 2, 1],
               },
             },
           },
@@ -189,7 +218,7 @@ describe("MuJoCo falling-cube Runtime", () => {
         FALLING_CUBE_PROGRAM,
         MUJOCO_PROFILE,
       ),
-    ).toThrow("只允许绑定登记 imported visual");
+    ).toThrow("fixture registry 漂移");
 
     const wrongEntityBinding = deepFreeze({
       ...base,
@@ -208,7 +237,7 @@ describe("MuJoCo falling-cube Runtime", () => {
         FALLING_CUBE_PROGRAM,
         MUJOCO_PROFILE,
       ),
-    ).toThrow("observation 必须绑定 entity:cube");
+    ).toThrow("fixture registry 漂移");
   });
 
   test("由 Snapshot 编译 MJCF，并保留显式单位和 collision representation", () => {
@@ -225,7 +254,7 @@ describe("MuJoCo falling-cube Runtime", () => {
   });
 
   test("真实 MuJoCo 推演产生 Episode，record 不推进 ref，adopt 才推进", async () => {
-    const authority = createWorldRepositoryAuthority(ADOPT_RUNTIME_MVP_POLICY);
+    const authority = createWorldRepositoryAuthority();
     const repository = authority.repository;
     const base = repository.write(createInitialSnapshot());
     const rootRef = repository.readRefRecord();
@@ -253,12 +282,12 @@ describe("MuJoCo falling-cube Runtime", () => {
     authority.evidence.recordEpisode(episode);
     expect(repository.readRefRecord()).toBe(refBeforeRun);
 
-    const evaluation = evaluateLanding(episode, LANDING_SUCCESS_CONTRACT);
+    const evaluation = evaluateEpisode(episode, LANDING_SUCCESS_CONTRACT);
     authority.evidence.recordEvaluation(evaluation);
     expect(evaluation.passed).toBe(true);
     expect(evaluation.metrics.terminalCenterHeight).toBeCloseTo(0.25, 2);
     expect(
-      evaluateLanding(
+      evaluateEpisode(
         episode,
         deepFreeze({
           ...LANDING_SUCCESS_CONTRACT,
@@ -485,7 +514,7 @@ describe("MuJoCo falling-cube Runtime", () => {
         MUJOCO_PROFILE,
         explicitInputs("run:massive-floor"),
       ),
-    ).rejects.toThrow("静态地面");
+    ).rejects.toThrow("fixture registry 漂移");
 
     const cube = base.entities.find((entity) => entity.ref === CUBE_REF)!;
     const extraEntity = deepFreeze({
@@ -507,7 +536,7 @@ describe("MuJoCo falling-cube Runtime", () => {
         MUJOCO_PROFILE,
         explicitInputs("run:extra-entity"),
       ),
-    ).rejects.toThrow("只支持 entity:floor 与 entity:cube");
+    ).rejects.toThrow("registered fixture scenario");
   });
 
   test("contact event 时间对应 mj_forward 后的当前 MuJoCo state", async () => {
@@ -548,7 +577,7 @@ describe("MuJoCo falling-cube Runtime", () => {
         MUJOCO_PROFILE,
         explicitInputs("run:sparse-velocity"),
       ),
-    ).rejects.toThrow("3 个有限数值");
+    ).rejects.toThrow("dense Vec3");
   });
 
   test("accessor-backed Vec3 不是可跨 await 信任的 plain immutable data", async () => {
@@ -620,8 +649,8 @@ describe("MuJoCo falling-cube Runtime", () => {
       MUJOCO_PROFILE,
       inputs,
     );
-    const firstEvaluation = evaluateLanding(first, LANDING_SUCCESS_CONTRACT);
-    const secondEvaluation = evaluateLanding(second, LANDING_SUCCESS_CONTRACT);
+    const firstEvaluation = evaluateEpisode(first, LANDING_SUCCESS_CONTRACT);
+    const secondEvaluation = evaluateEpisode(second, LANDING_SUCCESS_CONTRACT);
 
     expect(first.id).not.toBe(second.id);
     expect(first.terminalSnapshot.id).not.toBe(second.terminalSnapshot.id);

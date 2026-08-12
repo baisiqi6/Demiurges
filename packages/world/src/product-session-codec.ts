@@ -6,11 +6,28 @@ import type {
   RefRecord,
   Snapshot,
 } from "./kernel/types";
-import { CUBE_REF, deepFreeze, FLOOR_REF } from "./kernel/world";
+import {
+  CUBE_REF,
+  CURRENT_WORLD_REF,
+  deepFreeze,
+  FLOOR_REF,
+} from "./kernel/world";
+import {
+  BALL_REF,
+  BALL_VESSEL_ASSET,
+  BALL_VESSEL_FIXTURE,
+  VESSEL_REF,
+} from "./artifacts/ball-vessel-fixture";
+import {
+  BALL_VESSEL_PROGRAM,
+  FALLING_CUBE_PROGRAM,
+  MUJOCO_PROFILE,
+} from "./kernel/world";
 import { requireDiagnosticGaussianSplatObservation } from "./artifacts/diagnostic-gaussian-splat";
 import {
   requireDiagnosticRigidCollision,
   requireDiagnosticRigidVisual,
+  requireRegisteredSnapshotIdentity,
 } from "./artifacts/diagnostic-rigid-fixture";
 import type {
   ProductSessionEvent,
@@ -19,6 +36,11 @@ import type {
   ProductWorldToolName,
 } from "./product-session-contract";
 import { PRODUCT_WORLD_TOOL_NAMES } from "./product-session-contract";
+import {
+  deriveLandingSuccessContract,
+  deriveStableInsideVesselSuccessContract,
+  evaluateEpisode,
+} from "./evaluation/evaluate-episode";
 import type {
   WorldEditResult,
   WorldReadResult,
@@ -28,7 +50,6 @@ import type {
 
 const MAX_TEXT_LENGTH = 1_024;
 const MAX_ENTITIES = 256;
-const MAX_SAMPLES = 10_000;
 const MAX_EVENTS = 10_000;
 const MAX_PLAIN_DATA_DEPTH = 64;
 const MAX_PLAIN_DATA_NODES = 100_000;
@@ -215,7 +236,7 @@ function boxCollision(value: unknown, label: string): void {
   });
 }
 
-function importedVisual(value: unknown, label: string): void {
+function importedVisualShape(value: unknown, label: string): void {
   const representation = record(value, label, [
     "kind",
     "assetId",
@@ -259,7 +280,11 @@ function importedVisual(value: unknown, label: string): void {
   if (Math.abs(Math.hypot(...values) - 1) > 1e-9) {
     throw new Error(`${label}.localTransform.rotation 必须是单位 quaternion`);
   }
-  requireDiagnosticRigidVisual(representation as never);
+}
+
+function diagnosticImportedVisual(value: unknown, label: string): void {
+  importedVisualShape(value, label);
+  requireDiagnosticRigidVisual(value as never);
 }
 
 function gaussianSplatObservation(value: unknown, label: string): void {
@@ -314,6 +339,24 @@ function gaussianSplatObservation(value: unknown, label: string): void {
   requireDiagnosticGaussianSplatObservation(representation as never);
 }
 
+type ProductScenario = "falling-rigid" | "ball-vessel";
+
+function snapshotScenario(refs: readonly string[], label: string): ProductScenario {
+  const refSet = new Set(refs);
+  if (
+    refSet.size === 2 &&
+    refSet.has(FLOOR_REF) &&
+    refSet.has(CUBE_REF)
+  ) return "falling-rigid";
+  if (
+    refSet.size === 3 &&
+    refSet.has(FLOOR_REF) &&
+    refSet.has(VESSEL_REF) &&
+    refSet.has(BALL_REF)
+  ) return "ball-vessel";
+  throw new Error(`${label} 只支持 exact floor/cube 或 floor/vessel/ball scenario`);
+}
+
 function snapshot(value: unknown, label: string): Snapshot {
   const data = record(value, label, ["schemaVersion", "id", "parentId", "source", "entities"]);
   if (data.schemaVersion !== 1) throw new Error(`${label}.schemaVersion 非法`);
@@ -325,36 +368,87 @@ function snapshot(value: unknown, label: string): Snapshot {
   if (!Array.isArray(data.entities) || data.entities.length > MAX_ENTITIES) {
     throw new Error(`${label}.entities 非法`);
   }
-  const refs = new Set<string>();
-  data.entities.forEach((value, index) => {
-    const entity = record(value, `${label}.entities[${index}]`, [
+  const entityRecords = data.entities.map((value, index) =>
+    record(value, `${label}.entities[${index}]`, [
       "ref", "label", "frameRef", "unitSystemRef", "state", "representations", "physics",
-    ]);
+    ]));
+  const refList = entityRecords.map((entity, index) =>
+    id(entity.ref, "entity:", `${label}.entities[${index}].ref`));
+  if (new Set(refList).size !== refList.length) throw new Error(`${label}.entities ref 重复`);
+  const scenario = snapshotScenario(refList, label);
+  entityRecords.forEach((entity, index) => {
     const ref = id(entity.ref, "entity:", `${label}.entities[${index}].ref`);
-    if (refs.has(ref)) throw new Error(`${label}.entities ref 重复`);
-    refs.add(ref);
     boundedString(entity.label, `${label}.entities[${index}].label`);
     if (entity.frameRef !== "frame:world" || entity.unitSystemRef !== "units:si") {
       throw new Error(`${label}.entities frame/units 非法`);
     }
     entityState(entity.state, `${label}.entities[${index}].state`);
     const representations = record(entity.representations, `${label}.entities[${index}].representations`, [
-      "visual", "collision", "observation",
+      "visual", "collision", "observation", "semantic",
     ]);
+    if (scenario === "falling-rigid") {
+      if (representations.semantic !== null) {
+        throw new Error(`${label}.entities[${index}].representations.semantic 当前 scenario 必须为 null`);
+      }
+    } else if (ref === VESSEL_REF) {
+      if (!samePlainData(representations.semantic, BALL_VESSEL_FIXTURE.semantic)) {
+        throw new Error(`${label}.${VESSEL_REF}.semantic 与 fixture registry 漂移`);
+      }
+    } else if (representations.semantic !== null) {
+      throw new Error(`${label}.${ref}.semantic 必须为 null`);
+    }
     const visual = record(
       representations.visual,
       `${label}.entities[${index}].representations.visual`,
     );
-    if (visual.kind === "box") {
-      boxVisual(visual, `${label}.entities[${index}].representations.visual`);
+    const visualLabel = `${label}.entities[${index}].representations.visual`;
+    const collisionLabel = `${label}.entities[${index}].representations.collision`;
+    if (scenario === "falling-rigid") {
+      if (visual.kind === "box") {
+        boxVisual(visual, visualLabel);
+      } else {
+        diagnosticImportedVisual(visual, visualLabel);
+      }
+      boxCollision(representations.collision, collisionLabel);
+      if (visual.kind === "imported-rigid-mesh") {
+        requireDiagnosticRigidCollision(representations.collision as never);
+      }
+    } else if (ref === FLOOR_REF) {
+      boxVisual(visual, visualLabel);
+      boxCollision(representations.collision, collisionLabel);
+    } else if (ref === VESSEL_REF) {
+      importedVisualShape(visual, visualLabel);
+      const expectedVisual = {
+        kind: "imported-rigid-mesh",
+        assetId: BALL_VESSEL_ASSET.assetId,
+        contentDigest: BALL_VESSEL_ASSET.contentDigest,
+        sourceFrameRef: BALL_VESSEL_ASSET.sourceFrameRef,
+        sourceUnitMeters: BALL_VESSEL_ASSET.sourceUnitMeters,
+        localTransform: BALL_VESSEL_ASSET.localTransform,
+      };
+      if (!samePlainData(visual, expectedVisual)) {
+        throw new Error(`${label}.${VESSEL_REF}.visual artifact identity/alignment 漂移`);
+      }
+      if (!samePlainData(representations.collision, BALL_VESSEL_FIXTURE.collision)) {
+        throw new Error(`${label}.${VESSEL_REF}.compound collision 与 fixture registry 漂移`);
+      }
     } else {
-      importedVisual(visual, `${label}.entities[${index}].representations.visual`);
-    }
-    boxCollision(representations.collision, `${label}.entities[${index}].representations.collision`);
-    if (visual.kind === "imported-rigid-mesh") {
-      requireDiagnosticRigidCollision(representations.collision as never);
+      const sphereVisual = record(visual, visualLabel, ["kind", "radius", "color"]);
+      const sphereCollision = record(representations.collision, collisionLabel, ["kind", "radius"]);
+      if (
+        sphereVisual.kind !== "sphere" ||
+        finite(sphereVisual.radius, `${visualLabel}.radius`) !== BALL_VESSEL_FIXTURE.ball.radiusMeters ||
+        typeof sphereVisual.color !== "string" ||
+        sphereCollision.kind !== "sphere" ||
+        finite(sphereCollision.radius, `${collisionLabel}.radius`) !== BALL_VESSEL_FIXTURE.ball.radiusMeters
+      ) {
+        throw new Error(`${label}.${BALL_REF} sphere representation 与 fixture registry 漂移`);
+      }
     }
     if (representations.observation !== null) {
+      if (scenario === "ball-vessel") {
+        throw new Error(`${label}.${ref}.observation 在 ball-vessel scenario 必须为 null`);
+      }
       if (ref !== CUBE_REF) {
         throw new Error(
           `${label}.entities[${index}].representations.observation 必须绑定 ${CUBE_REF}`,
@@ -383,16 +477,10 @@ function snapshot(value: unknown, label: string): Snapshot {
       throw new Error(`${label}.entities massKg/friction 必须非负`);
     }
   });
-  if (
-    data.entities.length !== 2 ||
-    !refs.has(FLOOR_REF) ||
-    !refs.has(CUBE_REF)
-  ) {
-    throw new Error(`${label} 只支持 ${FLOOR_REF} 与 ${CUBE_REF}`);
-  }
-  const entities = data.entities as unknown as Entity[];
+  const decoded = data as unknown as Snapshot;
+  requireRegisteredSnapshotIdentity(decoded);
+  const entities = decoded.entities;
   const floor = entities.find((entity) => entity.ref === FLOOR_REF)!;
-  const cube = entities.find((entity) => entity.ref === CUBE_REF)!;
   if (
     floor.physics.bodyType !== "static" ||
     floor.physics.massKg !== 0 ||
@@ -401,15 +489,37 @@ function snapshot(value: unknown, label: string): Snapshot {
   ) {
     throw new Error(`${label} 要求 0 mass/velocity 的 static floor`);
   }
-  if (cube.physics.bodyType !== "dynamic" || cube.physics.massKg <= 0) {
-    throw new Error(`${label} 要求 positive-mass dynamic cube`);
+  if (scenario === "falling-rigid") {
+    const cube = entities.find((entity) => entity.ref === CUBE_REF)!;
+    if (cube.physics.bodyType !== "dynamic" || cube.physics.massKg <= 0) {
+      throw new Error(`${label} 要求 positive-mass dynamic cube`);
+    }
+  } else {
+    const vessel = entities.find((entity) => entity.ref === VESSEL_REF)!;
+    const ball = entities.find((entity) => entity.ref === BALL_REF)!;
+    if (
+      vessel.physics.bodyType !== "static" ||
+      vessel.physics.massKg !== 0 ||
+      vessel.state.linearVelocity.some((component) => component !== 0) ||
+      vessel.state.angularVelocity.some((component) => component !== 0)
+    ) {
+      throw new Error(`${label} 要求 static vessel`);
+    }
+    if (
+      ball.physics.bodyType !== "dynamic" ||
+      ball.physics.massKg !== BALL_VESSEL_FIXTURE.ball.massKg
+    ) {
+      throw new Error(`${label} 要求 registered positive-mass dynamic ball`);
+    }
   }
-  return data as unknown as Snapshot;
+  return decoded;
 }
 
 function refRecord(value: unknown, label: string): RefRecord {
   const ref = record(value, label, ["name", "snapshotId", "version"]);
-  id(ref.name, "world:", `${label}.name`);
+  if (ref.name !== CURRENT_WORLD_REF) {
+    throw new Error(`${label}.name 必须是 ${CURRENT_WORLD_REF}`);
+  }
   id(ref.snapshotId, "snapshot:", `${label}.snapshotId`);
   safeInteger(ref.version, `${label}.version`, 1);
   return ref as unknown as RefRecord;
@@ -550,18 +660,31 @@ function episode(value: unknown, label: string): Episode {
   ]);
   id(data.id, "episode:", `${label}.id`);
   id(data.baseSnapshotId, "snapshot:", `${label}.baseSnapshotId`);
-  id(data.programId, "program:", `${label}.programId`);
-  id(data.runtimeProfileId, "runtime:", `${label}.runtimeProfileId`);
+  const programId = id(data.programId, "program:", `${label}.programId`);
+  if (programId !== FALLING_CUBE_PROGRAM.id && programId !== BALL_VESSEL_PROGRAM.id) {
+    throw new Error(`${label}.programId 未登记`);
+  }
+  if (data.runtimeProfileId !== MUJOCO_PROFILE.id) {
+    throw new Error(`${label}.runtimeProfileId 未登记`);
+  }
   const inputs = record(data.explicitInputs, `${label}.explicitInputs`, ["runId"]);
   id(inputs.runId, "run:", `${label}.explicitInputs.runId`);
   if (data.completion !== "completed") throw new Error(`${label}.completion 非法`);
-  if (!Array.isArray(data.samples) || data.samples.length > MAX_SAMPLES) {
+  const ballVessel = programId === BALL_VESSEL_PROGRAM.id;
+  const expectedSampleCount = ballVessel ? 91 : 76;
+  if (!Array.isArray(data.samples) || data.samples.length !== expectedSampleCount) {
     throw new Error(`${label}.samples 非法`);
   }
   data.samples.forEach((value, index) => {
-    const sample = record(value, `${label}.samples[${index}]`, ["timeSeconds", "states", "contactCount"]);
-    finite(sample.timeSeconds, `${label}.samples[${index}].timeSeconds`);
-    safeInteger(sample.contactCount, `${label}.samples[${index}].contactCount`);
+    const sampleLabel = `${label}.samples[${index}]`;
+    const sample = record(value, sampleLabel, ballVessel
+      ? ["timeSeconds", "states", "contactCount", "contacts"]
+      : ["timeSeconds", "states", "contactCount"]);
+    const timeSeconds = finite(sample.timeSeconds, `${sampleLabel}.timeSeconds`);
+    if (Math.abs(timeSeconds - index / 30) > 1e-9) {
+      throw new Error(`${sampleLabel}.timeSeconds 不在 registered sample grid`);
+    }
+    const contactCount = safeInteger(sample.contactCount, `${sampleLabel}.contactCount`);
     const states = record(sample.states, `${label}.samples[${index}].states`);
     const stateKeys = Reflect.ownKeys(states);
     if (stateKeys.length > MAX_ENTITIES || stateKeys.some((key) => typeof key !== "string")) {
@@ -570,6 +693,27 @@ function episode(value: unknown, label: string): Episode {
     for (const key of stateKeys as string[]) {
       id(key, "entity:", `${label}.samples[${index}].states key`);
       entityState(states[key], `${label}.samples[${index}].states.${key}`);
+    }
+    if (ballVessel) {
+      if (!Array.isArray(sample.contacts) || sample.contacts.length !== contactCount) {
+        throw new Error(`${sampleLabel}.contacts 与 contactCount 不一致`);
+      }
+      sample.contacts.forEach((value, contactIndex) => {
+        const contactLabel = `${sampleLabel}.contacts[${contactIndex}]`;
+        const contact = record(value, contactLabel, [
+          "targetRef", "otherRef", "normalOnTargetWorld", "penetrationMeters",
+        ]);
+        if (contact.targetRef !== BALL_REF || contact.otherRef !== VESSEL_REF) {
+          throw new Error(`${contactLabel} semantic EntityRef pair 非法`);
+        }
+        vec3(contact.normalOnTargetWorld, `${contactLabel}.normalOnTargetWorld`);
+        if (Math.abs(Math.hypot(...contact.normalOnTargetWorld as number[]) - 1) > 1e-6) {
+          throw new Error(`${contactLabel}.normalOnTargetWorld 必须是单位向量`);
+        }
+        if (finite(contact.penetrationMeters, `${contactLabel}.penetrationMeters`) < 0) {
+          throw new Error(`${contactLabel}.penetrationMeters 不能为负数`);
+        }
+      });
     }
   });
   if (!Array.isArray(data.events) || data.events.length > MAX_EVENTS) {
@@ -588,12 +732,18 @@ function episode(value: unknown, label: string): Episode {
   });
   const terminal = snapshot(data.terminalSnapshot, `${label}.terminalSnapshot`);
   const runtime = record(data.runtimeEvidence, `${label}.runtimeEvidence`, ["provider", "version", "modelFormat"]);
-  boundedString(runtime.provider, `${label}.runtimeEvidence.provider`);
-  boundedString(runtime.version, `${label}.runtimeEvidence.version`);
-  if (runtime.modelFormat !== "MJCF") throw new Error(`${label}.runtimeEvidence.modelFormat 非法`);
+  if (
+    runtime.provider !== MUJOCO_PROFILE.provider ||
+    runtime.version !== MUJOCO_PROFILE.version ||
+    runtime.modelFormat !== "MJCF"
+  ) throw new Error(`${label}.runtimeEvidence identity 非法`);
   if (terminal.source !== "runtime-terminal" || terminal.parentId !== data.baseSnapshotId) {
     throw new Error(`${label}.terminalSnapshot lineage 非法`);
   }
+  const scenario = snapshotScenario(terminal.entities.map((entity) => entity.ref), label);
+  if (
+    (scenario === "ball-vessel") !== ballVessel
+  ) throw new Error(`${label}.programId 与 terminal scenario 不匹配`);
   return data as unknown as Episode;
 }
 
@@ -602,16 +752,47 @@ function evaluation(value: unknown, expectedEpisodeId: string, label: string): E
   id(data.id, "evaluation:", `${label}.id`);
   id(data.evaluatorId, "evaluator:", `${label}.evaluatorId`);
   id(data.episodeId, "episode:", `${label}.episodeId`);
-  if (data.episodeId !== expectedEpisodeId || data.contractId !== "success:stable-on-floor") {
+  if (data.episodeId !== expectedEpisodeId) {
     throw new Error(`${label} identity 非法`);
   }
   if (typeof data.passed !== "boolean") throw new Error(`${label}.passed 非法`);
-  const metrics = record(data.metrics, `${label}.metrics`, [
-    "terminalCenterHeight", "heightError", "terminalLinearSpeed",
-  ]);
-  finite(metrics.terminalCenterHeight, `${label}.metrics.terminalCenterHeight`);
-  finite(metrics.heightError, `${label}.metrics.heightError`);
-  finite(metrics.terminalLinearSpeed, `${label}.metrics.terminalLinearSpeed`);
+  if (
+    data.contractId === "success:stable-on-floor" &&
+    data.evaluatorId === "evaluator:stable-landing-v1"
+  ) {
+    const metrics = record(data.metrics, `${label}.metrics`, [
+      "terminalCenterHeight", "heightError", "terminalLinearSpeed",
+    ]);
+    finite(metrics.terminalCenterHeight, `${label}.metrics.terminalCenterHeight`);
+    finite(metrics.heightError, `${label}.metrics.heightError`);
+    finite(metrics.terminalLinearSpeed, `${label}.metrics.terminalLinearSpeed`);
+  } else if (
+    data.contractId === "success:stable-inside-vessel" &&
+    data.evaluatorId === "evaluator:stable-inside-vessel-v1"
+  ) {
+    const metrics = record(data.metrics, `${label}.metrics`, [
+      "supportSamples",
+      "requiredSupportSamples",
+      "maxHorizontalOffsetMeters",
+      "maxLinearSpeedMetersPerSecond",
+      "maxFloorDistanceErrorMeters",
+      "maxPenetrationMeters",
+    ]);
+    safeInteger(metrics.supportSamples, `${label}.metrics.supportSamples`);
+    safeInteger(metrics.requiredSupportSamples, `${label}.metrics.requiredSupportSamples`);
+    [
+      "maxHorizontalOffsetMeters",
+      "maxLinearSpeedMetersPerSecond",
+      "maxFloorDistanceErrorMeters",
+      "maxPenetrationMeters",
+    ].forEach((key) => {
+      if (finite(metrics[key], `${label}.metrics.${key}`) < 0) {
+        throw new Error(`${label}.metrics.${key} 不能为负数`);
+      }
+    });
+  } else {
+    throw new Error(`${label} evaluator/contract identity 非法`);
+  }
   return data as unknown as EvaluationRecord;
 }
 
@@ -624,8 +805,20 @@ function worldRun(
   if (data.tool !== "run") throw new Error(`${label}.tool 非法`);
   const baseRef = refRecord(data.baseRef, `${label}.baseRef`);
   const runEpisode = episode(data.episode, `${label}.episode`);
-  evaluation(data.evaluation, runEpisode.id, `${label}.evaluation`);
+  const runEvaluation = evaluation(data.evaluation, runEpisode.id, `${label}.evaluation`);
+  if (
+    (runEpisode.programId === BALL_VESSEL_PROGRAM.id) !==
+      (runEvaluation.contractId === "success:stable-inside-vessel")
+  ) throw new Error(`${label} Program/Evaluation scenario identity 漂移`);
   if (baseRef.snapshotId !== runEpisode.baseSnapshotId) throw new Error(`${label} base identity 漂移`);
+  const trustedEpisode = deepFreeze(runEpisode) as Episode;
+  const trustedContract = runEpisode.programId === BALL_VESSEL_PROGRAM.id
+    ? deriveStableInsideVesselSuccessContract(trustedEpisode)
+    : deriveLandingSuccessContract(trustedEpisode);
+  const trustedEvaluation = evaluateEpisode(trustedEpisode, trustedContract);
+  if (!samePlainData(runEvaluation, trustedEvaluation)) {
+    throw new Error(`${label}.evaluation Evaluation 与受信 evaluator 结果不一致`);
+  }
   if (expectedWorld) {
     if (
       baseRef.name !== expectedWorld.ref.name ||

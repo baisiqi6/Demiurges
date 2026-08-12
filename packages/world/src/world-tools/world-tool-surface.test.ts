@@ -15,6 +15,21 @@ function jsonRoundTrip<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function poseAt(z: number) {
+  return {
+    targetRef: "entity:cube",
+    frameRef: "frame:world",
+    pose: {
+      position: { x: 0, y: 0, z },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+    },
+  } as const;
+}
+
+function rigidRun(runId: string) {
+  return { runId, programId: "program:free-fall-rigid-v1" } as const;
+}
+
 describe("WorldToolSurface", () => {
   test("模型侧只获得 read/write/edit/run 四个工具", () => {
     expect(WORLD_TOOL_NAMES).toEqual(["read", "write", "edit", "run"]);
@@ -28,7 +43,7 @@ describe("WorldToolSurface", () => {
   test("Host method table 不可替换，tool call 不会泄露 existing control Host", () => {
     const host = new RuntimeMvpHost();
     const tools = new WorldToolSurface(host);
-    tools.write({ cubeHeight: 2 });
+    tools.write({ fixtureId: PRIMITIVE_BOX_FIXTURE_ID });
 
     expect(Object.isFrozen(RuntimeMvpHost.prototype)).toBe(true);
     const original = RuntimeMvpHost.prototype.readRefRecord;
@@ -52,7 +67,7 @@ describe("WorldToolSurface", () => {
     const host = new RuntimeMvpHost();
     const tools = new WorldToolSurface(host);
 
-    const written = tools.write(jsonRoundTrip({ cubeHeight: 2 }));
+    const written = tools.write(jsonRoundTrip({ fixtureId: PRIMITIVE_BOX_FIXTURE_ID }));
     expect(written.tool).toBe("write");
     expect(written.ref.version).toBe(1);
     expect(isDeepFrozen(written)).toBe(true);
@@ -62,14 +77,14 @@ describe("WorldToolSurface", () => {
     expect(observed.snapshot).toBe(written.snapshot);
 
     const edited = tools.edit(
-      jsonRoundTrip({ expected: observed.ref, cubeHeight: 2.8 }),
+      jsonRoundTrip({ expected: observed.ref, ...poseAt(2.8) }),
     );
     expect(edited.update.status).toBe("updated");
     expect(edited.update.ref.version).toBe(2);
     expect(edited.update.snapshot.parentId).toBe(observed.snapshot.id);
 
     const beforeRun = tools.read();
-    const run = await tools.run(jsonRoundTrip({ runId: "run:scripted-1" }));
+    const run = await tools.run(jsonRoundTrip(rigidRun("run:scripted-1")));
     const afterRun = tools.read();
 
     expect(run.baseRef).toBe(beforeRun.ref);
@@ -95,13 +110,12 @@ describe("WorldToolSurface", () => {
   test("同一四工具 surface 可创建并推演登记的 imported rigid fixture", async () => {
     const tools = new WorldToolSurface(new RuntimeMvpHost());
     const written = tools.write({
-      cubeHeight: 2.4,
       fixtureId: DIAGNOSTIC_RIGID_FIXTURE_ID,
     });
     const target = written.snapshot.entities.find((entity) => entity.ref === "entity:cube")!;
 
     expect(target.representations.visual.kind).toBe("imported-rigid-mesh");
-    const run = await tools.run({ runId: "run:imported-tool" });
+    const run = await tools.run(rigidRun("run:imported-tool"));
     expect(run.evaluation.passed).toBe(true);
     expect(run.episode.samples[0]?.states[target.ref]).toBeDefined();
     expect(tools.read().snapshot).toBe(written.snapshot);
@@ -110,13 +124,13 @@ describe("WorldToolSurface", () => {
   test("JSON round-trip expected ref 可用，stale edit 不改变 current", () => {
     const host = new RuntimeMvpHost();
     const tools = new WorldToolSurface(host);
-    tools.write({ cubeHeight: 2 });
+    tools.write({ fixtureId: PRIMITIVE_BOX_FIXTURE_ID });
 
     const stale = tools.read().ref;
-    const first = tools.edit(jsonRoundTrip({ expected: stale, cubeHeight: 2.6 }));
+    const first = tools.edit(jsonRoundTrip({ expected: stale, ...poseAt(2.6) }));
     expect(first.update.status).toBe("updated");
 
-    const repeated = tools.edit(jsonRoundTrip({ expected: stale, cubeHeight: 3 }));
+    const repeated = tools.edit(jsonRoundTrip({ expected: stale, ...poseAt(3) }));
     expect(repeated.update.status).toBe("stale_ref");
     expect(tools.read().ref).toBe(first.update.ref);
     expect(tools.read().snapshot).toBe(first.update.snapshot);
@@ -127,9 +141,9 @@ describe("WorldToolSurface", () => {
 
   test("非 JSON data、非法数字、ID 与额外字段 fail closed", async () => {
     const accessorInput = {};
-    Object.defineProperty(accessorInput, "cubeHeight", {
+    Object.defineProperty(accessorInput, "fixtureId", {
       enumerable: true,
-      get: () => 2,
+      get: () => PRIMITIVE_BOX_FIXTURE_ID,
     });
     expect(() => new WorldToolSurface(new RuntimeMvpHost()).write(accessorInput)).toThrow(
       "plain JSON data",
@@ -137,49 +151,46 @@ describe("WorldToolSurface", () => {
 
     expect(() =>
       new WorldToolSurface(new RuntimeMvpHost()).write({
-        cubeHeight: Number.NaN,
+        fixtureId: Number.NaN,
       }),
-    ).toThrow("有限数值");
+    ).toThrow("fixtureId");
 
     expect(() =>
       new WorldToolSurface(new RuntimeMvpHost()).write({
-        cubeHeight: 2,
+        fixtureId: PRIMITIVE_BOX_FIXTURE_ID,
         ignored: true,
       }),
     ).toThrow("字段");
 
     expect(() =>
       new WorldToolSurface(new RuntimeMvpHost()).write({
-        cubeHeight: 2,
         fixtureId: "https://example.com/remote.glb",
       }),
     ).toThrow("fixtureId");
 
     expect(() =>
       new WorldToolSurface(new RuntimeMvpHost()).write({
-        cubeHeight: 2,
         fixtureId: "/tmp/local.glb",
       }),
     ).toThrow("fixtureId");
 
     expect(() =>
       new WorldToolSurface(new RuntimeMvpHost()).write({
-        cubeHeight: 2,
         fixtureId: PRIMITIVE_BOX_FIXTURE_ID,
       }),
     ).not.toThrow();
 
     const tools = new WorldToolSurface(new RuntimeMvpHost());
-    tools.write({ cubeHeight: 2 });
-    await expect(tools.run({ runId: "not-a-run-id" })).rejects.toThrow("run:");
+    tools.write({ fixtureId: PRIMITIVE_BOX_FIXTURE_ID });
+    await expect(tools.run(rigidRun("not-a-run-id"))).rejects.toThrow("runId");
 
-    const inherited = Object.create({ cubeHeight: 2 });
+    const inherited = Object.create({ expected: tools.read().ref });
     expect(() => tools.edit(inherited)).toThrow("plain JSON data");
 
     expect(() =>
       tools.edit({
         expected: { ...tools.read().ref, version: 1.5 },
-        cubeHeight: 2.4,
+        ...poseAt(2.4),
       }),
     ).toThrow("version");
   });

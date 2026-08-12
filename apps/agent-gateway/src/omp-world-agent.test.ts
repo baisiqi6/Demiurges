@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  WORLD_TOOL_CONTRACT,
   RuntimeMvpHost,
   WorldToolSurface,
   isDeepFrozen,
@@ -75,12 +76,23 @@ class ScriptedAgentClient implements OmpAgentClientPort {
       );
     };
 
-    await invoke("world_write", { cubeHeight: 2 });
+    await invoke("world_write", { fixtureId: "fixture:primitive-box" });
     const read = (await invoke("world_read", {})) as {
       ref: { name: string; snapshotId: string; version: number };
     };
-    await invoke("world_edit", { expected: read.ref, cubeHeight: 2.8 });
-    const run = (await invoke("world_run", { runId: "run:omp-fake-1" })) as {
+    await invoke("world_edit", {
+      expected: read.ref,
+      targetRef: "entity:cube",
+      frameRef: "frame:world",
+      pose: {
+        position: { x: 0, y: 0, z: 2.8 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      },
+    });
+    const run = (await invoke("world_run", {
+      runId: "run:omp-fake-1",
+      programId: "program:free-fall-rigid-v1",
+    })) as {
       evaluation: { passed: boolean };
     };
     this.#lastAssistantText = run.evaluation.passed
@@ -95,6 +107,106 @@ class ScriptedAgentClient implements OmpAgentClientPort {
 }
 
 describe("OMP World Agent Gateway", () => {
+  test("OMP parameters 与唯一 WORLD_TOOL_CONTRACT 逐工具同源", () => {
+    const tools = createOmpWorldTools(
+      new WorldToolSurface(new RuntimeMvpHost()),
+    );
+    const byName = Object.fromEntries(tools.map((tool) => [tool.name, tool.parameters]));
+    expect(byName.world_read).toEqual(WORLD_TOOL_CONTRACT.read.input);
+    expect(byName.world_write).toEqual(WORLD_TOOL_CONTRACT.write.input);
+    expect(byName.world_edit).toEqual(WORLD_TOOL_CONTRACT.edit.input);
+    expect(byName.world_run).toEqual(WORLD_TOOL_CONTRACT.run.input);
+  });
+
+  test("合法 nested pose 经真实 restricted tool.execute 到达 Host", async () => {
+    const tools = createOmpWorldTools(
+      new WorldToolSurface(new RuntimeMvpHost()),
+    );
+    const invoke = async (name: string, input: Record<string, unknown>) => {
+      const tool = tools.find((candidate) => candidate.name === name);
+      if (!tool) throw new Error(`缺少工具 ${name}`);
+      return resultDetails(await tool.execute(
+        `call:${name}`,
+        input,
+        undefined,
+        {} as never,
+        new AbortController().signal,
+      ));
+    };
+
+    await invoke("world_write", { fixtureId: "fixture:primitive-box" });
+    const read = (await invoke("world_read", {})) as {
+      ref: { name: string; snapshotId: string; version: number };
+    };
+    await invoke("world_edit", {
+      expected: read.ref,
+      targetRef: "entity:cube",
+      frameRef: "frame:world",
+      pose: {
+        position: { x: 0, y: 0, z: 2.8 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      },
+    });
+    const run = (await invoke("world_run", {
+      runId: "run:omp-contract",
+      programId: "program:free-fall-rigid-v1",
+    })) as { evaluation: { passed: boolean } };
+    expect(run.evaluation.passed).toBe(true);
+  });
+
+  test("Gateway 与 Host 对 nested 非 data、Array、extra、pattern、bounds、non-finite fail closed", async () => {
+    const tools = createOmpWorldTools(
+      new WorldToolSurface(new RuntimeMvpHost()),
+    );
+    const write = tools.find((tool) => tool.name === "world_write");
+    const edit = tools.find((tool) => tool.name === "world_edit");
+    const run = tools.find((tool) => tool.name === "world_run");
+    if (!write || !edit || !run) throw new Error("四工具 surface 不完整");
+    const execute = (tool: OmpHostTool, input: unknown) => tool.execute(
+      "call:negative",
+      input as Record<string, unknown>,
+      undefined,
+      {} as never,
+      new AbortController().signal,
+    );
+
+    await expect(execute(write, {
+      fixtureId: "fixture:primitive-box",
+      extra: true,
+    })).rejects.toThrow("字段");
+    await expect(execute(edit, {
+      expected: { name: "world:current", snapshotId: "snapshot:base", version: 1 },
+      targetRef: "entity:cube",
+      frameRef: "frame:world",
+      pose: { position: [0, 0, 2], rotation: { x: 0, y: 0, z: 0, w: 1 } },
+    })).rejects.toThrow("plain JSON data");
+    await expect(execute(run, {
+      runId: "bad-run-id",
+      programId: "program:free-fall-rigid-v1",
+    })).rejects.toThrow("runId");
+    await expect(execute(edit, {
+      expected: { name: "world:current", snapshotId: "snapshot:base", version: 1 },
+      targetRef: "entity:cube",
+      frameRef: "frame:world",
+      pose: {
+        position: { x: 0, y: 0, z: Number.POSITIVE_INFINITY },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      },
+    })).rejects.toThrow("有限数值");
+
+    let reads = 0;
+    const accessor = { fixtureId: "fixture:primitive-box" } as Record<string, unknown>;
+    Object.defineProperty(accessor, "fixtureId", {
+      enumerable: true,
+      get: () => {
+        reads += 1;
+        return "fixture:primitive-box";
+      },
+    });
+    await expect(execute(write, accessor)).rejects.toThrow("plain JSON data");
+    expect(reads).toBe(0);
+  });
+
   test("production model selector 必须是唯一显式 provider/model", () => {
     expect(requireOmpModelSelector("kimi-code/k3")).toEqual({
       provider: "kimi-code",
@@ -164,10 +276,14 @@ describe("OMP World Agent Gateway", () => {
     expect(write?.parameters).toMatchObject({
       properties: {
         fixtureId: {
-          enum: ["fixture:primitive-box", "fixture:diagnostic-wedge-v1"],
+          enum: [
+            "fixture:primitive-box",
+            "fixture:diagnostic-wedge-v1",
+            "fixture:ball-vessel-v1",
+          ],
         },
       },
-      required: ["cubeHeight"],
+      required: ["fixtureId"],
       additionalProperties: false,
     });
     expect(OMP_RESTRICTED_SESSION_POLICY).toEqual({
@@ -228,19 +344,19 @@ describe("OMP World Agent Gateway", () => {
     await expect(
       write.execute(
         "call:invalid",
-        { cubeHeight: Number.NaN },
+        { fixtureId: Number.NaN },
         undefined,
         {} as never,
         new AbortController().signal,
       ),
-    ).rejects.toThrow("有限数值");
+    ).rejects.toThrow("fixtureId");
 
     expect(trace).toHaveLength(1);
     expect(trace[0]).toMatchObject({
       sequence: 1,
       tool: "world_write",
       status: "failed",
-      error: "cubeHeight 必须是有限数值",
+      error: expect.stringContaining("fixtureId"),
     });
     expect(JSON.stringify(trace)).not.toContain("RuntimeMvpHost");
     expect(JSON.stringify(trace)).not.toContain("stack");
@@ -400,7 +516,7 @@ describe("OMP World Agent Gateway", () => {
 
     await expect(lateWrite.execute(
       "call:late-write",
-      { cubeHeight: 2 },
+      { fixtureId: "fixture:primitive-box" },
       undefined,
       {} as never,
       new AbortController().signal,
@@ -438,7 +554,7 @@ describe("OMP World Agent Gateway", () => {
 
     await expect(lateWrite.execute(
       "call:completed-late-write",
-      { cubeHeight: 2 },
+      { fixtureId: "fixture:primitive-box" },
       undefined,
       {} as never,
       new AbortController().signal,
@@ -496,7 +612,7 @@ describe("OMP World Agent Gateway", () => {
         if (!write) throw new Error("缺少 world_write");
         await write.execute(
           "call:write-before-failure",
-          { cubeHeight: 2 },
+          { fixtureId: "fixture:primitive-box" },
           undefined,
           {} as never,
           new AbortController().signal,
@@ -544,14 +660,17 @@ describe("OMP World Agent Gateway", () => {
     if (!run || !write) throw new Error("缺少 world tool");
     await write.execute(
       "call:write",
-      { cubeHeight: 2 },
+      { fixtureId: "fixture:primitive-box" },
       undefined,
       {} as never,
       new AbortController().signal,
     );
     const exactBoundary = await run.execute(
       "call:exact-boundary",
-      { runId: `run:${"x".repeat(508)}` },
+      {
+        runId: `run:${"x".repeat(60)}`,
+        programId: "program:free-fall-rigid-v1",
+      },
       undefined,
       {} as never,
       new AbortController().signal,
@@ -559,16 +678,19 @@ describe("OMP World Agent Gateway", () => {
     expect((resultDetails(exactBoundary) as {
       episode: { explicitInputs: { runId: string } };
     }).episode.explicitInputs.runId)
-      .toHaveLength(512);
+      .toHaveLength(64);
     await expect(
       run.execute(
         "call:over-boundary",
-        { runId: `run:${"x".repeat(509)}` },
+        {
+          runId: `run:${"x".repeat(65)}`,
+          programId: "program:free-fall-rigid-v1",
+        },
         undefined,
         {} as never,
         new AbortController().signal,
       ),
-    ).rejects.toThrow("不能超过 512 字符");
+    ).rejects.toThrow("runId");
     expect(directTrace).toHaveLength(3);
     expect(directTrace.at(-1)).toMatchObject({
       tool: "world_run",
@@ -629,11 +751,11 @@ describe("OMP World Agent Gateway", () => {
 
     let getterReads = 0;
     const hiddenAccessor: Record<string, unknown> = {};
-    Object.defineProperty(hiddenAccessor, "cubeHeight", {
+    Object.defineProperty(hiddenAccessor, "fixtureId", {
       enumerable: false,
       get: () => {
         getterReads += 1;
-        return 2;
+        return "fixture:primitive-box";
       },
     });
     await expect(
@@ -649,7 +771,9 @@ describe("OMP World Agent Gateway", () => {
     expect(surfaceWriteCalls).toBe(0);
 
     const hugeKey = "k".repeat(1024 * 1024);
-    const oversizedKeyInput: Record<string, unknown> = { cubeHeight: 2 };
+    const oversizedKeyInput: Record<string, unknown> = {
+      fixtureId: "fixture:primitive-box",
+    };
     Object.defineProperty(oversizedKeyInput, hugeKey, {
       enumerable: true,
       value: true,
@@ -670,7 +794,9 @@ describe("OMP World Agent Gateway", () => {
     expect(serializedTrace).toContain("trace-truncated");
     expect(serializedTrace).not.toContain(hugeKey);
 
-    const protoKeyInput: Record<string, unknown> = { cubeHeight: 2 };
+    const protoKeyInput: Record<string, unknown> = {
+      fixtureId: "fixture:primitive-box",
+    };
     Object.defineProperty(protoKeyInput, "__proto__", {
       enumerable: true,
       value: { polluted: true },

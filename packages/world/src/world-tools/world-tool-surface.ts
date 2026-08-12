@@ -7,14 +7,16 @@ import type {
   Snapshot,
 } from "../kernel/types";
 import {
-  CURRENT_WORLD_REF,
   deepFreeze,
 } from "../kernel/world";
 import {
-  PRIMITIVE_BOX_FIXTURE_ID,
   createFixtureSnapshot,
-  requireRigidFixtureId,
 } from "../artifacts/diagnostic-rigid-fixture";
+import {
+  requireWorldEditInput,
+  requireWorldRunInput,
+  requireWorldWriteInput,
+} from "./world-tool-contract";
 
 export const WORLD_TOOL_NAMES = Object.freeze([
   "read",
@@ -47,94 +49,6 @@ export interface WorldRunResult {
   readonly evaluation: EvaluationRecord;
 }
 
-type DataRecord = Readonly<Record<string, unknown>>;
-
-function requireExactDataRecord(
-  value: unknown,
-  label: string,
-  expectedKeys: readonly string[],
-  optionalKeys: readonly string[] = [],
-): DataRecord {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  ) {
-    throw new Error(`${label} 必须是 plain JSON data record`);
-  }
-
-  const ownKeys = Reflect.ownKeys(value);
-  const allowedKeys = new Set([...expectedKeys, ...optionalKeys]);
-  if (
-    ownKeys.some((key) => typeof key !== "string") ||
-    expectedKeys.some((key) => !ownKeys.includes(key)) ||
-    ownKeys.some((key) => typeof key === "string" && !allowedKeys.has(key))
-  ) {
-    throw new Error(
-      `${label} 必填字段为 ${expectedKeys.join(", ")}；可选字段为 ${optionalKeys.join(", ") || "<none>"}`,
-    );
-  }
-
-  const result: Record<string, unknown> = {};
-  for (const key of ownKeys as string[]) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
-      throw new Error(`${label} 必须是 plain JSON data record`);
-    }
-    result[key] = descriptor.value;
-  }
-  return result;
-}
-
-function requireCubeHeight(value: unknown): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error("cubeHeight 必须是有限数值");
-  }
-  if (value < 0.5 || value > 4) {
-    throw new Error("cubeHeight 必须在 0.5m 到 4m 之间");
-  }
-  return value;
-}
-
-function requireRunId(value: unknown): `run:${string}` {
-  if (typeof value !== "string" || !value.startsWith("run:") || value.length === 4) {
-    throw new Error("runId 必须是带非空后缀的 run: ID");
-  }
-  return value as `run:${string}`;
-}
-
-function copyRef(value: unknown): RefRecord {
-  const record = requireExactDataRecord(value, "expected", [
-    "name",
-    "snapshotId",
-    "version",
-  ]);
-  if (record.name !== CURRENT_WORLD_REF) {
-    throw new Error(`expected.name 必须是 ${CURRENT_WORLD_REF}`);
-  }
-  if (
-    typeof record.snapshotId !== "string" ||
-    !record.snapshotId.startsWith("snapshot:") ||
-    record.snapshotId.length === "snapshot:".length
-  ) {
-    throw new Error("expected.snapshotId 必须是带非空后缀的 snapshot: ID");
-  }
-  if (
-    typeof record.version !== "number" ||
-    !Number.isSafeInteger(record.version) ||
-    record.version < 1
-  ) {
-    throw new Error("expected.version 必须是大于等于 1 的安全整数");
-  }
-
-  return deepFreeze({
-    name: CURRENT_WORLD_REF,
-    snapshotId: record.snapshotId as Snapshot["id"],
-    version: record.version,
-  }) as RefRecord;
-}
-
 export class WorldToolSurface {
   readonly #host: RuntimeMvpHost;
 
@@ -151,17 +65,9 @@ export class WorldToolSurface {
   }
 
   write(input: unknown): WorldWriteResult {
-    const record = requireExactDataRecord(
-      input,
-      "write input",
-      ["cubeHeight"],
-      ["fixtureId"],
-    );
-    const fixtureId = record.fixtureId === undefined
-      ? PRIMITIVE_BOX_FIXTURE_ID
-      : requireRigidFixtureId(record.fixtureId);
+    const { fixtureId } = requireWorldWriteInput(input);
     const snapshot = this.#host.write(
-      createFixtureSnapshot(requireCubeHeight(record.cubeHeight), fixtureId),
+      createFixtureSnapshot(2, fixtureId),
     );
     return deepFreeze({
       tool: "write",
@@ -171,22 +77,20 @@ export class WorldToolSurface {
   }
 
   edit(input: unknown): WorldEditResult {
-    const record = requireExactDataRecord(input, "edit input", [
-      "expected",
-      "cubeHeight",
-    ]);
-    const expected = copyRef(record.expected);
-    const update = this.#host.editCurrentCubeHeight(
-      expected,
-      requireCubeHeight(record.cubeHeight),
+    const parsed = requireWorldEditInput(input);
+    const update = this.#host.editCurrentEntityPose(
+      parsed.expected,
+      parsed.targetRef,
+      parsed.pose,
     );
     return deepFreeze({ tool: "edit", update }) as WorldEditResult;
   }
 
   async run(input: unknown): Promise<WorldRunResult> {
-    const record = requireExactDataRecord(input, "run input", ["runId"]);
+    const parsed = requireWorldRunInput(input);
     const result = await this.#host.runCurrent(
-      deepFreeze({ runId: requireRunId(record.runId) }),
+      deepFreeze({ runId: parsed.runId }),
+      parsed.programId,
     );
     const evaluation = this.#host.evaluateEpisode(result.episode.id);
     return deepFreeze({

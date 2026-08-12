@@ -63,6 +63,7 @@ export function createInitialSnapshot(cubeHeight = 2): Snapshot {
         visual: { kind: "box", halfExtents: floorHalfExtents, color: "#c7ccc5" },
         collision: { kind: "box", halfExtents: floorHalfExtents },
         observation: null,
+        semantic: null,
       },
       physics: { bodyType: "static", massKg: 0, friction: 0.85 },
     },
@@ -76,6 +77,7 @@ export function createInitialSnapshot(cubeHeight = 2): Snapshot {
         visual: { kind: "box", halfExtents: cubeHalfExtents, color: "#df6b45" },
         collision: { kind: "box", halfExtents: cubeHalfExtents },
         observation: null,
+        semantic: null,
       },
       physics: { bodyType: "dynamic", massKg: 1, friction: 0.8 },
     },
@@ -107,10 +109,18 @@ export function findEntity(snapshot: Snapshot, ref: Entity["ref"]): Entity {
 }
 
 export const FALLING_CUBE_PROGRAM: WorldProgram = deepFreeze({
-  id: "program:falling-cube",
+  id: "program:free-fall-rigid-v1",
   kind: "free-fall",
   targetRef: CUBE_REF,
   durationSeconds: 2.5,
+  sampleRateHz: 30,
+}) as WorldProgram;
+
+export const BALL_VESSEL_PROGRAM: WorldProgram = deepFreeze({
+  id: "program:free-fall-ball-vessel-v1",
+  kind: "free-fall",
+  targetRef: "entity:ball",
+  durationSeconds: 3,
   sampleRateHz: 30,
 }) as WorldProgram;
 

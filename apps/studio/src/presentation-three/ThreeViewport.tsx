@@ -5,27 +5,29 @@ import { SparkRenderer, SplatFileType, SplatMesh } from "@sparkjsdev/spark";
 
 import {
   DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET,
-  DIAGNOSTIC_RIGID_ASSET,
   type Entity,
   type EpisodeSample,
   type Snapshot,
 } from "@demiurges/world";
+import type { PresentationMode } from "../presentation-model";
 import {
   createAlignmentEvidence,
   type AlignmentEvidence,
   type Bounds3,
 } from "./alignment-evidence";
+import {
+  createCollisionOverlay,
+  createRimFrameOverlay,
+  setCollisionOverlayVisible,
+} from "./entity-presentation";
+import { resolveImportedVisualAsset } from "./presentation-assets";
 
-const DIAGNOSTIC_RIGID_ASSET_URL = new URL(
-  "../../../../packages/world/assets/diagnostic-wedge-v1.glb",
-  import.meta.url,
-).href;
 const DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET_URL = new URL(
   "../../../../packages/world/assets/diagnostic-wedge-3dgs-v1.ply",
   import.meta.url,
 ).href;
 
-export type PresentationMode = "mesh" | "3dgs" | "overlay";
+export type { PresentationMode } from "../presentation-model";
 
 interface ThreeViewportProps {
   readonly snapshot?: Snapshot;
@@ -39,9 +41,10 @@ interface ThreeViewportProps {
 interface EntityObject {
   readonly root: THREE.Object3D;
   readonly signature: string;
-  readonly visualRoot?: THREE.Group;
+  readonly visualRoot: THREE.Group;
   readonly observationRoot?: THREE.Group;
-  readonly pickProxy?: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>;
+  readonly collisionRoot: THREE.Group;
+  readonly rimFrameRoot?: THREE.Group;
   active: boolean;
   splat?: SplatMesh;
   observedSourceBounds?: Bounds3;
@@ -54,9 +57,11 @@ function visualSignature(entity: Entity): string {
 function disposeObject(root: THREE.Object3D): void {
   root.traverse((object) => {
     if (object instanceof SplatMesh) return;
-    if (!(object instanceof THREE.Mesh)) return;
+    if (!("geometry" in object) || !(object.geometry instanceof THREE.BufferGeometry)) return;
     object.geometry.dispose();
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    if (!("material" in object)) return;
+    const material = object.material as THREE.Material | THREE.Material[];
+    const materials = Array.isArray(material) ? material : [material];
     for (const material of materials) material.dispose();
   });
 }
@@ -69,12 +74,10 @@ async function sha256(bytes: ArrayBuffer): Promise<`sha256:${string}`> {
 }
 
 function applyPresentationMode(record: EntityObject, mode: PresentationMode): void {
-  if (record.visualRoot) record.visualRoot.visible = mode !== "3dgs";
+  record.visualRoot.visible = mode !== "3dgs" || !record.observationRoot;
   if (record.observationRoot) record.observationRoot.visible = mode !== "mesh";
-  if (record.pickProxy) {
-    record.pickProxy.material.opacity = mode === "overlay" ? 0.58 : 0;
-    record.pickProxy.material.depthWrite = mode === "overlay";
-  }
+  setCollisionOverlayVisible(record.collisionRoot, mode === "overlay");
+  if (record.rimFrameRoot) record.rimFrameRoot.visible = mode === "overlay";
 }
 
 function setSelected(root: THREE.Object3D, selected: boolean): void {
@@ -247,6 +250,17 @@ export function ThreeViewport(props: ThreeViewportProps) {
 
   const createObject = (entity: Entity): EntityObject => {
     const visual = entity.representations.visual;
+    const root = new THREE.Group();
+    root.name = entity.ref;
+    root.userData.entityRef = entity.ref;
+    const visualRoot = new THREE.Group();
+    visualRoot.name = `${entity.ref}:visual`;
+    visualRoot.userData.entityRef = entity.ref;
+    const collisionRoot = createCollisionOverlay(entity);
+    const rimFrameRoot = createRimFrameOverlay(entity);
+    root.add(visualRoot, collisionRoot);
+    if (rimFrameRoot) root.add(rimFrameRoot);
+
     if (visual.kind === "box") {
       const [hx, hy, hz] = visual.halfExtents;
       const geometry = new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2);
@@ -258,47 +272,64 @@ export function ThreeViewport(props: ThreeViewportProps) {
       const mesh = new THREE.Mesh(geometry, material);
       mesh.castShadow = entity.physics.bodyType === "dynamic";
       mesh.receiveShadow = true;
-      mesh.name = entity.ref;
+      mesh.name = `${entity.ref}:visual-mesh`;
       mesh.userData.entityRef = entity.ref;
-      return { root: mesh, signature: visualSignature(entity), active: true };
+      visualRoot.add(mesh);
+      const record = {
+        root,
+        signature: visualSignature(entity),
+        visualRoot,
+        collisionRoot,
+        rimFrameRoot,
+        active: true,
+      };
+      applyPresentationMode(record, props.presentationMode);
+      return record;
     }
 
-    if (
-      visual.assetId !== DIAGNOSTIC_RIGID_ASSET.assetId ||
-      visual.contentDigest !== DIAGNOSTIC_RIGID_ASSET.contentDigest
-    ) {
-      throw new Error(`未登记 imported visual：${visual.assetId}`);
+    if (visual.kind === "sphere") {
+      const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(visual.radius, 48, 32),
+        new THREE.MeshStandardMaterial({
+          color: visual.color,
+          roughness: 0.42,
+          metalness: 0.03,
+        }),
+      );
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.name = `${entity.ref}:visual-mesh`;
+      mesh.userData.entityRef = entity.ref;
+      visualRoot.add(mesh);
+      const record = {
+        root,
+        signature: visualSignature(entity),
+        visualRoot,
+        collisionRoot,
+        rimFrameRoot,
+        active: true,
+      };
+      applyPresentationMode(record, props.presentationMode);
+      return record;
     }
 
-    const root = new THREE.Group();
-    root.name = entity.ref;
-    root.userData.entityRef = entity.ref;
-    const visualRoot = new THREE.Group();
+    const asset = resolveImportedVisualAsset(visual);
     const observationRoot = new THREE.Group();
-    root.add(visualRoot, observationRoot);
-    const [hx, hy, hz] = entity.representations.collision.halfExtents;
-    const pickProxy = new THREE.Mesh(
-      new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2),
-      new THREE.MeshBasicMaterial({
-        color: "#db9d48",
-        transparent: true,
-        opacity: 0,
-        wireframe: true,
-      }),
-    );
-    pickProxy.userData.entityRef = entity.ref;
-    root.add(pickProxy);
+    observationRoot.name = `${entity.ref}:observation`;
+    observationRoot.userData.entityRef = entity.ref;
+    root.add(observationRoot);
     const record: EntityObject = {
       root,
       signature: visualSignature(entity),
       visualRoot,
       observationRoot,
-      pickProxy,
+      collisionRoot,
+      rimFrameRoot,
       active: true,
     };
     container.dataset.assetStatus = "loading";
     loader.load(
-      DIAGNOSTIC_RIGID_ASSET_URL,
+      asset.url,
       (gltf) => {
         if (disposed || !record.active || objects.get(entity.ref) !== record) {
           disposeObject(gltf.scene);
@@ -326,6 +357,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
         visualRoot.add(content);
         container.dataset.assetStatus = "loaded";
         container.dataset.assetEntityRef = entity.ref;
+        container.dataset.assetId = asset.assetId;
         setSelected(root, props.selectedRef === entity.ref);
         renderScene();
       },
@@ -377,6 +409,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
     if (!hasImportedVisual) {
       delete container.dataset.assetStatus;
       delete container.dataset.assetEntityRef;
+      delete container.dataset.assetId;
     }
     const hasObservation = [...entities.values()].some(
       (entity) => entity.representations.observation !== null,

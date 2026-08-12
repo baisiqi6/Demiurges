@@ -10,37 +10,42 @@ import type {
   Entity,
   Episode,
   EvaluationRecord,
+  Pose,
   RefRecord,
   RefUpdateResult,
   Snapshot,
 } from "../kernel/types";
+import { requireRegisteredSnapshotIdentity } from "../artifacts/diagnostic-rigid-fixture";
+import {
+  requireAdoptPolicyById,
+  RUNTIME_MVP_ADOPT_POLICY_REGISTRY,
+} from "../host/runtime-mvp-adopt-policy";
+
+function verticalHalfExtent(entity: Entity, pose: Pose): number {
+  const collision = entity.representations.collision;
+  if (collision.kind === "sphere") return collision.radius;
+  if (collision.kind !== "box") {
+    throw new Error(`${entity.ref} 不能作为 authored pose edit target`);
+  }
+  const { x, y, z, w } = pose.rotation;
+  const [hx, hy, hz] = collision.halfExtents;
+  const r20 = 2 * (x * z - w * y);
+  const r21 = 2 * (y * z + w * x);
+  const r22 = 1 - 2 * (x * x + y * y);
+  return Math.abs(r20) * hx + Math.abs(r21) * hy + Math.abs(r22) * hz;
+}
 
 class WorldRepositoryState {
   readonly #snapshots = new Map<Snapshot["id"], Snapshot>();
   readonly #episodes = new Map<Episode["id"], Episode>();
   readonly #evaluations = new Map<EvaluationRecord["id"], EvaluationRecord>();
   readonly #refs = new Map<RefRecord["name"], RefRecord>();
-  readonly #adoptPolicy: AdoptPolicy;
   #editSequence = 0;
 
-  constructor(adoptPolicy: AdoptPolicy) {
-    if (!isDeepFrozen(adoptPolicy)) {
-      throw new Error("AdoptPolicy 必须是递归冻结的 plain data record");
+  constructor() {
+    if (!isDeepFrozen(RUNTIME_MVP_ADOPT_POLICY_REGISTRY)) {
+      throw new Error("Host AdoptPolicy registry 必须是递归冻结的 plain data record");
     }
-    if (
-      typeof adoptPolicy.id !== "string" ||
-      !adoptPolicy.id.startsWith("adopt-policy:") ||
-      typeof adoptPolicy.evaluatorId !== "string" ||
-      !adoptPolicy.evaluatorId.startsWith("evaluator:") ||
-      typeof adoptPolicy.contractId !== "string" ||
-      !adoptPolicy.contractId.startsWith("success:") ||
-      adoptPolicy.requirePassed !== true ||
-      adoptPolicy.episodeCompletion !== "completed" ||
-      adoptPolicy.terminalSource !== "runtime-terminal"
-    ) {
-      throw new Error("AdoptPolicy 不满足 Runtime MVP contract");
-    }
-    this.#adoptPolicy = adoptPolicy;
   }
 
   #insert(snapshot: Snapshot): Snapshot {
@@ -56,6 +61,13 @@ class WorldRepositoryState {
     if (snapshot.parentId !== null && !this.#snapshots.has(snapshot.parentId)) {
       throw new Error(`parent Snapshot 不存在：${snapshot.parentId}`);
     }
+    if (snapshot.entities.some((entity) =>
+      entity.representations.collision.kind === "compound" &&
+      entity.representations.collision.parts.some((part) =>
+        part.partKey === "test-only-top-lid"))) {
+      throw new Error("test-only closed proxy 只允许 Runtime-direct seam");
+    }
+    requireRegisteredSnapshotIdentity(snapshot);
     const frozen = deepFreeze(snapshot) as Snapshot;
     if (!isDeepFrozen(frozen)) {
       throw new Error("Snapshot 必须是递归冻结的 plain data record");
@@ -209,35 +221,38 @@ class WorldRepositoryState {
     }
 
     const parent = this.readSnapshot(parentId);
-    findEntity(parent, CUBE_REF);
-    this.#editSequence += 1;
-
-    const entities = parent.entities.map((entity): Entity => {
-      if (entity.ref !== CUBE_REF) {
-        return entity;
-      }
-      return {
-        ...entity,
-        state: {
-          ...entity.state,
-          pose: {
-            ...entity.state.pose,
-            position: [
-              entity.state.pose.position[0],
-              entity.state.pose.position[1],
-              height,
-            ],
-          },
-        },
-      };
+    const cube = findEntity(parent, CUBE_REF);
+    return this.editEntityPose(parentId, CUBE_REF, {
+      ...cube.state.pose,
+      position: [cube.state.pose.position[0], cube.state.pose.position[1], height],
     });
+  }
 
+  editEntityPose(
+    parentId: Snapshot["id"],
+    targetRef: Entity["ref"],
+    pose: Pose,
+  ): Snapshot {
+    const parent = this.readSnapshot(parentId);
+    const target = findEntity(parent, targetRef);
+    if (target.physics.bodyType !== "dynamic") {
+      throw new Error("authored pose edit target 必须是 dynamic Entity");
+    }
+    const floor = findEntity(parent, "entity:floor");
+    const targetBottom = pose.position[2] - verticalHalfExtent(target, pose);
+    const floorTop = floor.state.pose.position[2] + verticalHalfExtent(floor, floor.state.pose);
+    if (!Number.isFinite(targetBottom) || targetBottom < floorTop - 1e-9) {
+      throw new Error(`${targetRef} authored pose 穿透 floor`);
+    }
+    this.#editSequence += 1;
     return this.#insert(deepFreeze({
       schemaVersion: 1,
       id: `snapshot:edit-${this.#editSequence}`,
       parentId: parent.id,
       source: "edit",
-      entities,
+      entities: parent.entities.map((entity): Entity => entity.ref === targetRef
+        ? { ...entity, state: { ...entity.state, pose } }
+        : entity),
     }) as Snapshot);
   }
 
@@ -268,6 +283,29 @@ class WorldRepositoryState {
     return this.#updateRef("advance", snapshot, expected, ref);
   }
 
+  editCurrentEntityPose(
+    expected: RefRecord,
+    targetRef: Entity["ref"],
+    pose: Pose,
+    ref: RefRecord["name"] = CURRENT_WORLD_REF,
+  ): RefUpdateResult {
+    this.#requireExpectation(expected, ref);
+    const current = this.readRefRecord(ref);
+    if (
+      current.snapshotId !== expected.snapshotId ||
+      current.version !== expected.version
+    ) {
+      return deepFreeze({
+        status: "stale_ref",
+        operation: "advance",
+        ref: current,
+        snapshot: this.readSnapshot(current.snapshotId),
+      }) as RefUpdateResult;
+    }
+    const snapshot = this.editEntityPose(expected.snapshotId, targetRef, pose);
+    return this.#updateRef("advance", snapshot, expected, ref);
+  }
+
   advance(
     snapshotId: Snapshot["id"],
     expected: RefRecord,
@@ -292,13 +330,15 @@ class WorldRepositoryState {
     ref: RefRecord["name"] = CURRENT_WORLD_REF,
   ): RefUpdateResult {
     this.#requireExpectation(expected, ref);
-    if (policyId !== this.#adoptPolicy.id) {
-      throw new Error("请求的 AdoptPolicy 不是 Host 注册 policy");
-    }
+    const policyEntry = requireAdoptPolicyById(policyId);
+    const policy = policyEntry.policy;
 
     const episode = this.#episodes.get(episodeId);
     if (!episode) {
       throw new Error(`Episode 尚未登记：${episodeId}`);
+    }
+    if (episode.programId !== policyEntry.programId) {
+      throw new Error("Episode Program 与 Host AdoptPolicy registry 不匹配");
     }
     const evaluation = this.#evaluations.get(evaluationId);
     if (!evaluation) {
@@ -307,19 +347,19 @@ class WorldRepositoryState {
     if (evaluation.episodeId !== episode.id) {
       throw new Error("Evaluation 与 Episode 不匹配");
     }
-    if (evaluation.evaluatorId !== this.#adoptPolicy.evaluatorId) {
+    if (evaluation.evaluatorId !== policy.evaluatorId) {
       throw new Error("Evaluation evaluator 不满足 AdoptPolicy");
     }
-    if (evaluation.contractId !== this.#adoptPolicy.contractId) {
+    if (evaluation.contractId !== policy.contractId) {
       throw new Error("Evaluation contract 不满足 AdoptPolicy");
     }
-    if (this.#adoptPolicy.requirePassed && !evaluation.passed) {
+    if (policy.requirePassed && !evaluation.passed) {
       throw new Error("Evaluation 未通过 AdoptPolicy");
     }
-    if (episode.completion !== this.#adoptPolicy.episodeCompletion) {
+    if (episode.completion !== policy.episodeCompletion) {
       throw new Error("Episode completion 不满足 AdoptPolicy");
     }
-    if (episode.terminalSnapshot.source !== this.#adoptPolicy.terminalSource) {
+    if (episode.terminalSnapshot.source !== policy.terminalSource) {
       throw new Error("Episode terminal source 不满足 AdoptPolicy");
     }
     if (episode.baseSnapshotId !== expected.snapshotId) {
@@ -340,9 +380,16 @@ export interface WorldRepository {
   readRefRecord(ref?: RefRecord["name"]): RefRecord;
   readRef(ref?: RefRecord["name"]): Snapshot;
   editCubeHeight(parentId: Snapshot["id"], height: number): Snapshot;
+  editEntityPose(parentId: Snapshot["id"], targetRef: Entity["ref"], pose: Pose): Snapshot;
   editCurrentCubeHeight(
     expected: RefRecord,
     height: number,
+    ref?: RefRecord["name"],
+  ): RefUpdateResult;
+  editCurrentEntityPose(
+    expected: RefRecord,
+    targetRef: Entity["ref"],
+    pose: Pose,
     ref?: RefRecord["name"],
   ): RefUpdateResult;
   advance(
@@ -371,9 +418,12 @@ export interface WorldRepositoryAuthority {
 }
 
 export function createWorldRepositoryAuthority(
-  adoptPolicy: AdoptPolicy,
+  rejectedCallerPolicy?: unknown,
 ): WorldRepositoryAuthority {
-  const state = new WorldRepositoryState(adoptPolicy);
+  if (rejectedCallerPolicy !== undefined) {
+    throw new Error("Repository 不接纳调用方 policy；必须使用 Host closed registry");
+  }
+  const state = new WorldRepositoryState();
 
   return Object.freeze({
     repository: Object.freeze({
@@ -385,11 +435,19 @@ export function createWorldRepositoryAuthority(
       readRef: (ref?: RefRecord["name"]) => state.readRef(ref),
       editCubeHeight: (parentId: Snapshot["id"], height: number) =>
         state.editCubeHeight(parentId, height),
+      editEntityPose: (parentId: Snapshot["id"], targetRef: Entity["ref"], pose: Pose) =>
+        state.editEntityPose(parentId, targetRef, pose),
       editCurrentCubeHeight: (
         expected: RefRecord,
         height: number,
         ref?: RefRecord["name"],
       ) => state.editCurrentCubeHeight(expected, height, ref),
+      editCurrentEntityPose: (
+        expected: RefRecord,
+        targetRef: Entity["ref"],
+        pose: Pose,
+        ref?: RefRecord["name"],
+      ) => state.editCurrentEntityPose(expected, targetRef, pose, ref),
       advance: (
         snapshotId: Snapshot["id"],
         expected: RefRecord,

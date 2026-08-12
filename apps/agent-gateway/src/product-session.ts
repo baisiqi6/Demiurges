@@ -1,15 +1,20 @@
 import {
-  DIAGNOSTIC_RIGID_FIXTURE_ID,
+  BALL_REF,
+  BALL_VESSEL_FIXTURE_ID,
+  FREE_FALL_BALL_VESSEL_PROGRAM_ID,
   PRIMITIVE_BOX_FIXTURE_ID,
   RuntimeMvpHost,
   WorldToolSurface,
+  FREE_FALL_RIGID_PROGRAM_ID,
   deepFreeze,
   type ProductSessionEvent,
   type ProductSessionProjection,
   type ProductToolTrace,
   type ProductWorldEvidence,
   type WorldReadResult,
+  type WorldEditResult,
   type WorldRunResult,
+  type RigidFixtureId,
 } from "@demiurges/world";
 
 import {
@@ -38,14 +43,14 @@ function resultDetails(
 class ScriptedAgentClient implements OmpAgentClientPort {
   readonly #tools: readonly OmpHostTool[];
   readonly #nextRunId: () => string;
-  readonly #fixtureId: typeof PRIMITIVE_BOX_FIXTURE_ID | typeof DIAGNOSTIC_RIGID_FIXTURE_ID;
+  readonly #fixtureId: RigidFixtureId;
   #started = false;
   #responseText: string | null = null;
 
   constructor(
     tools: readonly OmpHostTool[],
     nextRunId: () => string,
-    fixtureId: typeof PRIMITIVE_BOX_FIXTURE_ID | typeof DIAGNOSTIC_RIGID_FIXTURE_ID,
+    fixtureId: RigidFixtureId,
   ) {
     this.#tools = tools;
     this.#nextRunId = nextRunId;
@@ -87,21 +92,32 @@ class ScriptedAgentClient implements OmpAgentClientPort {
     };
 
     await invoke("world_write", {
-      cubeHeight: 2,
-      ...(this.#fixtureId === PRIMITIVE_BOX_FIXTURE_ID
-        ? {}
-        : { fixtureId: this.#fixtureId }),
+      fixtureId: this.#fixtureId,
     });
     const read = (await invoke("world_read", {})) as {
       ref: { name: string; snapshotId: string; version: number };
     };
-    await invoke("world_edit", { expected: read.ref, cubeHeight: 2.8 });
+    const ballVessel = this.#fixtureId === BALL_VESSEL_FIXTURE_ID;
+    await invoke("world_edit", {
+      expected: read.ref,
+      targetRef: ballVessel ? BALL_REF : "entity:cube",
+      frameRef: "frame:world",
+      pose: {
+        position: ballVessel
+          ? { x: 0.12, y: 0, z: 1.25 }
+          : { x: 0, y: 0, z: 2.8 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      },
+    });
     const run = (await invoke("world_run", {
       runId: this.#nextRunId(),
+      programId: ballVessel
+        ? FREE_FALL_BALL_VESSEL_PROGRAM_ID
+        : FREE_FALL_RIGID_PROGRAM_ID,
     })) as { evaluation: { passed: boolean } };
     this.#responseText = run.evaluation.passed
-      ? "刚体已经完成推演，确定性评测通过。"
-      : "刚体推演未通过评测。";
+      ? "世界已经完成推演，确定性评测通过。"
+      : "世界推演未通过评测。";
   }
 
   async getLastAssistantText(): Promise<string | null> {
@@ -110,7 +126,7 @@ class ScriptedAgentClient implements OmpAgentClientPort {
 }
 
 export function createScriptedAgentClientFactory(
-  fixtureId: typeof PRIMITIVE_BOX_FIXTURE_ID | typeof DIAGNOSTIC_RIGID_FIXTURE_ID = PRIMITIVE_BOX_FIXTURE_ID,
+  fixtureId: RigidFixtureId = PRIMITIVE_BOX_FIXTURE_ID,
 ): OmpAgentClientFactory {
   let runSequence = 0;
   return (tools) =>
@@ -218,6 +234,13 @@ export class ProductSession {
       this.#world = this.#surface.read();
       if (observation.trace.tool === "world_run") {
         this.#lastRun = observation.evidence as WorldRunResult;
+      } else if (observation.trace.tool === "world_write") {
+        this.#lastRun = null;
+      } else if (
+        observation.trace.tool === "world_edit" &&
+        (observation.evidence as WorldEditResult).update.status === "updated"
+      ) {
+        this.#lastRun = null;
       }
     }
     const event = this.#event(turnId, {

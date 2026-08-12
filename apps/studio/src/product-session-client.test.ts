@@ -46,7 +46,7 @@ describe("Studio Product Session client", () => {
         trace: {
           sequence: 1,
           tool: "world_write",
-          input: { cubeHeight: 2 },
+          input: { fixtureId: "fixture:primitive-box" },
           status: "succeeded",
           result: { tool: "write" },
         },
@@ -82,9 +82,12 @@ describe("Studio Product Session client", () => {
 
   test("streamed world_run 必须绑定当前 authored world 的完整 EntityRef 证据链", async () => {
     const surface = new WorldToolSurface(new RuntimeMvpHost());
-    surface.write({ cubeHeight: 2.4, fixtureId: DIAGNOSTIC_RIGID_FIXTURE_ID });
+    surface.write({ fixtureId: DIAGNOSTIC_RIGID_FIXTURE_ID });
     const world = surface.read();
-    const forgedRun = structuredClone(await surface.run({ runId: "run:stream-forged" }));
+    const forgedRun = structuredClone(await surface.run({
+      runId: "run:stream-forged",
+      programId: "program:free-fall-rigid-v1",
+    }));
     const firstStates = forgedRun.episode.samples[0]?.states;
     if (!firstStates?.["entity:cube"]) throw new Error("fixture 缺少 cube sample");
     const mutableStates = firstStates as Record<string, (typeof firstStates)[`entity:${string}`]>;
@@ -107,7 +110,10 @@ describe("Studio Product Session client", () => {
         trace: {
           sequence: 1,
           tool: "world_run",
-          input: { runId: "run:stream-forged" },
+          input: {
+            runId: "run:stream-forged",
+            programId: "program:free-fall-rigid-v1",
+          },
           status: "succeeded",
           result: { tool: "run" },
         },

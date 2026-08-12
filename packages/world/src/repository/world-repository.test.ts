@@ -1,14 +1,59 @@
 import { describe, expect, test } from "bun:test";
+import { createBallVesselSnapshot } from "../artifacts/ball-vessel-fixture";
 import { ADOPT_RUNTIME_MVP_POLICY } from "../host/runtime-mvp-adopt-policy";
 import { createInitialSnapshot, findEntity, CUBE_REF } from "../kernel/world";
 import { createWorldRepositoryAuthority } from "./world-repository";
 
 const createRepository = () => {
-  const authority = createWorldRepositoryAuthority(ADOPT_RUNTIME_MVP_POLICY);
+  const authority = createWorldRepositoryAuthority();
   return { ...authority.repository, ...authority.evidence };
 };
 
 describe("WorldRepository", () => {
+  test("write 在建立 canonical Ref 前拒绝 registered scenario 静态 identity 漂移", () => {
+    const ballVesselAuthority = createRepository();
+    const ballVesselDrift = structuredClone(createBallVesselSnapshot());
+    const floor = ballVesselDrift.entities.find((entity) => entity.ref === "entity:floor")!;
+    if (floor.representations.collision.kind !== "box") {
+      throw new Error("fixture floor 必须是 box collision");
+    }
+    floor.representations.collision.halfExtents = [9.9, 9.9, 0.05];
+    expect(() => ballVesselAuthority.write(ballVesselDrift)).toThrow(
+      "fixture registry 漂移",
+    );
+    expect(() => ballVesselAuthority.readRef()).toThrow("尚未初始化");
+
+    const vesselPhysicsAuthority = createRepository();
+    const vesselPhysicsDrift = structuredClone(createBallVesselSnapshot());
+    const vessel = vesselPhysicsDrift.entities.find((entity) => entity.ref === "entity:vessel")!;
+    vessel.physics.friction = 0.01;
+    expect(() => vesselPhysicsAuthority.write(vesselPhysicsDrift)).toThrow(
+      "vessel physics 与 fixture registry 漂移",
+    );
+    expect(() => vesselPhysicsAuthority.readRef()).toThrow("尚未初始化");
+
+    const fallingAuthority = createRepository();
+    const fallingDrift = structuredClone(createInitialSnapshot());
+    const fallingFloor = fallingDrift.entities.find((entity) => entity.ref === "entity:floor")!;
+    if (fallingFloor.representations.collision.kind !== "box") {
+      throw new Error("fixture floor 必须是 box collision");
+    }
+    fallingFloor.representations.collision.halfExtents = [9.9, 9.9, 0.05];
+    expect(() => fallingAuthority.write(fallingDrift)).toThrow(
+      "fixture registry 漂移",
+    );
+    expect(() => fallingAuthority.readRef()).toThrow("尚未初始化");
+  });
+
+  test("write 在初始化 authority ref 前拒绝重复 EntityRef", () => {
+    const repository = createRepository();
+    const duplicate = structuredClone(createInitialSnapshot());
+    duplicate.id = "snapshot:duplicate-entity-ref";
+    duplicate.entities[1]!.ref = duplicate.entities[0]!.ref;
+
+    expect(() => repository.write(duplicate)).toThrow("EntityRef 必须唯一");
+  });
+
   test("edit 创建 child Snapshot，且不改变 base bytes", () => {
     const repository = createRepository();
     const base = repository.write(createInitialSnapshot());

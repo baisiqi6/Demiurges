@@ -1,8 +1,4 @@
 import {
-  CUBE_REF,
-  DIAGNOSTIC_RIGID_ASSET,
-  FALLING_CUBE_PROGRAM,
-  MUJOCO_PROFILE,
   deepFreeze,
   type Entity,
   type ProductSessionEvent,
@@ -22,9 +18,17 @@ import {
 import { EpisodePlayer } from "./presentation-episode/EpisodePlayer";
 import {
   ThreeViewport,
-  type PresentationMode,
 } from "./presentation-three/ThreeViewport";
 import type { AlignmentEvidence } from "./presentation-three/alignment-evidence";
+import { resolveImportedVisualAsset } from "./presentation-three/presentation-assets";
+import {
+  defaultPresentationMode,
+  evaluationMetricRows,
+  preferredSelection,
+  presentationModeFor,
+  runContractSummary,
+  type PresentationMode,
+} from "./presentation-model";
 import {
   ProductSessionClient,
   ProductSessionTurnError,
@@ -34,10 +38,24 @@ type RuntimeStatus = "connecting" | "ready" | "running" | "completed" | "error";
 type ViewMode = "repository" | "episode";
 
 const DEFAULT_PROMPT =
-  "创建登记的 imported rigid wedge，把高度改到 2.8 米，然后让它落到地面并检查结果。";
+  "创建登记的曲面容器与球，把球放到容器上方，让它落入容器并验证稳定停留。";
 
 function formatNumber(value: number, digits = 3): string {
   return Number.isFinite(value) ? value.toFixed(digits) : "—";
+}
+
+function collisionSummary(entity: Entity | undefined): string {
+  if (!entity) return "—";
+  const collision = entity.representations.collision;
+  if (collision.kind === "box") {
+    return `box proxy · ${collision.halfExtents
+      .map((value) => formatNumber(value * 2))
+      .join(" × ")} m`;
+  }
+  if (collision.kind === "sphere") {
+    return `sphere proxy · Ø ${formatNumber(collision.radius * 2)} m`;
+  }
+  return `compound proxy · ${collision.parts.length} parts`;
 }
 
 export default function App() {
@@ -50,8 +68,8 @@ export default function App() {
   const [responseText, setResponseText] = createSignal("");
   const [timelineIndex, setTimelineIndex] = createSignal(0);
   const [viewMode, setViewMode] = createSignal<ViewMode>("repository");
-  const [selectedRef, setSelectedRef] = createSignal<Entity["ref"]>(CUBE_REF);
-  const [presentationMode, setPresentationMode] = createSignal<PresentationMode>("3dgs");
+  const [selectedRef, setSelectedRef] = createSignal<Entity["ref"]>();
+  const [presentationMode, setPresentationMode] = createSignal<PresentationMode>("mesh");
   const [alignmentEvidence, setAlignmentEvidence] = createSignal<AlignmentEvidence>();
   const [runtimeStatus, setRuntimeStatus] = createSignal<RuntimeStatus>("connecting");
   const [errorMessage, setErrorMessage] = createSignal<string>();
@@ -59,26 +77,41 @@ export default function App() {
 
   const episode = createMemo(() => lastRun()?.episode);
   const evaluation = createMemo(() => lastRun()?.evaluation);
+  const metricRows = createMemo(() => evaluationMetricRows(evaluation()));
   const activeSample = createMemo(() => {
     if (viewMode() !== "episode") return undefined;
     return episode()?.samples[timelineIndex()];
   });
   const currentSnapshot = createMemo(() => world()?.snapshot);
   const currentRef = createMemo(() => world()?.ref);
-  const selectedEntity = createMemo(() =>
-    currentSnapshot()?.entities.find((entity) => entity.ref === selectedRef()),
-  );
+  const selectedEntity = createMemo(() => {
+    const ref = selectedRef();
+    return ref
+      ? currentSnapshot()?.entities.find((entity) => entity.ref === ref)
+      : undefined;
+  });
   const selectedState = createMemo(() => {
     const sample = activeSample();
-    return sample ? sample.states[selectedRef()] : selectedEntity()?.state;
+    const ref = selectedRef();
+    return sample && ref ? sample.states[ref] : selectedEntity()?.state;
   });
   const importedVisual = createMemo(() => {
     const visual = selectedEntity()?.representations.visual;
     return visual?.kind === "imported-rigid-mesh" ? visual : undefined;
   });
+  const importedAsset = createMemo(() => {
+    const visual = importedVisual();
+    return visual ? resolveImportedVisualAsset(visual) : undefined;
+  });
+  const vesselSemantic = createMemo(() => {
+    const semantic = selectedEntity()?.representations.semantic;
+    return semantic?.kind === "vessel" ? semantic : undefined;
+  });
+  const contractSummary = createMemo(() => runContractSummary(lastRun()));
   const displayedSource = createMemo(() => {
     if (viewMode() === "episode") {
-      return activeSample()?.states[selectedRef()]
+      const ref = selectedRef();
+      return ref && activeSample()?.states[ref]
         ? "episode-frame"
         : "episode-state-unavailable";
     }
@@ -91,9 +124,36 @@ export default function App() {
     ),
   );
 
-  const useProjection = (next: ProductSessionProjection) => {
+  const reconcilePresentation = (
+    nextWorld: WorldReadResult | undefined,
+    resetSelection = false,
+  ) => {
+    const snapshot = nextWorld?.snapshot;
+    const previousRef = resetSelection ? undefined : selectedRef();
+    const ref = preferredSelection(snapshot, previousRef);
+    setSelectedRef(ref);
+    const entity = ref
+      ? snapshot?.entities.find((candidate) => candidate.ref === ref)
+      : undefined;
+    setPresentationMode(
+      ref !== previousRef
+        ? defaultPresentationMode(entity)
+        : presentationModeFor(entity, presentationMode()),
+    );
+    setAlignmentEvidence(undefined);
+  };
+
+  const setAuthoritativeWorld = (
+    nextWorld: WorldReadResult | undefined,
+    resetSelection = false,
+  ) => {
+    setWorld(nextWorld);
+    reconcilePresentation(nextWorld, resetSelection);
+  };
+
+  const useProjection = (next: ProductSessionProjection, resetSelection = false) => {
     setProjection(next);
-    setWorld(next.world ?? undefined);
+    setAuthoritativeWorld(next.world ?? undefined, resetSelection);
     setLastRun(next.lastRun ?? undefined);
     if (next.lastRun) {
       setTimelineIndex(0);
@@ -104,15 +164,15 @@ export default function App() {
   const createSession = async () => {
     setRuntimeStatus("connecting");
     setErrorMessage(undefined);
+    setProjection(undefined);
+    setAuthoritativeWorld(undefined, true);
+    setLastRun(undefined);
     setEvents([]);
     setResponseText("");
     setTimelineIndex(0);
     setViewMode("repository");
-    setSelectedRef(CUBE_REF);
-    setPresentationMode("3dgs");
-    setAlignmentEvidence(undefined);
     try {
-      useProjection(await client.createSession());
+      useProjection(await client.createSession(), true);
       setRuntimeStatus("ready");
     } catch (error) {
       setRuntimeStatus("error");
@@ -136,10 +196,10 @@ export default function App() {
 
     switch (event.evidence.tool) {
       case "read":
-        setWorld(event.evidence);
+        setAuthoritativeWorld(event.evidence);
         break;
       case "write":
-        setWorld(
+        setAuthoritativeWorld(
           deepFreeze({
             tool: "read",
             ref: event.evidence.ref,
@@ -148,7 +208,7 @@ export default function App() {
         );
         break;
       case "edit":
-        setWorld(
+        setAuthoritativeWorld(
           deepFreeze({
             tool: "read",
             ref: event.evidence.update.ref,
@@ -192,7 +252,7 @@ export default function App() {
         useProjection(error.projection);
       } else {
         setProjection(undefined);
-        setWorld(undefined);
+        setAuthoritativeWorld(undefined, true);
         setLastRun(undefined);
         setEvents([]);
         setTimelineIndex(0);
@@ -207,6 +267,13 @@ export default function App() {
   const selectTimelineFrame = (index: number) => {
     setTimelineIndex(index);
     setViewMode("episode");
+  };
+
+  const selectEntity = (ref: Entity["ref"]) => {
+    setSelectedRef(ref);
+    const entity = currentSnapshot()?.entities.find((candidate) => candidate.ref === ref);
+    setPresentationMode(presentationModeFor(entity, presentationMode()));
+    setAlignmentEvidence(undefined);
   };
 
   onMount(() => void createSession());
@@ -255,7 +322,7 @@ export default function App() {
             sample={activeSample()}
             selectedRef={selectedRef()}
             presentationMode={presentationMode()}
-            onSelect={setSelectedRef}
+            onSelect={selectEntity}
             onAlignmentEvidence={setAlignmentEvidence}
           />
           <Show when={!currentSnapshot()}>
@@ -273,7 +340,15 @@ export default function App() {
                   type="button"
                   data-testid={`presentation-${mode}`}
                   aria-pressed={presentationMode() === mode}
-                  onClick={() => setPresentationMode(mode)}
+                  disabled={mode === "3dgs" && !selectedEntity()?.representations.observation}
+                  title={
+                    mode === "3dgs" && !selectedEntity()?.representations.observation
+                      ? "当前 Entity 没有 3DGS Observation"
+                      : undefined
+                  }
+                  onClick={() => setPresentationMode(
+                    presentationModeFor(selectedEntity(), mode),
+                  )}
                 >
                   {mode === "mesh" ? "GLB" : mode === "3dgs" ? "3DGS" : "对齐"}
                 </button>
@@ -384,7 +459,7 @@ export default function App() {
 
         <div class="entity-evidence">
           <span class="eyebrow">Entity state</span>
-          <h2 data-testid="selected-entity-ref">{selectedRef()}</h2>
+          <h2 data-testid="selected-entity-ref">{selectedRef() ?? "—"}</h2>
           <dl class="vector-grid">
             <div><dt>position</dt><dd>{selectedState()?.pose.position.map((value) => formatNumber(value)).join("  ") ?? "—"}</dd></div>
             <div><dt>velocity</dt><dd>{selectedState()?.linearVelocity.map((value) => formatNumber(value)).join("  ") ?? "—"}</dd></div>
@@ -401,14 +476,39 @@ export default function App() {
                   <div><dt>source frame</dt><dd>{visual().sourceFrameRef}</dd></div>
                   <div><dt>source units</dt><dd>{formatNumber(visual().sourceUnitMeters)} m</dd></div>
                   <div>
-                    <dt>alignment</dt>
+                    <dt>local transform</dt>
                     <dd data-testid="visual-alignment">
                       pos {visual().localTransform.position.map((value) => formatNumber(value)).join(" ")}
                       {" · "}q {Object.values(visual().localTransform.rotation).map((value) => formatNumber(value)).join(" ")}
-                      {" · "}tol {formatNumber(DIAGNOSTIC_RIGID_ASSET.alignment.toleranceMeters)} m
+                      <Show when={importedAsset()?.alignmentToleranceMeters !== undefined}>
+                        {" · "}tol {formatNumber(importedAsset()!.alignmentToleranceMeters!)} m
+                      </Show>
                     </dd>
                   </div>
-                  <div><dt>provenance</dt><dd>{DIAGNOSTIC_RIGID_ASSET.provenance.origin} · {DIAGNOSTIC_RIGID_ASSET.provenance.license}</dd></div>
+                  <div>
+                    <dt>artifact</dt>
+                    <dd>
+                      <a data-testid="visual-artifact-url" href={importedAsset()?.url}>
+                        {importedAsset()?.repoPath}
+                      </a>
+                    </dd>
+                  </div>
+                  <div><dt>provenance</dt><dd>{importedAsset()?.provenance.origin} · {importedAsset()?.provenance.license}</dd></div>
+                </>
+              )}
+            </Show>
+            <Show when={vesselSemantic()}>
+              {(semantic) => (
+                <>
+                  <div><dt>rim frame</dt><dd data-testid="rim-frame-ref">{semantic().rimFrame.ref}</dd></div>
+                  <div>
+                    <dt>rim local pose</dt>
+                    <dd>{semantic().rimFrame.localPose.position.map((value) => formatNumber(value)).join(" ")}</dd>
+                  </div>
+                  <div>
+                    <dt>inner envelope</dt>
+                    <dd>r {formatNumber(semantic().innerEnvelope.radiusMeters)} m · floor z {formatNumber(semantic().innerEnvelope.innerFloorZMeters)} m · rim z {formatNumber(semantic().innerEnvelope.rimZMeters)} m</dd>
+                  </div>
                 </>
               )}
             </Show>
@@ -434,9 +534,7 @@ export default function App() {
             <div>
               <dt>collision</dt>
               <dd data-testid="collision-kind">
-                {selectedEntity()
-                  ? `${selectedEntity()?.representations.collision.kind} proxy · ${selectedEntity()?.representations.collision.halfExtents.map((value) => formatNumber(value * 2)).join(" × ")} m`
-                  : "—"}
+                {collisionSummary(selectedEntity())}
               </dd>
             </div>
             <div><dt>mass</dt><dd>{selectedEntity() ? `${formatNumber(selectedEntity()!.physics.massKg)} kg` : "—"}</dd></div>
@@ -455,17 +553,25 @@ export default function App() {
               {(record) => <span class="evaluation-mark" data-pass={record().passed}>{record().passed ? "✓" : "×"}</span>}
             </Show>
           </div>
-          <Show when={evaluation()} fallback={<p class="muted">Agent narration 不构成成功证据</p>}>
-            {(record) => (
-              <dl class="metrics">
-                <div><dt>height error</dt><dd>{formatNumber(record().metrics.heightError, 5)} m</dd></div>
-                <div><dt>terminal speed</dt><dd>{formatNumber(record().metrics.terminalLinearSpeed, 5)} m/s</dd></div>
-              </dl>
-            )}
+          <Show when={metricRows().length > 0} fallback={<p class="muted">Agent narration 不构成成功证据</p>}>
+            <dl class="metrics" data-testid="evaluation-metrics">
+              <For each={metricRows()}>
+                {(metric) => (
+                  <div data-metric={metric.key}>
+                    <dt>{metric.label}</dt>
+                    <dd>
+                      {typeof metric.value === "number"
+                        ? formatNumber(metric.value, 5)
+                        : metric.value} {metric.unit}
+                    </dd>
+                  </div>
+                )}
+              </For>
+            </dl>
           </Show>
           <dl class="compact-contract control-boundary">
-            <div><dt>program</dt><dd>{FALLING_CUBE_PROGRAM.id}</dd></div>
-            <div><dt>runtime</dt><dd>MuJoCo {MUJOCO_PROFILE.version}</dd></div>
+            <div><dt>program</dt><dd data-testid="program-id">{contractSummary().programId}</dd></div>
+            <div><dt>runtime</dt><dd data-testid="runtime-profile-id">{contractSummary().runtimeProfileId}</dd></div>
             <div><dt>adopt</dt><dd>withheld from Agent</dd></div>
           </dl>
         </div>
@@ -473,7 +579,9 @@ export default function App() {
 
       <footer class="statusbar">
         <span>Authority: Gateway Product Session</span>
-        <span>Presentation: Three.js + Spark · {presentationMode()}</span>
+        <span>
+          Presentation: Three.js{selectedEntity()?.representations.observation ? " + Spark" : ""} · {presentationMode()}
+        </span>
         <span>Runtime: @mujoco/mujoco · Agent: restricted four-tool session</span>
       </footer>
     </main>

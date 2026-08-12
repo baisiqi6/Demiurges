@@ -2,32 +2,32 @@
 
 ## Subject
 
-- Checklist item: `DH-009`
-- Reviewer: `closeout-auditor`
-- Updated at: `2026-08-11`
-- Canonical plan path: `docs/project-harness/tasks/DH-009/plan.md`
+- Checklist item: `DH-010`
+- Reviewer: `cross-review-sol-max+k3-max-vessel-stale-r1`
+- Updated at: `2026-08-12`
+- Canonical plan path: `docs/project-harness/tasks/DH-010/plan.md`
 
 ## Item Snapshot
 
-- Title: 3DGS Observation / Spark Presentation 对齐切片
+- Title: 曲面容器与内部空间 Vertical Slice
 - Status: doing
 - Workflow status: closeout_requested
 - Priority: p0
 - Owner: codex
-- Session: codex-dh009-20260810-1
-- Dependencies: DH-008
+- Session: dh010-remediation-20260811
+- Dependencies: DH-009
 
 ## Acceptance
 
-同一个 imported rigid Entity 以独立 3DGS observation、GLB visual、box collision proxy 与 MuJoCo state 形成可测量证据链；repo-owned artifact 的 digest/provenance/frame/units/alignment fail closed，Spark 只负责 Presentation，Episode playback 与 structured AlignmentEvidence 在明确 tolerance 内 PASS；四工具、Kernel 与 ref authority 不扩张；tests/typecheck/build/Chromium/diff/checklist 通过。
+一个 repo-owned smooth curved vessel 以单一 EntityRef 对齐 deterministic visual artifact、rim-center local frame、保留开放腔体的 bounded compound collision proxy 与 MuJoCo state；dynamic sphere 经最小 Entity/Program-oriented read/write/edit/run contract 产生 multi-entity Episode，并由 stable-inside-vessel Success Contract 评测；closed-proxy 对照必须 FAIL；DH-001～009 authority/regressions、四工具、tests/typecheck/build/Chromium/diff/checklist 保持。
 
 ## Verification
 
-Final product digest 79b9050ee69ea8c6869fb51521aa9b128da40d070b6ad27b0e27249fe2aebec5; 102 tests / 0 fail / 2,627 assertions; typecheck, production build, deterministic PLY SHA-256, git diff --check, harness validation and Chromium four-tools/3DGS/overlay/playback/reset acceptance passed; Round 3 Sol + Terra approved with P0/P1/P2 none.
+Fresh cross-review approved frozen product digest 85534951b9146283ffbceddec652a0440d0d38a7543ad4828a86eb42b5df1c57. Kimi K3 Max: full 149/0/2857 + 42/42 probes; GPT-5.6 Sol Max: full 149/0 + bounded authority probes; both end frozen identity pass, P0/P1=0, may_closeout=yes. Evidence docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-cross-review-evidence.md.
 
 ## Handoff
 
-Human authorized closeout, normal mark-done, commit and push agent/codex/DH-009. Do not create PR, merge main, tag, deploy or send a real provider prompt.
+Two fresh isolated reviewers approved DH-010. Closeout gate is open; await Human authority for closeout/mark-done and Git commit/push.
 
 ## Review Inputs
 
@@ -40,190 +40,323 @@ Human authorized closeout, normal mark-done, commit and push agent/codex/DH-009.
 ## Canonical Plan Content
 
 ```md
-# DH-009 计划：3DGS Observation / Spark Presentation 对齐切片
+# DH-010 计划：曲面容器与内部空间 Vertical Slice
 
 ## 状态与 Authority
 
-- Status：`implementation complete / independent review approved / Human closeout authorized`；
-- Branch：`agent/codex/DH-009`；
-- Worktree：`/Users/Admin/projects/WorkTrees/Demiurges-DH-009`；
-- Base：`fdbbf680122c06810f58da37d9973d4f0aa2c984`；
-- Human 已授权把 `DH-008` fast-forward 到 `main` 并推送，创建本 item、独立 worktree/branch、EXharness 节点与 canonical design/acceptance plan，并要求计划完成后再进入实现；
-- Human 已于 final Round 3 双审批准后授权 `closeout`、`mark-done`、commit 与 push `agent/codex/DH-009`；本次 authority 不包含 PR、merge `main`、tag、deploy、真实 provider prompt、credential 使用或外部资产上传。
+- Status：`doing / review_approved`；
+- Plan review：Round 4 已批准本计划进入实现；Phase 1–5 与四轮 bounded remediation 已完成。vessel-physics authority 与 stale-ref lifecycle 的最终 remediation candidate（product digest `85534951b9146283ffbceddec652a0440d0d38a7543ad4828a86eb42b5df1c57`）已由 fresh Kimi K3 Max + GPT-5.6 Sol Max 两路隔离审查一致批准，`P0=0 / P1=0 / may_closeout=yes`；证据见 `phase6-vessel-physics-stale-ref-cross-review-evidence.md`；
+- Branch：`agent/codex/DH-010`；
+- Worktree：`/Users/Admin/projects/WorkTrees/Demiurges-DH-010`；
+- Base：`22e288690937834135584d023e4140e26696f761`；
+- Human 已授权把已批准的 `DH-009` fast-forward 合并到 `main` 并推送，以及创建本 item、独立 worktree/branch、EXharness 节点与 canonical design/acceptance plan；
+- Human 已授权 Phase 1–6 实现、四轮 bounded remediation 与当前 fresh independent cross-review；尚未授权 commit/push 当前 feature branch、PR、再次 merge、tag、deploy、closeout 或 `mark-done`。
 
 ## Goal
 
-让 `DH-008` 的同一个 imported rigid Entity 第一次拥有独立的 3DGS Observation representation，并由 Spark 在现有 Three.js 场景中呈现；GLB visual、3DGS observation、box collision proxy、MuJoCo state、Episode 与 Evaluation 必须继续解析到同一个稳定 `EntityRef`，同时保持各自的 authority 边界。
+用一个确定性、可见、可推演的“球落入开口容器并稳定停留”任务，证明 Demiurges 不依赖方块拼装世界，并能用任务所需的精度表达曲面、开口、内部空间与 compound collision：
 
-本切片不是“在 Viewer 中加载一个 splat 文件”。它要证明真实感 representation 可以加入同一个可执行世界，却不会成为 Snapshot pose、collision geometry 或 Runtime state 的替代事实。
+```text
+repo-owned smooth vessel visual
++ one semantic vessel EntityRef
++ compound collision parts preserving the cavity
++ one dynamic sphere EntityRef
++ explicit free-fall WorldProgram
+→ immutable multi-entity Episode
++ stable-inside-vessel EvaluationRecord
+```
 
-## 当前外部事实与版本 gate
+本切片的关键不是“渲染一个杯子”。它要证明：一个杯子可以在视觉上是光滑曲面，在物理上由多个简化 geom 组成，在语义上仍然是一个 Entity，并且“内部空间可用”必须由真实 Runtime 与 Evaluation 证据证明，不能靠外观看起来像杯子。
 
-只读核验日期：`2026-08-10`。
+## 为什么现在需要最小根部泛化
 
-- Spark 官方当前文档与 release 示例使用 `@sparkjsdev/spark` `2.1.0`；npm manifest 声明 MIT license、`three >=0.180.0` peer dependency 和 `fflate ^0.8.2` dependency；
-- 当前 Studio 锁定 `three 0.185.1`，满足该 peer range；实现时只新增精确锁定的 `@sparkjsdev/spark@2.1.0`，不升级 Three.js 或其他无关 dependency；
-- 官方 API 允许 `SplatMesh` 从 `fileBytes` 加载 PLY/SPZ 等格式，提供 `initialized`、`getBoundingBox()` 与 `dispose()`；`SplatMesh` 是 `THREE.Object3D`，可以置于 Entity presentation root 下；
-- `SplatMesh.scale` 在当前文档中只保证 uniform scale，因此本 slice 的 3DGS local scale 必须为等比缩放；需要非等比标定时应重新生成 artifact，而不是静默扭曲；
-- 官方示例的远程 URL 只用于说明 API。本产品只使用 repo-owned bytes；Presentation 在 digest 验证通过后才把 bytes 交给 Spark。
+`DH-001` 到 `DH-009` 的 falling-cube walking skeleton 已证明 Snapshot、Episode、Repository ref、MuJoCo、Presentation、Agent、imported mesh 与 3DGS Observation 的纵向闭环，但当前实现仍包含只对第一个任务成立的脚手架：
 
-实现开始时必须通过 `npm view @sparkjsdev/spark@2.1.0 ...` 与 lockfile diff 再确认一次上述 contract；若 package contract 已漂移，停止实现并先修订本计划，不用兼容 flag 掩盖。
+- model-facing `write/edit` 输入直接使用 `cubeHeight`；
+- Host 与 Runtime 方法以 `Cube` / `FallingCube` 命名并固定 `entity:cube`；
+- collision representation 只有单一 box；
+- Product codec 固定 floor/cube 两个角色；
+- Evaluation metrics 只有 stable-on-floor；
+- Studio inspector 默认围绕 `entity:cube` 呈现。
 
-参考：
-
-- <https://sparkjs.dev/>
-- <https://sparkjs.dev/docs/splat-mesh/>
-- <https://sparkjs.dev/docs/spark-renderer/>
-- <https://github.com/sparkjsdev/spark/tree/v2.1.0>
+第二个真实任务已经出现，因此这些限制不能继续通过增加 `cupHeight`、`ballHeight`、`isContainer` 或 scenario-specific UI fallback 修补。本切片允许把上述“第一个 fixture 的偶然细节”提升为恰好覆盖两个真实任务的最小 closed union；它不授权通用 world ontology、任意 JSON patch、Adapter SDK 或 plugin system。
 
 ## First-principles design
 
-```text
-repo-owned 3DGS bytes
-  ├── content digest + byte length + splat count
-  ├── provenance/license + deterministic generator
-  ├── source frame + source units
-  ├── local alignment transform + expected bounds
-  └── role = observation
-                  │
-                  ▼
-EntityRef ── observation representation ──→ Spark / SplatMesh
-   │
-   ├──── visual representation ───────────→ existing GLB / Three.js
-   ├──── collision representation ────────→ existing box proxy / MuJoCo
-   ├──── authoritative state ─────────────→ Snapshot / Episode sample
-   └──── diagnostic alignment evidence ──→ Studio inspector PASS / FAIL
-```
-### Representation decision
+### 1. 稳定语义不变
 
-本 slice 选择最窄且最能暴露边界的语义：
+- model-facing tools 仍恰好为 `world_read / world_write / world_edit / world_run`；
+- `write` 创建静态世界描述，`edit` 创建 child Snapshot，`run` 产生动态 Episode；
+- `run` 不推进 current ref，terminal adopt 继续由独立 Harness control authority 掌握；
+- EntityRef 是身份；Three.js node、MuJoCo body、geom 与 artifact URL 都不是 Entity；
+- Kernel records 继续不 import Three.js、Spark、MuJoCo、SolidJS 或 provider SDK。
 
-- 现有 `representations.visual` 继续指向 `diagnostic-wedge-v1.glb`；
-- `representations.observation` 新增为显式 `null | GaussianSplatObservationRepresentation`；
-- 3DGS fixture 只声明 `role: "observation"`，不同时冒充 visual、collision 或 physics；
-- Studio-local Presentation mode 可以显示 `mesh`、`3dgs` 或 `overlay`，但这个 mode 不进入 Snapshot、Product Session transport authority 或四工具输入；
-- Spark/`SplatMesh` type、object、worker、URL 和 buffer 都不得进入 `@demiurges/world` Kernel records。
-
-这里不建立通用 `Artifact SDK`。只增加当前真实 fixture 所需的一个 bounded plain-data observation record 和一个 repo-owned registry entry；第二个真实 representation/provider 出现前不抽象 loader factory 或 plugin system。
-
-### Diagnostic fixture
-
-增加一个由仓库脚本确定性生成的、小型非对称 wedge 3DGS PLY fixture：
-
-- 使用固定 seed、固定 splat count 与固定 PLY schema；
-- repo 保存生成脚本和生成结果；
-- registry 固定 `assetId`、media type、SHA-256、byte length、splat count、provenance、license、source frame、source-unit meters、local transform、expected entity-local bounds 与 tolerance；
-- fixture 只通过封闭 `assetId` 解析，不接受任意 URL、绝对路径、文件内容或 Agent-provided bytes；
-- 实现 gate 对真实文件重算 digest、解析 header/count/bounds，并扫描 provenance/license；只信 registry 常量而不检查 bytes 不算通过。
-
-PLY 是本 slice 的有意选择：它便于确定性生成、检查与失败注入。压缩 SPZ、远程 streaming、LoD tree 和格式转换属于后续性能任务，不进入当前 acceptance。
-
-### Alignment evidence
-
-Alignment 必须产生结构化诊断证据，而不是只画一个 overlay：
+### 2. 一个容器 Entity，多种 representation
 
 ```text
-AlignmentEvidence
-  entityRef
-  observationAssetId + contentDigest
-  sourceFrameRef + sourceUnitMeters
-  appliedLocalTransform
-  observedEntityLocalBounds
-  expectedEntityLocalBounds
-  collisionProxyBounds
-  maxBoundsErrorMeters
-  poseTranslationErrorMeters
-  poseAngularErrorRadians
-  toleranceMeters
-  passed
+entity:vessel
+├── visual       smooth imported/generated GLB surface of revolution
+├── collision    compound(base + bounded wall segments)
+├── physics      static rigid body
+├── observation  null in this slice
+└── semantic     vessel identity + rim-center local frame
 ```
 
-- `observedEntityLocalBounds` 必须来自已验证 bytes 经 Spark 初始化后的实际 bounds；
-- bounds 经显式 frame/unit/local transform 映射后，与 registry expected bounds 比较；
-- Episode 播放时另比较 splat presentation root 与 authoritative sample pose；
-- Inspector 显示数值、tolerance 和 `PASS/FAIL`；缺失、未初始化、digest 失败或非有限数值一律不是 PASS；
-- 此 evidence 是 Presentation diagnostic observation，不是 `EvaluationRecord`，也不能推进 Repository ref。
+- vessel visual 由仓库脚本依据固定 Bézier/profile-of-revolution 参数确定性生成，不引入通用 CAD Runtime；
+- compound collision 由一个 base 与固定数量的有向 box wall segments 构成，所有 part 都是同一 `entity:vessel` 的 local collision component，不获得独立 EntityRef；
+- 每个 collision part 具有 entity-local、唯一且冻结的 `partKey`；`partKey` 只用于 fixture/Runtime 内部映射，不是 EntityRef，不得出现在 public semantic contact pair、selection 或 Evaluation target 中；
+- collision inner radius 必须保留可用腔体，不能使用封闭 single box、single convex hull 或 visual mesh 直接冒充 collision authority；
+- Studio overlay 可以检查每个 collision part，但 selection 与 inspector 仍解析到唯一 `entity:vessel`；
+- `rim-center` 是容器 Entity 的显式 local frame，用于放置和评测，不是 Three.js helper 推导出的临时坐标。
 
-### Presentation lifecycle
+`rim-center` 在 Kernel/Product carrier 中不是外部 helper：vessel 的 `representations.semantic` 使用唯一 closed variant `{kind:"vessel", rimFrame:{ref:"frame:vessel-rim-center", localPose}, innerEnvelope}`；floor、cube 与 ball 的 `semantic` 恰好为 `null`。fixture registry、Snapshot、Product codec、Runtime、Evaluation 与 Studio projection 必须逐字段验证同一个 `frame:vessel-rim-center` 与 local pose，禁止由 renderer 临时创建或只存在于测试 helper。
 
-- 现有 Three.js scene、camera 和 `WebGLRenderer` 保持唯一；SparkRenderer 作为同一 scene 的 Presentation component 接入，不创建第二个世界或第二个 renderer；
-- 3DGS bytes 先从 repo-owned URL 读取并验证 digest，再通过 `fileBytes` 创建 `SplatMesh`；
-- `EntityRef` 绑定在稳定 presentation root 上，Spark object 只是 child；Entity pose 只应用于 root，artifact local transform 只应用于 child；
-- selection 使用与 EntityRef 绑定的已有 visual/collision pick proxy，不把百万 splat raycast 变成 identity authority；
-- session reset、representation drift、mode switch、component cleanup 或 late async completion 必须取消旧 generation、移除 object 并调用 `dispose()`；旧 load 不得污染新 Product Session；
-- 3DGS load/error/alignment 状态只影响 Presentation evidence，不修改 Snapshot、Episode、Evaluation 或 current ref。
+本切片冻结一个 task-local vessel fixture contract，而不是引入通用 frame graph。该 contract 同时登记 deterministic profile/bounds、visual local transform、`rim-center` local pose、inner-floor/inner-envelope、collision parts 与 exact part count。所有 representation 统一使用：
+
+```text
+worldPose = entityPose ∘ localPose
+```
+
+translated 与 yaw-rotated vessel 必须在 headless probes 中保持 visual bounds、compound proxy、rim frame、inner envelope 和 Runtime/Evaluation 对齐；任一 representation 单独漂移都必须 fail closed。由于 vessel 是旋转对称体，yaw probe 必须比较 composed pose/matrix，并携带一个 fixture-local off-axis diagnostic point；只比较 yaw 前后 AABB、圆形 rim 或 inner envelope 不构成证据。
+
+### 3. 第二个动态 Entity
+
+增加 `entity:ball`：
+
+- visual 与 collision 使用显式 sphere representation；
+- physics 为 positive-mass dynamic rigid body；
+- 初态位于 `rim-center` 上方；
+- free-fall Program 的 target 是 `entity:ball`，而不是继续假定唯一 dynamic body 为 `entity:cube`。
+
+floor、vessel 与 ball 的 EntityRef 集合、body role、representations、frame、units、mass/friction 与初态必须在 Snapshot、Product Session、MJCF、每个 Episode sample、TerminalSnapshot 和 Evaluation target 中闭合。
+
+### 4. 最小 model-facing contract 演进
+
+model-facing contract 在本计划中冻结；Phase 1 的职责是把下列唯一 shape 写成 RED tests，不再替 implementation 重新设计字段：
+
+```text
+world_read  {}
+
+world_write {
+  fixtureId:
+    | "fixture:primitive-box"
+    | "fixture:diagnostic-wedge-v1"
+    | "fixture:ball-vessel-v1"
+}
+
+world_edit {
+  expected: { name, snapshotId, version },
+  targetRef: "entity:cube" | "entity:ball",
+  frameRef: "frame:world",
+  pose: {
+    position: { x, y, z },
+    rotation: { x, y, z, w }
+  }
+}
+
+world_run {
+  runId,
+  programId:
+    | "program:free-fall-rigid-v1"
+    | "program:free-fall-ball-vessel-v1"
+}
+```
+
+Exact admission rules：
+
+- 每层 input 都必须是 `Object.prototype` 的 enumerable own-data plain JSON record；required keys 必须恰好存在，以上 contract 没有 optional/unknown/symbol/accessor/inherited keys；model-facing input 不使用 Array；`position` 恰好为 `{x,y,z}`，`rotation` 恰好为 `{x,y,z,w}`；
+- `fixtureId`、`targetRef`、`frameRef`、`programId` 都是上述 closed enum；`world_write` 不接受 URL、文件、任意 Entity JSON、pose 或 executable code；
+- `expected` 继续恰好为 `{name:"world:current", snapshotId, version}`；`snapshotId` 必须匹配 `^snapshot:[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`，`version` 是 `safe-integer>=1`；三个 fixture 都必须通过 `world_read → JSON round-trip → world_edit`，不另造第二个 Ref lexical identity；
+- `runId` 必须匹配 `^run:[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`；
+- pose 所有分量必须 finite；position `x/y` 在 `[-4,4] m`、`z` 在 `[0,4] m`，quaternion norm 与 1 的误差不超过 current cross-layer authority `1e-9`；fixture validator 还必须依据受信 collision bounds 拒绝初态穿透 floor；Host、Repository/codec、Runtime 与 Presentation 使用同一 tolerance，不做 silent clamp/normalize；边界值与 Episode sample-0 pose 必须闭合；
+- falling-rigid 两个 fixture 只允许 `targetRef=entity:cube` 与 `program:free-fall-rigid-v1`；ball-vessel 只允许 `targetRef=entity:ball` 与 `program:free-fall-ball-vessel-v1`；Program 与 current Snapshot fixture 不匹配必须在 Runtime 前 fail closed；
+- `world_write` 创建 canonical initial pose；非 canonical placement 统一通过后续 `world_edit`，不把 height/pose 再塞回 write；
+- `fixture:diagnostic-wedge-v1` 继续携带现有 imported GLB + 3DGS Observation，不能在迁移中退化或失去入口；
+- 旧 `cubeHeight`、optional `fixtureId` 与 `program:falling-cube` model-facing shape 一次性删除，不保留 legacy/modern 双入口。
+
+在 product/world-tools boundary 增加一个冻结 plain-data `WORLD_TOOL_CONTRACT` 作为 keys、nested object shape、`const`/enum、bounds、pattern、`additionalProperties:false` 与 input budget 的唯一来源；Host admission、Gateway `requireBoundedToolInput` pre-admission 与 OMP JSON Schema 均消费该 contract。executable parity tests 不只比较 schema 文本，还必须经真实 restricted `tool.execute` 证明合法 nested object pose 可达 Host，并拒绝 Array、sparse/accessor/symbol/prototype/extra key、错误 string pattern、const、nested shape、bounds 与 non-finite 值。它不是 Kernel record、scenario framework 或 plugin schema。
+
+### 5. 最小 Kernel 与 Runtime 演进
+
+只增加第二个任务实际需要的 closed variants：
+
+- `VisualRepresentation` 增加 bounded sphere；现有 imported mesh 继续承载 vessel visual；
+- `CollisionRepresentation` 从单 box 扩展为 `box | sphere | compound`，compound part 使用 entity-local pose；
+- `SemanticRepresentation` 只增加 `null | vessel` closed union；vessel variant 承载 `frame:vessel-rim-center`、local pose 与 inner envelope，不建立任意 frame collection/graph；
+- `WorldProgram` 继续表达受信 free-fall evolution，但 target 不再固定为 cube；
+- `EvaluationRecord` 使用 exact discriminated contract/metrics union，保留 stable-on-floor，并新增 stable-inside-vessel；不退化为任意 `Record<string, number>`；
+- MuJoCo Runtime 只在第二个真实 consumer 成立后把 falling-cube 专名收窄为 task-neutral free-fall/multi-entity implementation；不建立第二 Runtime provider 或通用 Runtime plugin interface。
+
+Product codec 需要按受信 world/program contract 验证 exact entity set 与 role closure。这里允许两个已存在 scenario 的小型 closed registry/validator，禁止继续复制第二份整段 floor/cube/ball if-chain，也禁止把 executable validator、renderer object 或 MuJoCo ID 写进 Kernel。
+
+### 6. Evaluation 与 adopt authority 一起闭合
+
+新增 evaluator 不能绕过现有 terminal adopt authority。Host 只允许按已注册的 WorldProgram/scenario identity 从一个冻结的 closed registry 选择对应 `evaluatorId + contractId + AdoptPolicy`；policy 不能来自 Agent input、EvaluationRecord 自报字段、Presentation 或 transport projection。
+
+- falling-rigid 与 ball-into-vessel 各有一个受信 policy entry；
+- 两个合法 contract 的 passed Evaluation 都能通过同一 Repository authority 规则 adopt terminal Snapshot；
+- 未注册 Program/contract、错配 evaluator-contract-policy、alternate contract 注入与 failed Evaluation 继续 fail closed；
+- `run` 仍不推进 ref，四工具仍不暴露 adopt；
+- 这是现有 DH-003 lexical-closure authority 的 closed-set 演进，不是通用 policy plugin/registry SDK。
+
+## Diagnostic world
+
+推荐固定尺寸（实现时可在不改变语义的前提下由 RED probe 微调一次）：
+
+- vessel outer radius：约 `0.50 m`；
+- vessel inner radius：约 `0.40 m`；
+- vessel height：约 `0.65 m`；
+- base thickness：约 `0.08 m`；
+- visual radial segments：至少 `48`，形成真实曲面轮廓；
+- collision wall segments：固定 `16` 个 box parts；
+- ball radius：约 `0.10 m`；
+- ball initial center：位于 rim-center 上方约 `0.60 m`；
+- canonical 轨迹必须具有 bounded radial offset 或 bounded lateral velocity，使轨迹对 wall 是否存在、是否错位真实敏感，不能只用永远不触壁的中心竖直落体；
+- RuntimeProfile：继续使用已锁定 MuJoCo WASM numeric profile；
+- `program:free-fall-rigid-v1` 保持 `durationSeconds=2.5, sampleRateHz=30`；`program:free-fall-ball-vessel-v1` 固定 `durationSeconds=3.0, sampleRateHz=30`，两者 terminal 都落在 30Hz sample grid；
+- Episode：覆盖首次接触、进入容器与稳定终态；
+- MJCF/runtime evidence 必须能断言 exact `base + N walls` vessel geoms；缺失、错位、重复或 owner mapping 错误均 fail closed。
+
+repo-owned visual artifact 必须由确定性 generator 产生并登记 SHA-256、byte length、provenance/license、source frame、units、local transform 与 bounds。generator 重跑必须 byte-identical；Agent 不能提供 artifact bytes/path/URL。
+
+## Evaluation contract
+
+新增 `success:stable-inside-vessel`，至少包含并冻结：
+
+- `targetRef = entity:ball`；
+- `containerRef = entity:vessel`；
+- rim-center frame identity；
+- 最大水平轴偏差；
+- ball center 必须低于 rim plane 且高于 inner floor；
+- terminal linear speed 上限；
+- `settleWindowSeconds` 与 Episode 尾部连续 sample window，不以单一 terminal frame 判定稳定；
+- ball-vessel support/contact 必须在 settle window 内成立，且 ball-bottom 到受信 inner-floor 的距离在有界容差内；
+- Runtime 将 MuJoCo geom contact 通过内部 geom-owner map 折叠为 EntityRef semantic contact evidence，并记录 finite pair-attributed penetration；Evaluation 检查 ball-vessel support、penetration bound 与错误 floor attribution；
+- finite state、无数值爆炸；
+- 明确 numeric tolerance。
+
+Evaluation 必须读取 immutable Episode/TerminalSnapshot 与受信 geometry/contact evidence；不得读取 canvas、Three.js bounds、Agent narration 或 Presentation overlay。
+
+本 slice 的 executable stability quantifiers 固定为：
+
+- registered ball-vessel Program 的 `sampleRateHz = 30`，`settleWindowSeconds = 0.5`，因此 tail window 是闭区间 `[terminalTime-0.5, terminalTime]`，必须恰好含 16 个 samples；
+- tail timestamps 必须 finite、严格递增，首尾分别在 `1e-9 s` 内等于 window 两端，相邻差必须在 `1e-9 s` 内等于 `1/30 s`；duplicate、missing、extra 或 gapped samples 在 admission 时拒绝；
+- 每个 tail sample 都必须满足 finite state：horizontal offset `<= innerRadius - ballRadius - 0.01 m`，ball-top `<= rimPlane + 0.005 m`，`abs(ballBottom-innerFloor) <= 0.005 m`，linear speed `<= 0.02 m/s`；metrics 记录该窗口的最大 radial offset、最大 speed、最大 floor-distance error，而非只记录 terminal 值；
+- 每个 sample 的 public contact evidence 是 frozen plain data `{targetRef, otherRef, normalOnTargetWorld:[x,y,z], penetrationMeters}`；只含 EntityRef、finite dense world-space normal（norm 与 1 的误差 `<=1e-6`）和非负 penetration，不含 `partKey`、MuJoCo body/geom/contact id；
+- valid support 必须在同一个 tail sample 中存在 `targetRef=entity:ball, otherRef=entity:vessel`，并满足 `dot(normalOnTargetWorld, [0,0,1]) >= 0.5`；16 个 tail samples 每一个都必须有 valid support，support coverage 因而为 `16/16`，任一 transient gap 都 FAIL；纯 sidewall contact 的水平 normal 不构成 support；
+- `maxPenetrationMeters` 是 16 个 tail samples 中全部 `ball-vessel` contact evidence 的 `penetrationMeters` 最大值，必须 finite、非负且不超过 `0.005 m`；contact evidence 必须按 EntityRef pair 归因，错误 floor/vessel owner mapping 直接拒绝；
+- Episode `contact-began` event 可作为时间线事实保留，但 stable-inside evaluator 只使用逐 sample semantic contact evidence，不能把一次 began event 当成持续支撑。
+
+必须存在以下 adversarial controls：
+
+1. hovering 与 bounce-apex Episode 必须 FAIL，证明单帧低速不是稳定；
+2. sidewall-only contact、仅一帧 transient support、duplicate/gapped tail timestamps 必须 FAIL，证明 support 方向和完整时间覆盖真实成立；
+3. 缺失/错位 wall 的 wall-sensitive run 必须 FAIL，证明侧壁真实参与物理；
+4. 相同 visual 与可 admission 的初态改用受信 closed proxy，必须先由同一 Runtime 产生 completed Episode，再由 Evaluation 明确 FAIL；不能在 Runtime 前短路，也不能因为视觉仍像杯子而通过；
+5. wall seam tunneling、penetration 超界、错误 floor/vessel contact attribution、internal geom/part id 泄漏都必须 fail closed。
+
+closed proxy 是 test-owned、Runtime-direct 的 recursively frozen trusted Snapshot mutation：只在 pure compiler/Runtime/evaluator seam 替换 canonical vessel compound 为带 top lid 的 compound，复用 production admission/physics/evaluation，不增加 model-facing `fixtureId`。它不得进入 Host write/edit、三 fixture registry、Product Session projection、Repository record/ref/adopt 或 OMP surface；对应 reachability tests 必须证明这些边界均不可达。
 
 ## In scope
 
-1. 增加一个显式、bounded、immutable 的 3DGS observation representation，并让 primitive fixture 使用 `observation: null`。
-2. 增加单一 repo-owned diagnostic PLY artifact、确定性 generator 与 fixture registry；安装精确锁定的 Spark dependency。
-3. 扩展 Product Session codec 与 evidence closure，使 observation identity/frame/units/alignment 在 base Snapshot、samples 与 terminal Snapshot 中不可漂移。
-4. 证明 MuJoCo 与 landing evaluator 只消费 collision/physics/state；增加 observation 不改变 Runtime trajectory 或 Evaluation semantics。
-5. 在现有 ThreeViewport 内接入一个 SparkRenderer 与按 EntityRef 管理的 SplatMesh lifecycle。
-6. 增加 `mesh / 3dgs / overlay` Studio-local diagnostic mode、collision proxy overlay 与结构化 AlignmentEvidence inspector。
-7. 在 repository view、Episode 中间 sample、terminal sample、mode switch 与 session reset 中验证同一 EntityRef 和 pose 对齐。
-8. 保持 Agent model-facing surface 恰好为 `read/write/edit/run`，不新增 asset/file/observation tool。
+1. 增加一个 deterministic smooth vessel GLB generator、repo-owned artifact 与 immutable registry。
+2. 增加 sphere visual/collision 和 bounded compound collision representation；compound parts 不成为 Entity。
+3. 创建 floor + vessel + ball canonical Snapshot，并声明 rim-center local frame。
+4. 用第二个真实任务驱动 `write/edit/run` 从 cube-specific 参数演进为最小 Entity/Program-oriented exact contract；四工具数量不变。
+5. 让现有 MuJoCo Runtime 从 Snapshot 编译一个 body 下的多个 vessel geoms与 dynamic sphere，生成 multi-entity Episode。
+6. 增加 stable-inside-vessel Success Contract 与 exact EvaluationRecord variant。
+7. 让 AdoptPolicy authority 以受信 closed registry 接纳两个已注册 scenario contract，同时拒绝未注册或错配 evaluator/contract/policy。
+8. 扩展 Product Session codec/evidence closure，拒绝 Entity/part identity、frame/units、program、sample、contact/penetration、terminal 与 evaluation alias/drift。
+9. Studio 能选择 vessel 或 ball，显示 smooth visual、compound proxy overlay、rim frame、Episode playback 与结构化 PASS/FAIL。
+10. 保持 DH-001～009 的 falling-rigid、Agent restricted surface、imported GLB、3DGS、Spark lifecycle、Repository/adopt 与 transport regressions。
 
 ## Non-goals
 
-- 从照片、视频或模型 prompt 训练/生成 3DGS；world-model、VLM 或新的 Agent provider；
-- 任意文件上传、远程 URL、CDN、asset marketplace、数据库或通用 Resource Library；
-- 把 3DGS 作为 collision geometry、MuJoCo state、Snapshot pose 或 deterministic landing evaluator 输入；
-- 替换 GLB visual、删除 primitive scenario，或让 `observation` 字段兼容任意未知格式；
-- SPZ/SOG/KSPLAT/RAD、LoD、streaming、WebGPU、动态 splat 编辑、骨骼动画或 splat raycast 性能优化；
-- articulated robot、曲面 collision、compound proxy、deformable world 或第二 Evolution Runtime；
-- 通用 Presentation Adapter SDK、loader registry、plugin system 或第五个 model-facing tool；
-- PR、merge、tag、deploy 或真实 provider prompt；本轮只按 Human 明确授权执行 closeout、mark-done、commit 与 push 当前 feature branch。
+- 通用 CSG/BRep/NURBS/CAD kernel、任意 spline editor、geometry node graph 或 asset marketplace；
+- prompt/image/video 到 mesh/3DGS 的生成、上传、远程 URL、CDN 或数据库；
+- 动态改变 vessel profile、任意 compound part authoring 或开放 Agent 写入原始 MJCF；
+- articulated robot、joint、actuator、sensor、抓取、运动规划、VLM loop 或真实设备；
+- deformable、fluid、fracture、cloth、soft contact 或 uncertain/belief world；
+- 第二 Evolution Runtime、world-model provider、通用 Adapter SDK、plugin system 或第五个 world tool；
+- PR、commit/push 当前 feature branch、merge、tag、deploy 或真实 provider prompt，除非 Human 后续单独授权。
 
 ## Acceptance
 
-1. **Authority separation**：同一 Entity 同时持有 GLB visual、3DGS observation 与独立 box collision proxy；Kernel plain records 不 import Spark/Three/MuJoCo，Spark object/URL/buffer 不穿透 Product Session contract。
-2. **Artifact identity**：repo-owned PLY 的 deterministic generator、SHA-256、byte length、splat count、format、provenance/license、frame、units、local transform、expected bounds 与 tolerance 均有唯一 source of truth；bytes/header/count/digest/bounds 任一漂移时 fail closed。
-3. **Identity closure**：base Snapshot、Studio selection、3DGS object mapping、每个 Episode sample、TerminalSnapshot 与 Evaluation target 保持同一 `EntityRef`；observation identity/frame/units/transform 在 serialized projection/stream 中不可伪造或漂移。
-4. **Runtime independence**：在相同 base state、collision proxy、program/profile 与相应 run inputs 下，有无 3DGS observation 的 MuJoCo state trajectory 和 landing metrics 在声明的 numeric equivalence 内一致；`run` 不推进 current ref。
-5. **Measured alignment**：实际加载 splat bounds 经显式 frame/unit/local transform 后生成 AlignmentEvidence；repository view、Episode 中间 sample 与 terminal sample 的 bounds/translation/angular error 均为 finite，处于明确 tolerance 内并显示 PASS；故意扰动 units、transform 或 bounds 的 regression 必须 FAIL。
-6. **Visible Product slice**：真实 Chromium 中可切换 `mesh / 3dgs / overlay`；3DGS 确实由 Spark 呈现，collision proxy 可检查，Episode timeline 播放时 splat 与同一 Entity 同步运动，GLB 与 3DGS overlay 不出现可见轴向/尺度漂移。
-7. **Lifecycle safety**：late load、load failure、rapid mode switch、representation replacement、session reset 与 component cleanup 不恢复旧 object、不泄漏 active Spark/Splat resources，也不把 Presentation failure 写回 authoritative records。
-8. **Surface preservation**：restricted OMP active/enabled tools 仍恰好为 `world_read/world_write/world_edit/world_run`，mounted tools 为空；Agent input 仍不能提供 URL/path/file/bytes 或 Presentation mode。
-9. **Regression gates**：primitive box、imported GLB、Product Session、Agent canary offline fixtures保持；`bun test`、`bun run typecheck`、`bun run build`、targeted artifact checks、真实 Chromium acceptance、`git diff --check` 与 harness validation 全部通过。
+1. **Curved visual evidence**：repo-owned vessel visual 由固定曲线/profile 旋转生成，真实 mesh 不退化为 box/voxel；artifact identity、provenance、frame、units、transform 与 bounds 可重算且 drift fail closed。
+2. **Semantic granularity**：vessel 在 Snapshot、selection、Product Session、Episode 与 Evaluation 中始终只有一个 EntityRef；多个 MuJoCo geom/Three overlay node 不得泄漏为多个 Entity 或 authority。
+3. **Functional cavity**：compound collision 明确保留开口和内部空间；wall-sensitive ball trajectory 能进入腔体并稳定；MJCF exact `base + N walls` 可核验，missing/misaligned walls FAIL；completed closed-proxy run 的 Evaluation 必须 FAIL，证明通过来自物理结构而非 visual appearance。
+4. **Identity and contact closure**：floor/vessel/ball exact entity set、roles、local frame、representations、body type、mass/friction、Program target、sample state keys、semantic contact pair、penetration evidence、TerminalSnapshot 与 Evaluation refs 在 JSON round-trip 后仍闭合；duplicate/unknown/aliased `partKey`、wrong owner/floor attribution、internal ID leakage、swap/alias/missing/extra/sparse/accessor/non-finite 输入 fail closed。
+5. **Static/dynamic separation**：`world_edit` 改变 ball 的静态初始 pose 并产生 child Snapshot；`world_run` 使用显式 frozen Program 产生 Episode，不能把 placement edit 伪装成运动历史，也不能推进 current ref。
+6. **Four-tool breadth**：同一 restricted OMP four-tool surface 能表达原 falling-rigid 与新 ball-into-vessel 两个任务；active/enabled tools 仍恰好四个，mounted tools 为空，无 fixture-specific 第五工具。
+7. **Deterministic evaluation**：stable-inside-vessel Evaluation 只依据 Episode/Terminal 与受信 geometry/contact contract；严格校验 0.5s/16-sample tail、30Hz timestamps、每 sample predicates、16/16 world-up semantic support 与 pair-attributed penetration；输出 finite window、support、height、speed、penetration metrics、tolerance 与 PASS/FAIL；hovering、bounce apex、sidewall-only/transient support、duplicate/gapped timestamps、tunneling/penetration 超界必须 FAIL，Agent narration、canvas 或 overlay 不参与判定。
+8. **Visible Product slice**：真实 Chromium 中可选择 vessel/ball，检查 visual/collision/rim frame，播放 ball 从初态到稳定终态的每一帧；reset 与第二 Session 不保留旧 selection、Episode 或 presentation object。
+9. **No patch stack**：实现 diff 不新增平行 legacy tool surface、`cupHeight`/`isContainer` compatibility flag、renderer-to-state fallback、MuJoCo-ID-as-EntityRef 或重复 scenario codec；每个新增抽象必须有 falling-rigid 与 vessel 两个真实 consumer。
+10. **Regression gates**：targeted adversarial tests、`bun test`、`bun run typecheck`、`bun run build`、deterministic artifact checks、真实 Chromium acceptance、`git diff --check` 与 EXharness validation 全部通过。
+11. **Adopt authority**：两个 registered scenario 的 passed Evaluation 均能由对应 frozen AdoptPolicy adopt；unregistered Program/contract、evaluator-policy mismatch、failed Evaluation 与 Agent-requested policy 必须拒绝，且 `run` 不推进 current ref。
+12. **Contract reachability**：三个 fixture 的 `read → JSON round-trip → edit → run` 经真实 Gateway pre-admission、OMP schema 与 Host parser 使用同一 `WORLD_TOOL_CONTRACT`；falling-rigid Product codec 只接受 exact floor+cube，ball-vessel 只接受 exact floor+vessel+ball；closed-proxy test mutation 与任何第四 fixture 均不能到达 Product/Repository/Agent authority。
 
 ## 实现阶段
 
-### Phase 1 — Dependency/format compatibility 与 RED
+### Phase 1 — Contract RED 与边界复核
 
-- 复核 `@sparkjsdev/spark@2.1.0` manifest、Three peer compatibility、license 与 lockfile scope；
-- 用最小本地 PLY probe 确认 Spark `fileBytes → initialized → getBoundingBox → dispose` 在当前 Vite/Chromium 组合成立；probe 失败时先修订计划，不引入第二 renderer 或 CDN fallback；
-- 先补 observation codec、artifact drift、Runtime independence、async lifecycle 与 alignment FAIL regressions。
+- 先为第二 scenario、entity-targeted edit、explicit Program、compound/sphere representation、multi-entity samples 与 containment Evaluation 写 exact contract tests；
+- 同时为 entity-local `partKey`、semantic contact pair、penetration evidence、settle window 与 closed AdoptPolicy registry 写 RED tests；
+- 将本计划已冻结的 `WORLD_TOOL_CONTRACT`、三 fixture IDs、两 Program IDs、world-frame pose、scenario compatibility 与 legacy removal 写成 Host/OMP parity RED tests；Phase 1 不再重新命名或设计 model-facing shape；
+- parity 必须覆盖 Gateway pre-admission 与真实 `tool.execute`，并分别固定 falling-rigid exact 2-entity codec closure、ball-vessel exact 3-entity closure、两个 Program duration/sample grid；
+- 证明当前 cube-specific surface 无法通过，不先添加兼容 flag；
+- 记录哪些命名/类型可直接泛化，哪些应保留为 falling-rigid fixture 内部事实。
 
-### Phase 2 — Observation record 与 artifact authority
+### Phase 2 — Deterministic vessel artifact 与 representations
 
-- 增加最小 3DGS observation plain-data record；
-- 增加 deterministic PLY generator、生成资产与单 fixture registry；
-- 扩展 Snapshot/Product codec 与 terminal closure，保持 exact-key、budget 与 deep-freeze invariant。
+- 增加固定 profile-of-revolution generator、GLB artifact 与 registry；
+- 增加 sphere 与 compound collision plain-data records；
+- 生成 canonical floor/vessel/ball Snapshot、task-local vessel fixture contract 与 rim-center local frame，统一执行 `worldPose = entityPose ∘ localPose`；
+- 用 artifact/proxy drift、reversed/sparse/non-finite local pose 和 part alias regressions fail closed。
 
-### Phase 3 — Spark Presentation lifecycle
+### Phase 3 — Authoring、Program 与 MuJoCo multi-entity run
 
-- 在现有 ThreeViewport 内创建/销毁唯一 SparkRenderer；
-- 校验 repo bytes 后创建 SplatMesh，并绑定同一 Entity presentation root；
-- 完成 mode switch、selection proxy、Episode pose、late-load generation guard 与 disposal。
+- 迁移两个真实 scenario 到同一最小 `write/edit/run` contract；
+- 让 Host/Runtime 依据显式 Program target 编译 dynamic ball 与 vessel compound geoms；
+- 建立 internal MuJoCo geom-to-owner mapping，生成 exact sample entity set、semantic EntityRef-pair contact/support、finite penetration evidence 与 TerminalSnapshot；
+- 用 radial-offset/lateral-velocity trajectory 证明 exact `base + N walls` 真实参与碰撞，同时保持 ref authority。
 
-### Phase 4 — Alignment evidence 与 Product UI
+### Phase 4 — Evaluation 与 Product Session closure
 
-- 从真实 SplatMesh bounds 计算 AlignmentEvidence；
-- 增加 mesh/3dgs/overlay 控制和 Inspector 数值 PASS/FAIL；
-- 保证 Presentation diagnostics 不进入 Agent tool input 或 authoritative Evaluation。
+- 实现基于 exact 0.5s/16-sample tail、16/16 world-up support、inner-floor distance 与 pair-attributed penetration bound 的 stable-inside-vessel evaluator；
+- 加入 hovering、bounce-apex、sidewall-only/transient support、duplicate/gapped timestamps、missing/misaligned walls、tunneling 与 completed closed-proxy negative controls；
+- 增加两个 registered scenario 的 closed AdoptPolicy entries，并复测 alternate/mismatched contract fail closed；
+- 扩展 codec/stream projection 对 scenario、program、Entity/representation/sample/terminal/evaluation identity 的闭合验证。
 
-### Phase 5 — Full gates 与 independent review
+### Headless implementation gate
+
+只有 Phase 1–4 的 contract、artifact、Runtime、contact/penetration、Evaluation、adopt authority、codec targeted tests 全部通过并冻结 headless digest，才允许进入 Phase 5。若 headless gate 不能在 bounded diff 内关闭，应先停下重新审视根部抽象，不得用 Studio fallback 掩盖；必要时仅将 delivery 内部分为 `DH-010A headless` 与 `DH-010B visible slice`，不新增平台层或改变最终 end-to-end goal。
+
+### Phase 5 — Studio visible slice
+
+- 支持 vessel/ball selection、smooth visual、compound overlay 与 rim-center frame；
+- EpisodePlayer 同步两个 Entity，Inspector 展示结构化 containment metrics；
+- 默认 selection、metrics/footer 与 artifact URL 从受信 scenario/session projection 解析，不继续硬编码 cube/landing/diagnostic fixture，也不让 renderer 成为状态 authority；
+- 复测 GLB/3DGS/overlay、resize、late load、reset 与第二 Session lifecycle。
+
+### Phase 6 — Full gates 与 independent review
 
 - 运行 targeted/full tests、typecheck、build、artifact、browser、diff 与 harness gates；
 - 冻结 product digest，执行 independent review；
 - reviewer 未批准前不 close/mark-done；Human 未另行授权前不 commit/push。
 
-当前 implementation checkpoint 与可执行验收证据记录在同目录 `progress.md`；本计划正文仍是设计与验收 authority，不把实现细节反向改写成目标。
+## Plan review checklist
+
+进入实现前必须由 Human/Architect 确认：
+
+1. 第二真实任务确实选择“ball into vessel”，而不是直接跳到 articulated robot；
+2. 接受一次有意的最小 model-facing input contract 演进，不要求兼容未发布的 `cubeHeight` shape；
+3. 接受 vessel 一个 Entity 对应多个 collision parts 的颗粒度决定；
+4. 接受 visual 曲面精细、physics proxy 任务充分但不逐三角面一致的 multi-fidelity 策略；
+5. 接受本 slice 不生成 3DGS、不调用真实 provider，也不进入机器人或 world-model integration。
 
 ## Exit condition
 
-只有当 repo-owned 3DGS bytes 被 Spark 实际呈现，同一个 Entity 在 GLB visual、3DGS observation、collision proxy、MuJoCo Episode 与结构化 alignment evidence 中形成可执行、可测量、可失败的闭环，并且 Kernel、四工具和 Repository authority 均未扩张时，DH-009 才能请求 closeout。
+只有当同一个 vessel Entity 以 smooth curved visual、保留开放腔体的 compound collision、显式 local frame 和受信 semantic identity 进入 Snapshot/Studio/MuJoCo/Episode/Evaluation，dynamic ball 能通过已冻结 exact JSON four-tool contract 被放置、以 wall-sensitive trajectory 推演并在 exact 0.5s/16-sample tail 中由 16/16 world-up semantic support 与 pair-attributed penetration 证据证明稳定留在内部，registered policy 能安全 adopt terminal Snapshot，而且 hovering、bounce apex、sidewall-only/transient support、duplicate/gapped timestamps、missing/misaligned walls、tunneling 与 completed closed-proxy 对照明确失败、DH-001～009 authority 与 regressions 不回退时，DH-010 才能请求 closeout。
 ```
 
 ## Recent Progress Context
@@ -723,23 +856,166 @@ Independent review：
 
 - Human 已授权 closeout、mark-done、commit 与 push feature branch；不授权 merge `main`、PR、tag、deploy 或真实 prompt；
 - closeout 继续绑定 final digest `79b9050ee69ea8c6869fb51521aa9b128da40d070b6ad27b0e27249fe2aebec5` 与 Round 3 双审证据。
+
+## 2026-08-10 — DH-009 closeout audit approved
+
+- fresh closeout auditor 批准当前 packet，P0/P1/P2 无；digest 前后一致，diff/checklist 通过；
+- 正常 mark-done gate 已满足，不使用 force。
+
+## 2026-08-10 — DH-009 Operator close completed
+
+- closeout review `evt-20260811T064924Z-c2d5a8f6`、CLOSE `evt-20260811T064924Z-55360c81` 已顺序落盘；
+- item 为 `done/closed`，lease 已释放，未使用 force；
+- 发布只包含 commit/push feature branch，不包含 main merge、PR、tag、deploy 或真实 prompt。
+
+## 2026-08-11 — DH-009 集成完成，DH-010 曲面容器切片已规划
+
+- `main` 已从 `fdbbf680122c06810f58da37d9973d4f0aa2c984` fast-forward 到 `22e288690937834135584d023e4140e26696f761` 并推送，远端 `main` SHA 已回查一致；
+- 从新 `main` 创建 `agent/codex/DH-010` 与 `/Users/Admin/projects/WorkTrees/Demiurges-DH-010`；
+- canonical plan 选择“ball into vessel”作为第二个真实世界任务：一个 smooth curved vessel visual、一个保留开放腔体的 compound collision proxy、一个 dynamic sphere 与 stable-inside-vessel Evaluation；
+- 计划明确 vessel 仍是单一 Entity，多个 collision parts / MuJoCo geoms 不获得 EntityRef；visual、collision、physics、semantic frame 与 Evaluation 保持独立 authority；
+- 第二个任务已证明 `cubeHeight`、固定 `entity:cube`、single-box collision 与 landing-only metrics 是 walking-skeleton 偶然细节，因此计划允许一次恰好覆盖两个真实任务的最小根部泛化，但不建立通用 CAD、Adapter SDK、plugin system、机器人或 world-model provider；
+- 当前只完成设计与验收计划，等待 Human/Architect 确认后再进入实现；未改产品 source、未安装 dependency、未调用真实 provider，也未授权 commit/push 当前 feature branch。
+
+## 2026-08-11 — DH-010 canonical plan 经四轮交叉审查批准
+
+- Round 1/2/3 的 P1 依次推动计划补齐 continuous support/penetration、wall-sensitive physical control、compound part ownership、task-local transform、AdoptPolicy closure、唯一 model-facing JSON contract、Gateway pre-admission parity、`world:current` 与 quaternion `1e-9` authority；历史 verdict 均 append-only 保留；
+- Round 4 在 frozen plan digest `2738b3135434507dd5b53aea74bb87e45af21912fa72789a7b1096ca33ffa21a` 与 context aggregate `c52a8ddb38ee15692a828fce9fd3dacb9e9710915691f8822612286ce7769e0d` 上完成 fresh Sol Max + Kimi K3 Max 交叉审查；两路均 `approved`，P0/P1 为 0；
+- approved plan 冻结三个 fixture、两个 Program、nested object pose、30Hz/0.5s/16-sample/16-of-16 support、pair-attributed penetration、16-wall compound、semantic rim carrier、Runtime-direct closed proxy、closed AdoptPolicy registry 与 Phase 1–4 headless gate；
+- 当前批准只表示 plan 可成为 implementation authority。`DH-010` 继续为 `todo/planned`，未改产品 source、未安装 dependency、未调用 provider，也未授权 commit/push/PR/merge/tag/deploy；下一步等待 Human 明确授权进入 Phase 1 Contract RED。
+
+## 2026-08-11 — DH-010 Phase 1 Contract RED 已冻结
+
+- Human 授权后激活 `DH-010` lease，并严格停在已批准 plan 的 Phase 1：冻结唯一 `WORLD_TOOL_CONTRACT`、三 fixture、两 Program、nested world-frame pose 与 input budget；
+- 新增 executable RED 覆盖真实 Gateway/OMP/Host parity、legacy shape 删除、scenario mismatch/floor penetration、floor/vessel/ball carrier、sphere/compound/semantic rim、multi-entity Episode/contact、0.5s/16-sample containment、closed proxy、closed AdoptPolicy registry 与 Product codec closure；
+- targeted 为 16 pass / 16 expected fail / 105 assertions；全量为 102 existing regression pass + 1 new contract-parser pass / 16 expected RED fail / 2,649 assertions。`bun run typecheck`、`bun run build` 与 `git diff --check` 通过；
+- 证据见 `docs/project-harness/tasks/DH-010/phase1-red-evidence.md`。当前未进入 GREEN/geometry/Studio，未调用真实 provider，未 commit/push/PR/merge/tag/deploy，也未 close/mark-done。
+
+## 2026-08-11 — DH-010 Phase 2 Artifact / Representation 已完成
+
+- deterministic profile-of-revolution generator 连续两次产生 byte-identical `smooth-vessel-v1.glb`：26,256 bytes，SHA-256 `856788138ecc53d407827a0e67aa9977237dd914809316f8af992e8ee098cd92`；
+- Kernel 增加 closed sphere、compound collision 与 vessel semantic carrier；canonical Snapshot 精确包含 floor/vessel/ball，vessel 的 base + 16 walls 仍只属于同一个 `EntityRef`；
+- Repository admission 与 artifact registry 已拒绝 digest/bounds/provenance、part alias、sparse/accessor/non-finite pose、quaternion、semantic frame/envelope drift；local-to-world transform probe 覆盖 translated + yaw off-axis composition；
+- targeted 21/0/2,197，全量 110 pass / 14 expected RED fail / 2,705；typecheck/build/diff-check 通过。14 个 RED 继续保留给 Phase 3/4，Presentation 对尚未实现的 sphere/compound visible path 明确 fail closed；
+- 证据见 `docs/project-harness/tasks/DH-010/phase2-artifact-evidence.md`。未进入 Runtime/Evaluation/visible slice，未调用真实 provider，未 commit/push/PR/merge/tag/deploy，也未 close/mark-done。
+
+## 2026-08-11 — DH-010 Phase 3 Authoring / MuJoCo Runtime 已完成
+
+- 唯一 `WORLD_TOOL_CONTRACT` 已成为 Surface、Host 与 OMP 的共同输入权威：三个 fixture、nested Entity pose 与两个 explicit Program 均可达，legacy model-facing `cubeHeight`/run-only shape 已删除；
+- MuJoCo Runtime 现在闭合支持 falling-rigid 与 ball-vessel 两个 scenario；vessel 单一 Entity 编译为 exact base + 16 wall geoms，dynamic sphere 产生 91-sample multi-entity Episode；
+- 内部 geom-owner map 将 contact 折叠为只含 EntityRef、unit world normal 与 finite penetration 的 public evidence；wall-sensitive trajectory 真实观测到水平 vessel contact，closed lid 只可从 Runtime-direct seam 运行且不能进入 Repository；
+- full gate 为 122 pass / 6 expected Phase 4 RED fail / 2,751 assertions；typecheck/build/diff-check/artifact digest 通过。6 个 RED 精确保留给 containment Evaluation、closed AdoptPolicy registry 与 ball-vessel Product codec；
+- 证据见 `docs/project-harness/tasks/DH-010/phase3-runtime-evidence.md`。未进入 Phase 4/5，未调用真实 provider，未 commit/push/PR/merge/tag/deploy，也未 close/mark-done。
+
+## 2026-08-11 — DH-010 Phase 4 Headless Gate 已完成
+
+- stable-inside-vessel evaluator 已按 exact 0.5s/16-sample/30Hz tail、16/16 world-up semantic support、inner-floor distance、speed 与 pair-attributed penetration 生成 closed EvaluationRecord；hovering、bounce-apex、sidewall/transient、timestamp drift、penetration、malformed contact 与 completed closed proxy 均失败；
+- Host 现在持有 falling-rigid / ball-vessel 两-entry frozen AdoptPolicy registry；Repository 不接纳 caller single policy，并将 Program、evaluator、contract、passed、terminal 与 Ref evidence 一起闭合；
+- Product codec 接受 exact floor/vessel/ball carrier 与 91-sample semantic contacts，同时拒绝 part/geom 泄漏、wrong pair、sample grid drift 和 Program/Evaluation alias；
+- full headless gate 为 130 pass / 0 fail / 2,778 assertions，typecheck/build/diff-check 与 deterministic GLB digest 通过；公共 evaluator 已从首个 scenario 的 `evaluateLanding` 机械收敛为 task-neutral `evaluateEpisode`，不保留双入口；Phase 1–4 product digest 为 `c893c0641d075f9080b1e977a582c0eb5ee5270fcb7129ccf3cb739680b42374`；
+- 证据见 `docs/project-harness/tasks/DH-010/phase4-headless-evidence.md`。DH-010 继续 `doing/running`；Phase 5 Studio visible slice 尚未开始，未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 Phase 5 Visible Product Slice 已完成
+
+- Studio 现在从受信 Snapshot/WorldRunResult 解析默认 Entity selection、Program/Profile、artifact 与 landing/containment metrics；App 不再硬编码 cube/landing/diagnostic fixture；
+- smooth vessel、sphere、box/compound overlay 与 semantic rim-center frame 已进入同一个 Three.js viewport，所有 visual/collision/helper node 都解析回唯一 EntityRef；ball-vessel 无 3DGS 时明确 disabled，diagnostic wedge 的 GLB + Spark 3DGS 路径保持；
+- 真实 Chromium 首次揭示 Bun/JavaScriptCore 与 Chromium/V8 对 runtime trig wall pose 的末位差异；fixture registry 已改为 16 个固定 plain-data pose，不放宽 codec equality，并补跨引擎 source 与 JSON round-trip regressions；
+- Chromium 已通过 ball/vessel selection、91-frame playback、17-part overlay、rim frame、structured containment metrics、second Session、受控 late GLB release、diagnostic 3DGS alignment 与 820×700 resize；无 alert；
+- full gate 为 139 pass / 0 fail / 2,826 assertions；typecheck/build/diff/artifact 通过；Phase 1–5 product digest `5e944de6896b697d30e4c58a1580bb7babae12fe41edf2d3c27dda3ebdb0a750`；
+- 证据见 `docs/project-harness/tasks/DH-010/phase5-visible-evidence.md`。DH-010 继续 `doing/running`；等待 Human 授权 Phase 6 independent review，未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 Phase 6 Independent Cross-review 要求修改
+
+- operator 在 frozen Phase 1–5 product digest `5e944de6896b697d30e4c58a1580bb7babae12fe41edf2d3c27dda3ebdb0a750` 上重跑 `139/0/2,826`、typecheck、build、diff 与 checklist，全部通过；
+- fresh `GPT-5.6 Sol Max` 独立复算 digest/gates 后发现 4 个可执行 P1：Product codec 接受伪造 Evaluation、canonical friction/Ref drift；Host/Repository 接受 duplicate EntityRef；Studio asset registry 可被永久污染；operator 原样复现全部反例；
+- CC Switch fresh reviewer 请求 `claude-opus-4-8 / effort max`，current-session proxy 证据确认实际 `model=k3`。其静态审查未发现产品 P0/P1，但因 `plan` 权限拒绝独立运行必要 gates，结论同样为 `changes_requested / may_closeout=no`；
+- combined verdict 为 `P0=0, P1=4, P2=2, changes_requested, may_closeout=no`。证据见 `docs/project-harness/tasks/DH-010/phase6-cross-review-evidence.md`；
+- `DH-010` 保持 `doing`，workflow 已进入 `changes_requested`。等待 Human 授权 bounded P1 remediation；未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 Phase 6 P1 remediation 完成
+
+- Human 授权后，将四个 reviewer counterexample 先固化为 RED：伪造 Evaluation、canonical friction/Ref drift、duplicate EntityRef 与 mutable Presentation registry；修复前 targeted 为 `14 pass / 4 fail`；
+- Snapshot admission 现在保证 EntityRef 全局唯一；Product codec 只接受 `world:current`、canonical fixture physics，并通过受信 contract/evaluator 重算整条 Evaluation；Presentation asset registry 递归冻结；
+- codec 的 null-prototype 安全投影与 evaluator plain-data admission 已闭合，仍拒绝 accessor/class instance；没有增加 scenario patch、兼容入口或 renderer fallback；
+- remediation gate 为 `142 pass / 0 fail / 2,834 assertions`，typecheck/build/diff-check 通过；generator/GLB digest 未漂移；新 product digest 为 `8687ad0dea2c675d8d04a61ebcacf4649bc41989d33d6163a3b5680619cacc6e`；
+- 证据见 `docs/project-harness/tasks/DH-010/phase6-remediation-evidence.md`。历史 `changes_requested` 保留，等待 Human 另行授权 fresh independent re-review；未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 remediation fresh cross-review 仍要求修改
+
+- Sol Max 与 CC Switch Kimi K3 Max 在 product digest `8687ad0dea2c675d8d04a61ebcacf4649bc41989d33d6163a3b5680619cacc6e` 上独立完成四类 mandatory probe 与 full gates；原四个 P1 均确认已修复；
+- Kimi 批准并记录孤立 `world_read.ref.version` 未绑定 P2；Sol 发现新的 executable P1：registered floor/ball representation 仍可在 authored + terminal carrier 中同步漂移并携带原 PASS Evaluation；
+- operator 原样复现 ball-vessel floor visual/collision `halfExtents=[30,30,0.5]` 仍被 codec 接受，Evaluation 仍为 PASS；product/status digest 前后未漂移；
+- combined verdict 为 `P0=0, P1=1, P2=1, changes_requested, may_closeout=no`。证据见 `docs/project-harness/tasks/DH-010/phase6-remediation-cross-review-evidence.md`；
+- DH-010 保持 `doing/running`，等待 Human 另行授权 bounded canonical representation remediation；未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 canonical representation P1 remediation 完成
+
+- Human 授权后，先将 ball-vessel floor extent、ball visual color 与 falling-rigid floor extent 三种 authored + terminal 同步漂移固化为 RED；修复前为 `7 pass / 3 fail / 31 assertions`；
+- Product codec 直接复用 canonical fixture Entity 闭合已登记 representation，没有新增第二套 geometry constant 或 scenario patch；dynamic `state/pose` 演进保持合法，diagnostic imported cube 继续由既有 exact artifact/collision/3DGS validator 闭合；
+- targeted 为 `34 pass / 0 fail / 2,213 assertions`；full gate 为 `145 pass / 0 fail / 2,837 assertions`，typecheck/build/diff-check 通过，generator/GLB digest 未漂移；
+- 新 product digest 为 `88a5d1e787df9cc5b73ae5fb117bc079c64665f5976e4b8795b5b22d2e863150`；证据见 `docs/project-harness/tasks/DH-010/phase6-representation-remediation-evidence.md`；
+- 历史 `changes_requested` 保留，等待 Human 另行授权 fresh independent re-review；本轮未处理孤立 `world_read.ref.version` P2，未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 canonical representation remediation fresh cross-review 仍要求修改
+
+- 有效 Sol Max Round 2 与 CC Switch Kimi K3 Max Round 3 在 frozen product digest `88a5d1e787df9cc5b73ae5fb117bc079c64665f5976e4b8795b5b22d2e863150` 上完成 full gates 与 executable probes；`145/0/2,837`、typecheck/build/diff/checklist/artifact 全通过；
+- Sol 发现合法多轮 `run → 下一 turn edit-only` 会推进 current world 却保留旧 `lastRun`，最终 projection 因 base Ref 不一致而无法被 Studio codec 解码；operator 原样复现；
+- Kimi 发现本轮 exact representation closure 只存在于 Product codec：Repository/Runtime 仍可写入 floor extent / ball color 漂移的 registered Snapshot，Evaluation PASS 后成功 adopt canonical Ref；operator 原样复现；
+- Kimi 请求 `claude-opus-4-8 / max`，current-session provider/proxy 证据确认实际 `model=k3`、`status_code=200`；两次因 permission/isolation 失效的 attempt 被明确丢弃，不计入 verdict；
+- combined verdict 为 `P0=1, P1=1, changes_requested, may_closeout=no`；证据见 `docs/project-harness/tasks/DH-010/phase6-representation-remediation-cross-review-evidence.md`；
+- DH-010 保持 `doing/running`，等待 Human 另行授权 bounded root-authority + stale-lastRun remediation；未修改产品代码，未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 root authority / stale `lastRun` remediation 完成
+
+- Human 授权后，先把 Repository/Runtime 接纳 registered representation 漂移与多轮 `run → edit-only` 保留 stale `lastRun` 固化为 RED；修复前定向为 `38 pass / 4 fail / 266 assertions`；
+- 新增唯一 repo-owned `requireRegisteredSnapshotIdentity`，由 Repository、Runtime 与 Product codec 共同消费；registered static representation/physics 在世界 authority 根部 fail closed，动态 state/pose 与 diagnostic optional Observation 仍保持合法；
+- ProductSession 在成功 `world_write/world_edit` 后失效旧 `lastRun`，`world_read` 保留 evidence，`world_run` 产生新 evidence，静态快照不再与旧动态历程自相矛盾；
+- 最终 full gate 为 `149 pass / 0 fail / 2,849 assertions`；typecheck/build/diff-check/EXharness 通过，generator 与 vessel GLB digest 未漂移；新 product digest 为 `8be5fadc4393a69b70ffeaef602368e9d9fa4cf8e91a1cf0ab482d918c06b9a8`；
+- 证据见 `docs/project-harness/tasks/DH-010/phase6-root-authority-remediation-evidence.md`。历史 `changes_requested` 保留，等待 Human 另行授权 fresh independent re-review；未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 root authority remediation fresh review 仍要求修改
+
+- Sol Max 在 frozen product digest `8be5fadc4393a69b70ffeaef602368e9d9fa4cf8e91a1cf0ab482d918c06b9a8` 上完成 full gates 与 executable probes，发现 vessel static friction 未进入 shared registered Snapshot identity，漂移可被 Repository 接纳、进入 MJCF，并由同步 transport carrier 接受；
+- 同一 reviewer 发现 stale CAS edit 虽返回 `update.status=stale_ref`、current Ref 完全未变，ProductSession 仍无条件清除有效 `lastRun`；operator 独立重放两项，分别确认 `world:current@1 + Runtime consumes 0.01` 与 `beforeHadLastRun=true → afterHadLastRun=false`；
+- CC Switch 当前 session `c7d1ba43-cf5a-42e3-a2f4-711ce8586bfb` 的 proxy records 确认实际 `model=k3`；其批准结论因自报 accidental isolation exposure 不作为独立关单票，且任何 approval 都不能覆盖 Sol 的 executable blockers；
+- `harnessctl review` 生成的 review packet 尾部空行使 reviewer 当时全 repo diff-check 失败，operator 在审查结束后只修正该 harness artifact；product digest 未变化；
+- combined verdict 为 `P0=1, P1=1, changes_requested, may_closeout=no`；证据见 `docs/project-harness/tasks/DH-010/phase6-root-authority-remediation-cross-review-evidence.md`；
+- DH-010 保持 `doing/changes_requested`，等待 Human 另行授权 bounded vessel-physics identity + stale-ref lifecycle remediation；未修改产品代码，未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 vessel physics / stale-ref remediation 完成
+
+- Human 授权后，先将 vessel friction 漂移进入 Kernel/Repository/Runtime 与 `stale_ref` no-op 错误清除 `lastRun` 固化为 RED；修复前为 `38 pass / 4 fail / 273 assertions`；
+- canonical vessel Snapshot 与 validator 共同消费 file-local frozen `VESSEL_PHYSICS`，闭合 `static / massKg=0 / friction=0.8`；Repository、Runtime 与 Product codec 通过既有 single registered Snapshot validator 同步 fail closed，没有增加第二套常量或 patch stack；
+- ProductSession 现在只在 `world_write` 或 `world_edit.update.status=updated` 时失效旧 run evidence；`stale_ref` 保留与未变化 current Ref 一致的 `lastRun`；
+- 最终 targeted 为 `52 pass / 0 fail / 312 assertions`，full gate 为 `149 pass / 0 fail / 2,857 assertions`；typecheck/build/diff-check/EXharness 与 artifact hashes 通过；
+- operator 原反例回放确认 vessel friction 在 Repository/Runtime 均被 `vessel physics 与 fixture registry 漂移` 拒绝，且 stale-ref 前后 Ref 相同、`lastRun` 均存在；新 product digest 为 `85534951b9146283ffbceddec652a0440d0d38a7543ad4828a86eb42b5df1c57`；
+- 证据见 `docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-remediation-evidence.md`。历史 `changes_requested` 保留，等待 Human 另行授权 fresh independent re-review；未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 final remediation fresh cross-review 批准
+
+- 两路 fresh、互相隔离的 reviewer 在 frozen product digest `85534951b9146283ffbceddec652a0440d0d38a7543ad4828a86eb42b5df1c57` 上完成 full gates 与 adversarial probes，起止 HEAD/product digest/status 均未漂移；
+- CC Switch path 请求 `claude-opus-4-8 / max`，current-session proxy records 证明实际 downstream `model=k3`；其完成 `149/0/2,857` 与 42/42 额外断言，批准 `may_closeout=yes`；
+- replacement GPT-5.6 Sol Max path 完成 `149/0`、typecheck/build/diff/checklist/artifact 与 Repository/Runtime/codec/stale-ref/run-adopt probes，bounded scan 未发现 P0/P1，终点 frozen identity 通过，批准 `may_closeout=yes`；首个无法收口 final verdict 的 Sol attempt 已中止且不计票；
+- combined verdict 为 `P0=0, P1=0, approved, may_closeout=yes`，证据见 `docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-cross-review-evidence.md`；
+- EXharness 状态为 `doing / review_approved`。本轮只打开 closeout gate，尚未执行 closeout、`mark-done`、commit、push、PR、merge、tag 或 deploy。
 ```
 
 ## Current Review Content
 
 ```md
-# DH-001 Review Verdict
+# DH-010 Final Review Verdict
 
-当前状态：`changes_requested`。
+当前 frozen product digest：`85534951b9146283ffbceddec652a0440d0d38a7543ad4828a86eb42b5df1c57`。
 
-- Kimi Code K3 Max：`approved`；
-- GPT-5.6 Sol Max：`changes_requested`；
-- Operator 已独立复现 P1，combined decision 为 `changes_requested`；
-- product aggregate SHA-256 审查前后不变。
+- CC Switch / Kimi K3 Max：`approved / may_closeout=yes`；
+- GPT-5.6 Sol Max：`approved / may_closeout=yes`；
+- 两路均完成 full gates、mandatory authority/lifecycle probes 与终点冻结复核；
+- combined decision：`P0=0 / P1=0 / approved`；
+- product digest、HEAD 与 Git status 在审查前后未漂移。
 
-Canonical verdict：`docs/project-harness/tasks/DH-001/cross-review-verdict.md`。
+Canonical evidence：`docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-cross-review-evidence.md`。
 
-本文件记录正式 review-result；实现者不得在此自我批准或 mark done。
+本文件记录 reviewer 已批准 closeout；不自行授予 commit、push、merge 或 deploy authority。
 ```
 
 ## Closeout Questions

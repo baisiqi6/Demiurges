@@ -14,5 +14,8 @@ describe("Studio connected authority boundary", () => {
       expect(source).not.toContain("createInitialSnapshot");
     }
     expect(app).toContain("ProductSessionClient");
+    expect(app).not.toContain("CUBE_REF");
+    expect(app).not.toContain("FALLING_CUBE_PROGRAM");
+    expect(app).not.toContain("DIAGNOSTIC_RIGID_ASSET");
   });
 });
