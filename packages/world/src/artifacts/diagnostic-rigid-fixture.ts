@@ -5,16 +5,27 @@ import type {
 } from "../kernel/types";
 import {
   CUBE_REF,
+  FLOOR_REF,
   createInitialSnapshot,
   deepFreeze,
 } from "../kernel/world";
-import { createDiagnosticGaussianSplatObservation } from "./diagnostic-gaussian-splat";
+import {
+  createDiagnosticGaussianSplatObservation,
+  requireDiagnosticGaussianSplatObservation,
+} from "./diagnostic-gaussian-splat";
+import {
+  BALL_VESSEL_FIXTURE_ID,
+  createBallVesselSnapshot,
+  requireBallVesselSnapshot,
+  requireSnapshotRepresentationIntegrity,
+} from "./ball-vessel-fixture";
 
 export const PRIMITIVE_BOX_FIXTURE_ID = "fixture:primitive-box" as const;
 export const DIAGNOSTIC_RIGID_FIXTURE_ID = "fixture:diagnostic-wedge-v1" as const;
 export type RigidFixtureId =
   | typeof PRIMITIVE_BOX_FIXTURE_ID
-  | typeof DIAGNOSTIC_RIGID_FIXTURE_ID;
+  | typeof DIAGNOSTIC_RIGID_FIXTURE_ID
+  | typeof BALL_VESSEL_FIXTURE_ID;
 
 export const DIAGNOSTIC_RIGID_ASSET = deepFreeze({
   assetId: "asset:diagnostic-wedge-v1" as const,
@@ -60,9 +71,13 @@ function sameVec(
 }
 
 export function requireRigidFixtureId(value: unknown): RigidFixtureId {
-  if (value !== PRIMITIVE_BOX_FIXTURE_ID && value !== DIAGNOSTIC_RIGID_FIXTURE_ID) {
+  if (
+    value !== PRIMITIVE_BOX_FIXTURE_ID &&
+    value !== DIAGNOSTIC_RIGID_FIXTURE_ID &&
+    value !== BALL_VESSEL_FIXTURE_ID
+  ) {
     throw new Error(
-      `fixtureId 必须是 ${PRIMITIVE_BOX_FIXTURE_ID} 或 ${DIAGNOSTIC_RIGID_FIXTURE_ID}`,
+      `fixtureId 必须是 ${PRIMITIVE_BOX_FIXTURE_ID}、${DIAGNOSTIC_RIGID_FIXTURE_ID} 或 ${BALL_VESSEL_FIXTURE_ID}`,
     );
   }
   return value;
@@ -108,6 +123,9 @@ export function createFixtureSnapshot(
   if (fixtureId === PRIMITIVE_BOX_FIXTURE_ID) {
     return createInitialSnapshot(height);
   }
+  if (fixtureId === BALL_VESSEL_FIXTURE_ID) {
+    return createBallVesselSnapshot();
+  }
 
   const base = createInitialSnapshot(height);
   return deepFreeze({
@@ -129,9 +147,88 @@ export function createFixtureSnapshot(
               },
               collision: DIAGNOSTIC_RIGID_ASSET.alignment.collisionProxy,
               observation: createDiagnosticGaussianSplatObservation(),
+              semantic: null,
             },
           }
         : entity,
     ),
   }) as Snapshot;
+}
+
+function samePlainData(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (typeof left !== "object" || left === null ||
+    typeof right !== "object" || right === null) return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+      return false;
+    }
+    return left.every((value, index) =>
+      Object.hasOwn(left, index) &&
+      Object.hasOwn(right, index) &&
+      samePlainData(value, right[index]));
+  }
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return leftKeys.length === rightKeys.length && leftKeys.every((key) =>
+    Object.hasOwn(right, key) &&
+    samePlainData(
+      (left as Record<string, unknown>)[key],
+      (right as Record<string, unknown>)[key],
+    ));
+}
+
+function requireStaticEntityIdentity(
+  entity: Snapshot["entities"][number],
+  canonical: Snapshot["entities"][number],
+  allowMissingObservation = false,
+): void {
+  const actualRepresentations = allowMissingObservation &&
+      entity.representations.observation === null
+    ? { ...entity.representations, observation: canonical.representations.observation }
+    : entity.representations;
+  if (
+    !samePlainData(actualRepresentations, canonical.representations) ||
+    !samePlainData(entity.physics, canonical.physics)
+  ) {
+    throw new Error(`${entity.ref} representation/physics 与 fixture registry 漂移`);
+  }
+}
+
+export function requireRegisteredSnapshotIdentity(snapshot: Snapshot): void {
+  requireSnapshotRepresentationIntegrity(snapshot);
+  const refs = snapshot.entities.map((entity) => entity.ref);
+  if (
+    refs.length === 3 &&
+    refs[0] === FLOOR_REF &&
+    refs[1] === "entity:vessel" &&
+    refs[2] === "entity:ball"
+  ) {
+    requireBallVesselSnapshot(snapshot);
+    return;
+  }
+  if (refs.length !== 2 || refs[0] !== FLOOR_REF || refs[1] !== CUBE_REF) {
+    throw new Error("Snapshot 不属于 registered fixture scenario");
+  }
+
+  const canonicalPrimitive = createInitialSnapshot();
+  requireStaticEntityIdentity(snapshot.entities[0]!, canonicalPrimitive.entities[0]!);
+  const target = snapshot.entities[1]!;
+  if (target.representations.visual.kind === "box") {
+    requireStaticEntityIdentity(target, canonicalPrimitive.entities[1]!);
+    return;
+  }
+  if (
+    target.representations.visual.kind !== "imported-rigid-mesh" ||
+    target.representations.collision.kind !== "box"
+  ) {
+    throw new Error(`${target.ref} representation/physics 与 fixture registry 漂移`);
+  }
+  requireDiagnosticRigidVisual(target.representations.visual);
+  requireDiagnosticRigidCollision(target.representations.collision);
+  if (target.representations.observation !== null) {
+    requireDiagnosticGaussianSplatObservation(target.representations.observation);
+  }
+  const canonicalDiagnostic = createFixtureSnapshot(2, DIAGNOSTIC_RIGID_FIXTURE_ID);
+  requireStaticEntityIdentity(target, canonicalDiagnostic.entities[1]!, true);
 }

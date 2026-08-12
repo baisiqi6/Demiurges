@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { evaluateLanding } from "../evaluation/evaluate-landing";
+import { evaluateEpisode } from "../evaluation/evaluate-episode";
 import { RuntimeMvpHost } from "../host/runtime-mvp-host";
 import { ADOPT_RUNTIME_MVP_POLICY } from "../host/runtime-mvp-adopt-policy";
 import type { EvaluationRecord } from "../kernel/types";
@@ -15,7 +15,7 @@ import { runFallingCube } from "../runtime-mujoco/run-falling-cube";
 import { createWorldRepositoryAuthority } from "./world-repository";
 
 const createRepository = () => {
-  const authority = createWorldRepositoryAuthority(ADOPT_RUNTIME_MVP_POLICY);
+  const authority = createWorldRepositoryAuthority();
   return { ...authority.repository, ...authority.evidence };
 };
 
@@ -97,7 +97,7 @@ describe("WorldRepository ref authority", () => {
     const host = new RuntimeMvpHost();
     const base = host.write(createInitialSnapshot());
     const observed = host.readRefRecord();
-    const outsider = createWorldRepositoryAuthority(ADOPT_RUNTIME_MVP_POLICY);
+    const outsider = createWorldRepositoryAuthority();
     outsider.repository.write(createInitialSnapshot());
     const episode = await runFallingCube(
       base,
@@ -179,7 +179,7 @@ describe("WorldRepository ref authority", () => {
       MUJOCO_PROFILE,
       deepFreeze({ runId: "run:authority-happy" }),
     );
-    const evaluation = evaluateLanding(episode, LANDING_SUCCESS_CONTRACT);
+    const evaluation = evaluateEpisode(episode, LANDING_SUCCESS_CONTRACT);
 
     repository.recordEpisode(episode);
     repository.recordEvaluation(evaluation);
@@ -218,7 +218,7 @@ describe("WorldRepository ref authority", () => {
       MUJOCO_PROFILE,
       deepFreeze({ runId: "run:authority-failed-evaluation" }),
     );
-    const passed = evaluateLanding(episode, LANDING_SUCCESS_CONTRACT);
+    const passed = evaluateEpisode(episode, LANDING_SUCCESS_CONTRACT);
     const failed = deepFreeze({
       ...passed,
       id: "evaluation:authority-forced-fail" as const,
@@ -263,8 +263,8 @@ describe("WorldRepository ref authority", () => {
       MUJOCO_PROFILE,
       deepFreeze({ runId: "run:authority-second" }),
     );
-    const firstEvaluation = evaluateLanding(firstEpisode, LANDING_SUCCESS_CONTRACT);
-    const secondEvaluation = evaluateLanding(secondEpisode, LANDING_SUCCESS_CONTRACT);
+    const firstEvaluation = evaluateEpisode(firstEpisode, LANDING_SUCCESS_CONTRACT);
+    const secondEvaluation = evaluateEpisode(secondEpisode, LANDING_SUCCESS_CONTRACT);
     const wrongEvaluator = deepFreeze({
       ...firstEvaluation,
       id: "evaluation:authority-wrong-evaluator" as const,
@@ -328,7 +328,7 @@ describe("WorldRepository ref authority", () => {
       MUJOCO_PROFILE,
       deepFreeze({ runId: "run:authority-unrecorded" }),
     );
-    const evaluation = evaluateLanding(episode, LANDING_SUCCESS_CONTRACT);
+    const evaluation = evaluateEpisode(episode, LANDING_SUCCESS_CONTRACT);
 
     repository.record(episode.terminalSnapshot);
     expect(() => repository.recordEvaluation(evaluation)).toThrow(

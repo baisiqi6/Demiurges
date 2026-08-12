@@ -78,7 +78,7 @@ describe("Product Session HTTP API", () => {
         if (!write) throw new Error("缺少 world_write");
         await write.execute(
           "call:after-abort",
-          { cubeHeight: 2 },
+          { fixtureId: "fixture:primitive-box" },
           undefined,
           {} as never,
           signal,

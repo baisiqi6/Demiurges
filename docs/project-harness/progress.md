@@ -503,3 +503,141 @@ Independent review：
 - closeout review `evt-20260811T064924Z-c2d5a8f6`、CLOSE `evt-20260811T064924Z-55360c81` 已顺序落盘；
 - item 为 `done/closed`，lease 已释放，未使用 force；
 - 发布只包含 commit/push feature branch，不包含 main merge、PR、tag、deploy 或真实 prompt。
+
+## 2026-08-11 — DH-009 集成完成，DH-010 曲面容器切片已规划
+
+- `main` 已从 `fdbbf680122c06810f58da37d9973d4f0aa2c984` fast-forward 到 `22e288690937834135584d023e4140e26696f761` 并推送，远端 `main` SHA 已回查一致；
+- 从新 `main` 创建 `agent/codex/DH-010` 与 `/Users/Admin/projects/WorkTrees/Demiurges-DH-010`；
+- canonical plan 选择“ball into vessel”作为第二个真实世界任务：一个 smooth curved vessel visual、一个保留开放腔体的 compound collision proxy、一个 dynamic sphere 与 stable-inside-vessel Evaluation；
+- 计划明确 vessel 仍是单一 Entity，多个 collision parts / MuJoCo geoms 不获得 EntityRef；visual、collision、physics、semantic frame 与 Evaluation 保持独立 authority；
+- 第二个任务已证明 `cubeHeight`、固定 `entity:cube`、single-box collision 与 landing-only metrics 是 walking-skeleton 偶然细节，因此计划允许一次恰好覆盖两个真实任务的最小根部泛化，但不建立通用 CAD、Adapter SDK、plugin system、机器人或 world-model provider；
+- 当前只完成设计与验收计划，等待 Human/Architect 确认后再进入实现；未改产品 source、未安装 dependency、未调用真实 provider，也未授权 commit/push 当前 feature branch。
+
+## 2026-08-11 — DH-010 canonical plan 经四轮交叉审查批准
+
+- Round 1/2/3 的 P1 依次推动计划补齐 continuous support/penetration、wall-sensitive physical control、compound part ownership、task-local transform、AdoptPolicy closure、唯一 model-facing JSON contract、Gateway pre-admission parity、`world:current` 与 quaternion `1e-9` authority；历史 verdict 均 append-only 保留；
+- Round 4 在 frozen plan digest `2738b3135434507dd5b53aea74bb87e45af21912fa72789a7b1096ca33ffa21a` 与 context aggregate `c52a8ddb38ee15692a828fce9fd3dacb9e9710915691f8822612286ce7769e0d` 上完成 fresh Sol Max + Kimi K3 Max 交叉审查；两路均 `approved`，P0/P1 为 0；
+- approved plan 冻结三个 fixture、两个 Program、nested object pose、30Hz/0.5s/16-sample/16-of-16 support、pair-attributed penetration、16-wall compound、semantic rim carrier、Runtime-direct closed proxy、closed AdoptPolicy registry 与 Phase 1–4 headless gate；
+- 当前批准只表示 plan 可成为 implementation authority。`DH-010` 继续为 `todo/planned`，未改产品 source、未安装 dependency、未调用 provider，也未授权 commit/push/PR/merge/tag/deploy；下一步等待 Human 明确授权进入 Phase 1 Contract RED。
+
+## 2026-08-11 — DH-010 Phase 1 Contract RED 已冻结
+
+- Human 授权后激活 `DH-010` lease，并严格停在已批准 plan 的 Phase 1：冻结唯一 `WORLD_TOOL_CONTRACT`、三 fixture、两 Program、nested world-frame pose 与 input budget；
+- 新增 executable RED 覆盖真实 Gateway/OMP/Host parity、legacy shape 删除、scenario mismatch/floor penetration、floor/vessel/ball carrier、sphere/compound/semantic rim、multi-entity Episode/contact、0.5s/16-sample containment、closed proxy、closed AdoptPolicy registry 与 Product codec closure；
+- targeted 为 16 pass / 16 expected fail / 105 assertions；全量为 102 existing regression pass + 1 new contract-parser pass / 16 expected RED fail / 2,649 assertions。`bun run typecheck`、`bun run build` 与 `git diff --check` 通过；
+- 证据见 `docs/project-harness/tasks/DH-010/phase1-red-evidence.md`。当前未进入 GREEN/geometry/Studio，未调用真实 provider，未 commit/push/PR/merge/tag/deploy，也未 close/mark-done。
+
+## 2026-08-11 — DH-010 Phase 2 Artifact / Representation 已完成
+
+- deterministic profile-of-revolution generator 连续两次产生 byte-identical `smooth-vessel-v1.glb`：26,256 bytes，SHA-256 `856788138ecc53d407827a0e67aa9977237dd914809316f8af992e8ee098cd92`；
+- Kernel 增加 closed sphere、compound collision 与 vessel semantic carrier；canonical Snapshot 精确包含 floor/vessel/ball，vessel 的 base + 16 walls 仍只属于同一个 `EntityRef`；
+- Repository admission 与 artifact registry 已拒绝 digest/bounds/provenance、part alias、sparse/accessor/non-finite pose、quaternion、semantic frame/envelope drift；local-to-world transform probe 覆盖 translated + yaw off-axis composition；
+- targeted 21/0/2,197，全量 110 pass / 14 expected RED fail / 2,705；typecheck/build/diff-check 通过。14 个 RED 继续保留给 Phase 3/4，Presentation 对尚未实现的 sphere/compound visible path 明确 fail closed；
+- 证据见 `docs/project-harness/tasks/DH-010/phase2-artifact-evidence.md`。未进入 Runtime/Evaluation/visible slice，未调用真实 provider，未 commit/push/PR/merge/tag/deploy，也未 close/mark-done。
+
+## 2026-08-11 — DH-010 Phase 3 Authoring / MuJoCo Runtime 已完成
+
+- 唯一 `WORLD_TOOL_CONTRACT` 已成为 Surface、Host 与 OMP 的共同输入权威：三个 fixture、nested Entity pose 与两个 explicit Program 均可达，legacy model-facing `cubeHeight`/run-only shape 已删除；
+- MuJoCo Runtime 现在闭合支持 falling-rigid 与 ball-vessel 两个 scenario；vessel 单一 Entity 编译为 exact base + 16 wall geoms，dynamic sphere 产生 91-sample multi-entity Episode；
+- 内部 geom-owner map 将 contact 折叠为只含 EntityRef、unit world normal 与 finite penetration 的 public evidence；wall-sensitive trajectory 真实观测到水平 vessel contact，closed lid 只可从 Runtime-direct seam 运行且不能进入 Repository；
+- full gate 为 122 pass / 6 expected Phase 4 RED fail / 2,751 assertions；typecheck/build/diff-check/artifact digest 通过。6 个 RED 精确保留给 containment Evaluation、closed AdoptPolicy registry 与 ball-vessel Product codec；
+- 证据见 `docs/project-harness/tasks/DH-010/phase3-runtime-evidence.md`。未进入 Phase 4/5，未调用真实 provider，未 commit/push/PR/merge/tag/deploy，也未 close/mark-done。
+
+## 2026-08-11 — DH-010 Phase 4 Headless Gate 已完成
+
+- stable-inside-vessel evaluator 已按 exact 0.5s/16-sample/30Hz tail、16/16 world-up semantic support、inner-floor distance、speed 与 pair-attributed penetration 生成 closed EvaluationRecord；hovering、bounce-apex、sidewall/transient、timestamp drift、penetration、malformed contact 与 completed closed proxy 均失败；
+- Host 现在持有 falling-rigid / ball-vessel 两-entry frozen AdoptPolicy registry；Repository 不接纳 caller single policy，并将 Program、evaluator、contract、passed、terminal 与 Ref evidence 一起闭合；
+- Product codec 接受 exact floor/vessel/ball carrier 与 91-sample semantic contacts，同时拒绝 part/geom 泄漏、wrong pair、sample grid drift 和 Program/Evaluation alias；
+- full headless gate 为 130 pass / 0 fail / 2,778 assertions，typecheck/build/diff-check 与 deterministic GLB digest 通过；公共 evaluator 已从首个 scenario 的 `evaluateLanding` 机械收敛为 task-neutral `evaluateEpisode`，不保留双入口；Phase 1–4 product digest 为 `c893c0641d075f9080b1e977a582c0eb5ee5270fcb7129ccf3cb739680b42374`；
+- 证据见 `docs/project-harness/tasks/DH-010/phase4-headless-evidence.md`。DH-010 继续 `doing/running`；Phase 5 Studio visible slice 尚未开始，未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 Phase 5 Visible Product Slice 已完成
+
+- Studio 现在从受信 Snapshot/WorldRunResult 解析默认 Entity selection、Program/Profile、artifact 与 landing/containment metrics；App 不再硬编码 cube/landing/diagnostic fixture；
+- smooth vessel、sphere、box/compound overlay 与 semantic rim-center frame 已进入同一个 Three.js viewport，所有 visual/collision/helper node 都解析回唯一 EntityRef；ball-vessel 无 3DGS 时明确 disabled，diagnostic wedge 的 GLB + Spark 3DGS 路径保持；
+- 真实 Chromium 首次揭示 Bun/JavaScriptCore 与 Chromium/V8 对 runtime trig wall pose 的末位差异；fixture registry 已改为 16 个固定 plain-data pose，不放宽 codec equality，并补跨引擎 source 与 JSON round-trip regressions；
+- Chromium 已通过 ball/vessel selection、91-frame playback、17-part overlay、rim frame、structured containment metrics、second Session、受控 late GLB release、diagnostic 3DGS alignment 与 820×700 resize；无 alert；
+- full gate 为 139 pass / 0 fail / 2,826 assertions；typecheck/build/diff/artifact 通过；Phase 1–5 product digest `5e944de6896b697d30e4c58a1580bb7babae12fe41edf2d3c27dda3ebdb0a750`；
+- 证据见 `docs/project-harness/tasks/DH-010/phase5-visible-evidence.md`。DH-010 继续 `doing/running`；等待 Human 授权 Phase 6 independent review，未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 Phase 6 Independent Cross-review 要求修改
+
+- operator 在 frozen Phase 1–5 product digest `5e944de6896b697d30e4c58a1580bb7babae12fe41edf2d3c27dda3ebdb0a750` 上重跑 `139/0/2,826`、typecheck、build、diff 与 checklist，全部通过；
+- fresh `GPT-5.6 Sol Max` 独立复算 digest/gates 后发现 4 个可执行 P1：Product codec 接受伪造 Evaluation、canonical friction/Ref drift；Host/Repository 接受 duplicate EntityRef；Studio asset registry 可被永久污染；operator 原样复现全部反例；
+- CC Switch fresh reviewer 请求 `claude-opus-4-8 / effort max`，current-session proxy 证据确认实际 `model=k3`。其静态审查未发现产品 P0/P1，但因 `plan` 权限拒绝独立运行必要 gates，结论同样为 `changes_requested / may_closeout=no`；
+- combined verdict 为 `P0=0, P1=4, P2=2, changes_requested, may_closeout=no`。证据见 `docs/project-harness/tasks/DH-010/phase6-cross-review-evidence.md`；
+- `DH-010` 保持 `doing`，workflow 已进入 `changes_requested`。等待 Human 授权 bounded P1 remediation；未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 Phase 6 P1 remediation 完成
+
+- Human 授权后，将四个 reviewer counterexample 先固化为 RED：伪造 Evaluation、canonical friction/Ref drift、duplicate EntityRef 与 mutable Presentation registry；修复前 targeted 为 `14 pass / 4 fail`；
+- Snapshot admission 现在保证 EntityRef 全局唯一；Product codec 只接受 `world:current`、canonical fixture physics，并通过受信 contract/evaluator 重算整条 Evaluation；Presentation asset registry 递归冻结；
+- codec 的 null-prototype 安全投影与 evaluator plain-data admission 已闭合，仍拒绝 accessor/class instance；没有增加 scenario patch、兼容入口或 renderer fallback；
+- remediation gate 为 `142 pass / 0 fail / 2,834 assertions`，typecheck/build/diff-check 通过；generator/GLB digest 未漂移；新 product digest 为 `8687ad0dea2c675d8d04a61ebcacf4649bc41989d33d6163a3b5680619cacc6e`；
+- 证据见 `docs/project-harness/tasks/DH-010/phase6-remediation-evidence.md`。历史 `changes_requested` 保留，等待 Human 另行授权 fresh independent re-review；未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 remediation fresh cross-review 仍要求修改
+
+- Sol Max 与 CC Switch Kimi K3 Max 在 product digest `8687ad0dea2c675d8d04a61ebcacf4649bc41989d33d6163a3b5680619cacc6e` 上独立完成四类 mandatory probe 与 full gates；原四个 P1 均确认已修复；
+- Kimi 批准并记录孤立 `world_read.ref.version` 未绑定 P2；Sol 发现新的 executable P1：registered floor/ball representation 仍可在 authored + terminal carrier 中同步漂移并携带原 PASS Evaluation；
+- operator 原样复现 ball-vessel floor visual/collision `halfExtents=[30,30,0.5]` 仍被 codec 接受，Evaluation 仍为 PASS；product/status digest 前后未漂移；
+- combined verdict 为 `P0=0, P1=1, P2=1, changes_requested, may_closeout=no`。证据见 `docs/project-harness/tasks/DH-010/phase6-remediation-cross-review-evidence.md`；
+- DH-010 保持 `doing/running`，等待 Human 另行授权 bounded canonical representation remediation；未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 canonical representation P1 remediation 完成
+
+- Human 授权后，先将 ball-vessel floor extent、ball visual color 与 falling-rigid floor extent 三种 authored + terminal 同步漂移固化为 RED；修复前为 `7 pass / 3 fail / 31 assertions`；
+- Product codec 直接复用 canonical fixture Entity 闭合已登记 representation，没有新增第二套 geometry constant 或 scenario patch；dynamic `state/pose` 演进保持合法，diagnostic imported cube 继续由既有 exact artifact/collision/3DGS validator 闭合；
+- targeted 为 `34 pass / 0 fail / 2,213 assertions`；full gate 为 `145 pass / 0 fail / 2,837 assertions`，typecheck/build/diff-check 通过，generator/GLB digest 未漂移；
+- 新 product digest 为 `88a5d1e787df9cc5b73ae5fb117bc079c64665f5976e4b8795b5b22d2e863150`；证据见 `docs/project-harness/tasks/DH-010/phase6-representation-remediation-evidence.md`；
+- 历史 `changes_requested` 保留，等待 Human 另行授权 fresh independent re-review；本轮未处理孤立 `world_read.ref.version` P2，未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 canonical representation remediation fresh cross-review 仍要求修改
+
+- 有效 Sol Max Round 2 与 CC Switch Kimi K3 Max Round 3 在 frozen product digest `88a5d1e787df9cc5b73ae5fb117bc079c64665f5976e4b8795b5b22d2e863150` 上完成 full gates 与 executable probes；`145/0/2,837`、typecheck/build/diff/checklist/artifact 全通过；
+- Sol 发现合法多轮 `run → 下一 turn edit-only` 会推进 current world 却保留旧 `lastRun`，最终 projection 因 base Ref 不一致而无法被 Studio codec 解码；operator 原样复现；
+- Kimi 发现本轮 exact representation closure 只存在于 Product codec：Repository/Runtime 仍可写入 floor extent / ball color 漂移的 registered Snapshot，Evaluation PASS 后成功 adopt canonical Ref；operator 原样复现；
+- Kimi 请求 `claude-opus-4-8 / max`，current-session provider/proxy 证据确认实际 `model=k3`、`status_code=200`；两次因 permission/isolation 失效的 attempt 被明确丢弃，不计入 verdict；
+- combined verdict 为 `P0=1, P1=1, changes_requested, may_closeout=no`；证据见 `docs/project-harness/tasks/DH-010/phase6-representation-remediation-cross-review-evidence.md`；
+- DH-010 保持 `doing/running`，等待 Human 另行授权 bounded root-authority + stale-lastRun remediation；未修改产品代码，未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 root authority / stale `lastRun` remediation 完成
+
+- Human 授权后，先把 Repository/Runtime 接纳 registered representation 漂移与多轮 `run → edit-only` 保留 stale `lastRun` 固化为 RED；修复前定向为 `38 pass / 4 fail / 266 assertions`；
+- 新增唯一 repo-owned `requireRegisteredSnapshotIdentity`，由 Repository、Runtime 与 Product codec 共同消费；registered static representation/physics 在世界 authority 根部 fail closed，动态 state/pose 与 diagnostic optional Observation 仍保持合法；
+- ProductSession 在成功 `world_write/world_edit` 后失效旧 `lastRun`，`world_read` 保留 evidence，`world_run` 产生新 evidence，静态快照不再与旧动态历程自相矛盾；
+- 最终 full gate 为 `149 pass / 0 fail / 2,849 assertions`；typecheck/build/diff-check/EXharness 通过，generator 与 vessel GLB digest 未漂移；新 product digest 为 `8be5fadc4393a69b70ffeaef602368e9d9fa4cf8e91a1cf0ab482d918c06b9a8`；
+- 证据见 `docs/project-harness/tasks/DH-010/phase6-root-authority-remediation-evidence.md`。历史 `changes_requested` 保留，等待 Human 另行授权 fresh independent re-review；未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 root authority remediation fresh review 仍要求修改
+
+- Sol Max 在 frozen product digest `8be5fadc4393a69b70ffeaef602368e9d9fa4cf8e91a1cf0ab482d918c06b9a8` 上完成 full gates 与 executable probes，发现 vessel static friction 未进入 shared registered Snapshot identity，漂移可被 Repository 接纳、进入 MJCF，并由同步 transport carrier 接受；
+- 同一 reviewer 发现 stale CAS edit 虽返回 `update.status=stale_ref`、current Ref 完全未变，ProductSession 仍无条件清除有效 `lastRun`；operator 独立重放两项，分别确认 `world:current@1 + Runtime consumes 0.01` 与 `beforeHadLastRun=true → afterHadLastRun=false`；
+- CC Switch 当前 session `c7d1ba43-cf5a-42e3-a2f4-711ce8586bfb` 的 proxy records 确认实际 `model=k3`；其批准结论因自报 accidental isolation exposure 不作为独立关单票，且任何 approval 都不能覆盖 Sol 的 executable blockers；
+- `harnessctl review` 生成的 review packet 尾部空行使 reviewer 当时全 repo diff-check 失败，operator 在审查结束后只修正该 harness artifact；product digest 未变化；
+- combined verdict 为 `P0=1, P1=1, changes_requested, may_closeout=no`；证据见 `docs/project-harness/tasks/DH-010/phase6-root-authority-remediation-cross-review-evidence.md`；
+- DH-010 保持 `doing/changes_requested`，等待 Human 另行授权 bounded vessel-physics identity + stale-ref lifecycle remediation；未修改产品代码，未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 vessel physics / stale-ref remediation 完成
+
+- Human 授权后，先将 vessel friction 漂移进入 Kernel/Repository/Runtime 与 `stale_ref` no-op 错误清除 `lastRun` 固化为 RED；修复前为 `38 pass / 4 fail / 273 assertions`；
+- canonical vessel Snapshot 与 validator 共同消费 file-local frozen `VESSEL_PHYSICS`，闭合 `static / massKg=0 / friction=0.8`；Repository、Runtime 与 Product codec 通过既有 single registered Snapshot validator 同步 fail closed，没有增加第二套常量或 patch stack；
+- ProductSession 现在只在 `world_write` 或 `world_edit.update.status=updated` 时失效旧 run evidence；`stale_ref` 保留与未变化 current Ref 一致的 `lastRun`；
+- 最终 targeted 为 `52 pass / 0 fail / 312 assertions`，full gate 为 `149 pass / 0 fail / 2,857 assertions`；typecheck/build/diff-check/EXharness 与 artifact hashes 通过；
+- operator 原反例回放确认 vessel friction 在 Repository/Runtime 均被 `vessel physics 与 fixture registry 漂移` 拒绝，且 stale-ref 前后 Ref 相同、`lastRun` 均存在；新 product digest 为 `85534951b9146283ffbceddec652a0440d0d38a7543ad4828a86eb42b5df1c57`；
+- 证据见 `docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-remediation-evidence.md`。历史 `changes_requested` 保留，等待 Human 另行授权 fresh independent re-review；未 commit/push/PR/merge/tag/deploy/closeout/mark-done。
+
+## 2026-08-11 — DH-010 final remediation fresh cross-review 批准
+
+- 两路 fresh、互相隔离的 reviewer 在 frozen product digest `85534951b9146283ffbceddec652a0440d0d38a7543ad4828a86eb42b5df1c57` 上完成 full gates 与 adversarial probes，起止 HEAD/product digest/status 均未漂移；
+- CC Switch path 请求 `claude-opus-4-8 / max`，current-session proxy records 证明实际 downstream `model=k3`；其完成 `149/0/2,857` 与 42/42 额外断言，批准 `may_closeout=yes`；
+- replacement GPT-5.6 Sol Max path 完成 `149/0`、typecheck/build/diff/checklist/artifact 与 Repository/Runtime/codec/stale-ref/run-adopt probes，bounded scan 未发现 P0/P1，终点 frozen identity 通过，批准 `may_closeout=yes`；首个无法收口 final verdict 的 Sol attempt 已中止且不计票；
+- combined verdict 为 `P0=0, P1=0, approved, may_closeout=yes`，证据见 `docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-cross-review-evidence.md`；
+- EXharness 状态为 `doing / review_approved`。本轮只打开 closeout gate，尚未执行 closeout、`mark-done`、commit、push、PR、merge、tag 或 deploy。
+
+## 2026-08-11 — DH-010 closeout 与 mark-done
+
+- Human 授权后生成 `docs/project-harness/current/closeout-packet.md`，将两路 final approval 记录为 `phase=closeout_requested / decision=approved`；
+- `harnessctl mark-done` 已将 DH-010 更新为 `done / closed`，清空 owner 与 current task pointer，并于 `2026-08-12T03:30:01Z` 释放 lease；
+- closeout verification 继续绑定 frozen product digest `85534951b9146283ffbceddec652a0440d0d38a7543ad4828a86eb42b5df1c57`、`149/0/2,857`、typecheck/build/diff/checklist/artifact hashes 与两路 adversarial review；
+- 当前仅获授权提交并推送 `agent/codex/DH-010`；未授权 PR、合并 `main`、tag 或 deploy。

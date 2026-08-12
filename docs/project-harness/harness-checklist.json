@@ -1,7 +1,7 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "updated_at": "2026-08-11",
+  "updated_at": "2026-08-12",
   "items": [
     {
       "id": "DH-000",
@@ -424,6 +424,55 @@
         "expires_at": "2026-08-11T07:43:45Z",
         "ttl_minutes": 120,
         "released_at": "2026-08-11T06:49:24Z"
+      }
+    },
+    {
+      "id": "DH-010",
+      "title": "曲面容器与内部空间 Vertical Slice",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-12",
+      "dependencies": [
+        "DH-009"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "一个 repo-owned smooth curved vessel 以单一 EntityRef 对齐 deterministic visual artifact、rim-center local frame、保留开放腔体的 bounded compound collision proxy 与 MuJoCo state；dynamic sphere 经最小 Entity/Program-oriented read/write/edit/run contract 产生 multi-entity Episode，并由 stable-inside-vessel Success Contract 评测；closed-proxy 对照必须 FAIL；DH-001～009 authority/regressions、四工具、tests/typecheck/build/Chromium/diff/checklist 保持。",
+      "verification": "DH-010 final frozen product digest 85534951b9146283ffbceddec652a0440d0d38a7543ad4828a86eb42b5df1c57; two fresh isolated reviewers approved P0/P1=0 and may_closeout=yes; bun test 149/0/2857, typecheck/build/diff/EXharness/artifact hashes pass; Kimi 42/42 extra probes and Sol bounded authority probes pass. Evidence docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-cross-review-evidence.md.",
+      "handoff": "Two fresh isolated reviewers approved DH-010. Closeout gate is open; await Human authority for closeout/mark-done and Git commit/push.",
+      "plan_path": "docs/project-harness/tasks/DH-010/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-12",
+        "branch": "agent/codex/DH-010"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-010",
+        "phase1_red_evidence": "docs/project-harness/tasks/DH-010/phase1-red-evidence.md",
+        "phase2_artifact_evidence": "docs/project-harness/tasks/DH-010/phase2-artifact-evidence.md",
+        "phase3_runtime_evidence": "docs/project-harness/tasks/DH-010/phase3-runtime-evidence.md",
+        "phase4_headless_evidence": "docs/project-harness/tasks/DH-010/phase4-headless-evidence.md",
+        "phase5_visible_evidence": "docs/project-harness/tasks/DH-010/phase5-visible-evidence.md",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "cross-review-sol-max+k3-max-vessel-stale-r1",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-12",
+        "summary": "Final frozen digest 85534951 was independently approved by Kimi K3 Max and GPT-5.6 Sol Max; P0/P1=0, all required gates/probes pass, may_closeout=yes.",
+        "artifact": "docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-cross-review-evidence.md"
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "dh010-remediation-20260811",
+        "acquired_at": "2026-08-12T02:55:43Z",
+        "expires_at": "2026-08-12T04:55:43Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-12T03:30:01Z"
       }
     }
   ]

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { RuntimeMvpHost } from "./host/runtime-mvp-host";
+import { BALL_VESSEL_FIXTURE_ID } from "./artifacts/ball-vessel-fixture";
 import { DIAGNOSTIC_RIGID_FIXTURE_ID } from "./artifacts/diagnostic-rigid-fixture";
 import { CURRENT_WORLD_REF } from "./kernel/world";
 import {
@@ -11,9 +12,12 @@ import { WorldToolSurface } from "./world-tools/world-tool-surface";
 
 async function validProjection() {
   const surface = new WorldToolSurface(new RuntimeMvpHost());
-  surface.write({ cubeHeight: 2 });
+  surface.write({ fixtureId: "fixture:primitive-box" });
   const world = surface.read();
-  const lastRun = await surface.run({ runId: `run:${"x".repeat(508)}` });
+  const lastRun = await surface.run({
+    runId: `run:${"x".repeat(60)}`,
+    programId: "program:free-fall-rigid-v1",
+  });
   return {
     sessionId: "session:local-1",
     world,
@@ -26,19 +30,147 @@ async function validProjection() {
 async function validImportedProjection() {
   const surface = new WorldToolSurface(new RuntimeMvpHost());
   surface.write({
-    cubeHeight: 2.4,
     fixtureId: DIAGNOSTIC_RIGID_FIXTURE_ID,
   });
   return {
     sessionId: "session:local-imported",
     world: surface.read(),
-    lastRun: await surface.run({ runId: "run:imported-codec" }),
+    lastRun: await surface.run({
+      runId: "run:imported-codec",
+      programId: "program:free-fall-rigid-v1",
+    }),
     lastSequence: 5,
     running: false,
   };
 }
 
+async function validBallVesselProjection() {
+  const surface = new WorldToolSurface(new RuntimeMvpHost());
+  surface.write({ fixtureId: BALL_VESSEL_FIXTURE_ID });
+  const world = surface.read();
+  const lastRun = await surface.run({
+    runId: "run:ball-vessel-codec",
+    programId: "program:free-fall-ball-vessel-v1",
+  });
+  return {
+    sessionId: "session:local-ball-vessel",
+    world,
+    lastRun,
+    lastSequence: 6,
+    running: false,
+  };
+}
+
 describe("Product Session plain-data codec", () => {
+  test("拒绝同 ID 但 predicate/metrics 与受信 evaluator 不一致的 Evaluation", async () => {
+    const projection = structuredClone(await validBallVesselProjection());
+    const evaluation = projection.lastRun.evaluation;
+    if (evaluation.contractId !== "success:stable-inside-vessel") throw new Error();
+    evaluation.passed = true;
+    evaluation.metrics.supportSamples = 0;
+    evaluation.metrics.requiredSupportSamples = 16;
+    evaluation.metrics.maxPenetrationMeters = 999;
+
+    expect(() => decodeProductSessionProjection(projection)).toThrow(
+      "Evaluation 与受信 evaluator 结果不一致",
+    );
+  });
+
+  test("只接受 canonical current ref 与 fixture physics", async () => {
+    const frictionDrift = structuredClone(await validBallVesselProjection());
+    for (const snapshot of [
+      frictionDrift.world.snapshot,
+      frictionDrift.lastRun.episode.terminalSnapshot,
+    ]) {
+      const ball = snapshot.entities.find((entity) => entity.ref === "entity:ball");
+      if (!ball) throw new Error("fixture 缺少 ball");
+      ball.physics.friction = 0.123;
+    }
+    expect(() => decodeProductSessionProjection(frictionDrift)).toThrow(
+      "physics 与 fixture registry 漂移",
+    );
+
+    const vesselFrictionDrift = structuredClone(await validBallVesselProjection());
+    for (const snapshot of [
+      vesselFrictionDrift.world.snapshot,
+      vesselFrictionDrift.lastRun.episode.terminalSnapshot,
+    ]) {
+      const vessel = snapshot.entities.find((entity) => entity.ref === "entity:vessel");
+      if (!vessel) throw new Error("fixture 缺少 vessel");
+      vessel.physics.friction = 0.01;
+    }
+    expect(() => decodeProductSessionProjection(vesselFrictionDrift)).toThrow(
+      "vessel physics 与 fixture registry 漂移",
+    );
+
+    const refAlias = structuredClone(await validBallVesselProjection());
+    refAlias.world.ref.name = "world:attacker";
+    refAlias.lastRun.baseRef.name = "world:attacker";
+    expect(() => decodeProductSessionProjection(refAlias)).toThrow(
+      "必须是 world:current",
+    );
+  });
+
+  test("拒绝 authored 与 terminal 同步漂移的 ball-vessel floor representation", async () => {
+    const projection = structuredClone(await validBallVesselProjection());
+    for (const snapshot of [
+      projection.world.snapshot,
+      projection.lastRun.episode.terminalSnapshot,
+    ]) {
+      const floor = snapshot.entities.find((entity) => entity.ref === "entity:floor");
+      if (
+        !floor ||
+        floor.representations.visual.kind !== "box" ||
+        floor.representations.collision.kind !== "box"
+      ) throw new Error("fixture 缺少 box floor");
+      floor.representations.visual.halfExtents = [30, 30, 0.5];
+      floor.representations.collision.halfExtents = [30, 30, 0.5];
+    }
+
+    expect(() => decodeProductSessionProjection(projection)).toThrow(
+      "fixture registry 漂移",
+    );
+  });
+
+  test("拒绝 authored 与 terminal 同步漂移的 ball visual color", async () => {
+    const projection = structuredClone(await validBallVesselProjection());
+    for (const snapshot of [
+      projection.world.snapshot,
+      projection.lastRun.episode.terminalSnapshot,
+    ]) {
+      const ball = snapshot.entities.find((entity) => entity.ref === "entity:ball");
+      if (!ball || ball.representations.visual.kind !== "sphere") {
+        throw new Error("fixture 缺少 sphere ball");
+      }
+      ball.representations.visual.color = "#000000";
+    }
+
+    expect(() => decodeProductSessionProjection(projection)).toThrow(
+      "fixture registry 漂移",
+    );
+  });
+
+  test("拒绝 authored 与 terminal 同步漂移的 falling-rigid floor representation", async () => {
+    const projection = structuredClone(await validProjection());
+    for (const snapshot of [
+      projection.world.snapshot,
+      projection.lastRun.episode.terminalSnapshot,
+    ]) {
+      const floor = snapshot.entities.find((entity) => entity.ref === "entity:floor");
+      if (
+        !floor ||
+        floor.representations.visual.kind !== "box" ||
+        floor.representations.collision.kind !== "box"
+      ) throw new Error("fixture 缺少 box floor");
+      floor.representations.visual.halfExtents = [30, 30, 0.05];
+      floor.representations.collision.halfExtents = [30, 30, 0.05];
+    }
+
+    expect(() => decodeProductSessionProjection(projection)).toThrow(
+      "fixture registry 漂移",
+    );
+  });
+
   test("imported visual projection 保留 EntityRef 并拒绝 artifact identity 漂移", async () => {
     const projection = await validImportedProjection();
     const decoded = decodeProductSessionProjection(
@@ -131,7 +263,7 @@ describe("Product Session plain-data codec", () => {
       );
     }
     expect(() => decodeProductSessionProjection(combinedAlias)).toThrow(
-      "static floor",
+      "registered fixture scenario",
     );
   });
 
@@ -167,9 +299,10 @@ describe("Product Session plain-data codec", () => {
       visual: structuredClone(terminalFloor.representations.visual),
       collision: structuredClone(changedTerminalCube.representations.collision),
       observation: null,
+      semantic: null,
     };
     expect(() => decodeProductSessionProjection(changedRepresentation)).toThrow(
-      "representation 证据链",
+      "fixture registry 漂移",
     );
 
     const driftedBaseRef = structuredClone(projection);
@@ -211,11 +344,11 @@ describe("Product Session plain-data codec", () => {
     )).toThrow("EntityRef 证据链");
   });
 
-  test("接受 producer 合法派生的长 identity，并返回独立 frozen projection", async () => {
+  test("接受 producer 合法派生的 bounded identity，并返回独立 frozen projection", async () => {
     const projection = await validProjection();
-    expect(projection.lastRun.episode.explicitInputs.runId).toHaveLength(512);
-    expect(projection.lastRun.episode.id.length).toBeGreaterThan(256);
-    expect(projection.lastRun.evaluation.id.length).toBeGreaterThan(256);
+    expect(projection.lastRun.episode.explicitInputs.runId).toHaveLength(64);
+    expect(projection.lastRun.episode.id.length).toBeGreaterThan(64);
+    expect(projection.lastRun.evaluation.id.length).toBeGreaterThan(128);
 
     const decoded = decodeProductSessionProjection(projection, "session:local-1");
 
@@ -275,15 +408,23 @@ describe("Product Session plain-data codec", () => {
 
   test("stale_ref 也必须让 ref 与当前 Snapshot identity 一致，edit 只允许 advance", () => {
     const surface = new WorldToolSurface(new RuntimeMvpHost());
-    const initial = surface.write({ cubeHeight: 2 });
-    surface.edit({ expected: initial.ref, cubeHeight: 2.8 });
+    const initial = surface.write({ fixtureId: "fixture:primitive-box" });
+    const pose = (z: number) => ({
+      targetRef: "entity:cube",
+      frameRef: "frame:world",
+      pose: {
+        position: { x: 0, y: 0, z },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      },
+    });
+    surface.edit({ expected: initial.ref, ...pose(2.8) });
     const stale = structuredClone(surface.edit({
       expected: {
         name: CURRENT_WORLD_REF,
         snapshotId: initial.ref.snapshotId,
         version: initial.ref.version,
       },
-      cubeHeight: 3,
+      ...pose(3),
     }));
     stale.update.snapshot.id = "snapshot:other";
 

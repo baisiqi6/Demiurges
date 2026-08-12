@@ -11,8 +11,8 @@ import type { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-sessi
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 
 import {
-  CURRENT_WORLD_REF,
   deepFreeze,
+  WORLD_TOOL_CONTRACT,
   WorldToolSurface,
 } from "@demiurges/world";
 
@@ -379,18 +379,6 @@ function exactEmptyInput(input: Record<string, unknown>): void {
   }
 }
 
-function toolSchema(
-  properties: Record<string, unknown>,
-  required: readonly string[],
-): Record<string, unknown> {
-  return {
-    type: "object",
-    properties,
-    required,
-    additionalProperties: false,
-  };
-}
-
 export function createOmpWorldTools(
   surface: WorldToolSurface,
   sink: TraceSink = () => undefined,
@@ -452,21 +440,6 @@ export function createOmpWorldTools(
       }
     };
 
-  const refSchema = {
-    type: "object",
-    properties: {
-      name: { type: "string", const: CURRENT_WORLD_REF },
-      snapshotId: {
-        type: "string",
-        pattern: "^snapshot:.+",
-        maxLength: MAX_TOOL_INPUT_STRING_LENGTH,
-      },
-      version: { type: "integer", minimum: 1 },
-    },
-    required: ["name", "snapshotId", "version"],
-    additionalProperties: false,
-  };
-
   return Object.freeze([
     Object.freeze({
       name: "world_read",
@@ -474,7 +447,7 @@ export function createOmpWorldTools(
       description: "读取 current Snapshot 与 RefRecord。",
       loadMode: "essential",
       approval: "read",
-      parameters: toolSchema({}, []),
+      parameters: WORLD_TOOL_CONTRACT.read.input,
       execute: wrap("world_read", (input) => {
         exactEmptyInput(input);
         return surface.read();
@@ -486,49 +459,25 @@ export function createOmpWorldTools(
       description: "创建 primitive box 或登记的 imported rigid fixture root Snapshot。",
       loadMode: "essential",
       approval: "write",
-      parameters: toolSchema(
-        {
-          cubeHeight: { type: "number", minimum: 0.5, maximum: 4 },
-          fixtureId: {
-            type: "string",
-            enum: ["fixture:primitive-box", "fixture:diagnostic-wedge-v1"],
-          },
-        },
-        ["cubeHeight"],
-      ),
+      parameters: WORLD_TOOL_CONTRACT.write.input,
       execute: wrap("world_write", (input) => surface.write(input)),
     }),
     Object.freeze({
       name: "world_edit",
       label: "Edit world",
-      description: "以 fresh RefRecord CAS 修改方块高度。",
+      description: "以 fresh RefRecord CAS 修改当前 scenario 的 dynamic Entity pose。",
       loadMode: "essential",
       approval: "write",
-      parameters: toolSchema(
-        {
-          expected: refSchema,
-          cubeHeight: { type: "number", minimum: 0.5, maximum: 4 },
-        },
-        ["expected", "cubeHeight"],
-      ),
+      parameters: WORLD_TOOL_CONTRACT.edit.input,
       execute: wrap("world_edit", (input) => surface.edit(input)),
     }),
     Object.freeze({
       name: "world_run",
       label: "Run world",
-      description: "运行固定 MuJoCo falling-cube 推演并返回 Episode 与 Evaluation。",
+      description: "运行显式受信 WorldProgram 并返回 Episode 与 Evaluation。",
       loadMode: "essential",
       approval: "exec",
-      parameters: toolSchema(
-        {
-          runId: {
-            type: "string",
-            pattern: "^run:.+",
-            maxLength: MAX_TOOL_INPUT_STRING_LENGTH,
-          },
-        },
-        ["runId"],
-      ),
+      parameters: WORLD_TOOL_CONTRACT.run.input,
       execute: wrap("world_run", (input) => surface.run(input)),
     }),
   ]) as unknown as OmpHostTool[];

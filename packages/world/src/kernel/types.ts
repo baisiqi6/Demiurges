@@ -29,6 +29,33 @@ export interface BoxCollisionRepresentation {
   readonly halfExtents: Vec3;
 }
 
+export interface SphereRepresentation {
+  readonly kind: "sphere";
+  readonly radius: number;
+  readonly color: string;
+}
+
+export interface SphereCollisionRepresentation {
+  readonly kind: "sphere";
+  readonly radius: number;
+}
+
+export interface CompoundCollisionPart {
+  readonly partKey: string;
+  readonly localPose: Pose;
+  readonly shape: BoxCollisionRepresentation;
+}
+
+export interface CompoundCollisionRepresentation {
+  readonly kind: "compound";
+  readonly parts: readonly CompoundCollisionPart[];
+}
+
+export type CollisionRepresentation =
+  | BoxCollisionRepresentation
+  | SphereCollisionRepresentation
+  | CompoundCollisionRepresentation;
+
 export interface ImportedRigidMeshRepresentation {
   readonly kind: "imported-rigid-mesh";
   readonly assetId: `asset:${string}`;
@@ -58,7 +85,23 @@ export interface GaussianSplatObservationRepresentation {
 
 export type VisualRepresentation =
   | BoxRepresentation
+  | SphereRepresentation
   | ImportedRigidMeshRepresentation;
+
+export interface VesselSemanticRepresentation {
+  readonly kind: "vessel";
+  readonly rimFrame: {
+    readonly ref: "frame:vessel-rim-center";
+    readonly localPose: Pose;
+  };
+  readonly innerEnvelope: {
+    readonly radiusMeters: number;
+    readonly innerFloorZMeters: number;
+    readonly rimZMeters: number;
+  };
+}
+
+export type SemanticRepresentation = VesselSemanticRepresentation | null;
 
 export interface Entity {
   readonly ref: `entity:${string}`;
@@ -68,8 +111,9 @@ export interface Entity {
   readonly state: EntityState;
   readonly representations: {
     readonly visual: VisualRepresentation;
-    readonly collision: BoxCollisionRepresentation;
+    readonly collision: CollisionRepresentation;
     readonly observation: GaussianSplatObservationRepresentation | null;
+    readonly semantic: SemanticRepresentation;
   };
   readonly physics: {
     readonly bodyType: "static" | "dynamic";
@@ -120,10 +164,18 @@ export interface ExplicitInputs {
   readonly runId: `run:${string}`;
 }
 
+export interface SemanticContactEvidence {
+  readonly targetRef: Entity["ref"];
+  readonly otherRef: Entity["ref"];
+  readonly normalOnTargetWorld: Vec3;
+  readonly penetrationMeters: number;
+}
+
 export interface EpisodeSample {
   readonly timeSeconds: number;
   readonly states: Readonly<Record<Entity["ref"], EntityState>>;
   readonly contactCount: number;
+  readonly contacts?: readonly SemanticContactEvidence[];
 }
 
 export interface EpisodeEvent {
@@ -157,9 +209,25 @@ export interface LandingSuccessContract {
   readonly maxLinearSpeed: number;
 }
 
-export interface EvaluationRecord {
+export interface StableInsideVesselSuccessContract {
+  readonly id: "success:stable-inside-vessel";
+  readonly targetRef: Entity["ref"];
+  readonly containerRef: Entity["ref"];
+  readonly rimFrameRef: "frame:vessel-rim-center";
+  readonly settleWindowSeconds: number;
+  readonly maxHorizontalOffsetMeters: number;
+  readonly maxFloorDistanceErrorMeters: number;
+  readonly maxLinearSpeedMetersPerSecond: number;
+  readonly maxPenetrationMeters: number;
+}
+
+export type SuccessContract =
+  | LandingSuccessContract
+  | StableInsideVesselSuccessContract;
+
+export interface LandingEvaluationRecord {
   readonly id: `evaluation:${string}`;
-  readonly evaluatorId: `evaluator:${string}`;
+  readonly evaluatorId: "evaluator:stable-landing-v1";
   readonly episodeId: Episode["id"];
   readonly contractId: LandingSuccessContract["id"];
   readonly passed: boolean;
@@ -169,6 +237,26 @@ export interface EvaluationRecord {
     readonly terminalLinearSpeed: number;
   };
 }
+
+export interface StableInsideVesselEvaluationRecord {
+  readonly id: `evaluation:${string}`;
+  readonly evaluatorId: "evaluator:stable-inside-vessel-v1";
+  readonly episodeId: Episode["id"];
+  readonly contractId: StableInsideVesselSuccessContract["id"];
+  readonly passed: boolean;
+  readonly metrics: {
+    readonly supportSamples: number;
+    readonly requiredSupportSamples: number;
+    readonly maxHorizontalOffsetMeters: number;
+    readonly maxLinearSpeedMetersPerSecond: number;
+    readonly maxFloorDistanceErrorMeters: number;
+    readonly maxPenetrationMeters: number;
+  };
+}
+
+export type EvaluationRecord =
+  | LandingEvaluationRecord
+  | StableInsideVesselEvaluationRecord;
 
 export interface AdoptPolicy {
   readonly id: `adopt-policy:${string}`;

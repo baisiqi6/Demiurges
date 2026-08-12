@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  BALL_REF,
+  BALL_VESSEL_FIXTURE_ID,
+  BALL_VESSEL_PROGRAM,
   DIAGNOSTIC_RIGID_FIXTURE_ID,
+  decodeProductSessionProjection,
   isDeepFrozen,
 } from "@demiurges/world";
 import {
@@ -11,6 +15,32 @@ import {
 import type { OmpAgentClientFactory, OmpAgentClientPort } from "./omp-world-agent";
 
 describe("Gateway-owned ProductSession", () => {
+  test("scripted Product Session 通过同一四工具闭环 ball-vessel visible fixture", async () => {
+    const session = new ProductSession(
+      "session:test-ball-vessel",
+      createScriptedAgentClientFactory(BALL_VESSEL_FIXTURE_ID),
+    );
+    const tools: string[] = [];
+    const projection = await session.runTurn("让球落入容器并验证稳定", (event) => {
+      if (event.type === "tool.completed") tools.push(event.tool);
+    });
+
+    expect(tools).toEqual(["world_write", "world_read", "world_edit", "world_run"]);
+    expect(projection.world?.snapshot.entities.map((entity) => entity.ref)).toEqual([
+      "entity:floor",
+      "entity:vessel",
+      BALL_REF,
+    ]);
+    expect(projection.lastRun?.episode.programId).toBe(BALL_VESSEL_PROGRAM.id);
+    expect(projection.lastRun?.episode.samples[0]?.states[BALL_REF]).toBeDefined();
+    expect(projection.lastRun?.evaluation).toMatchObject({
+      contractId: "success:stable-inside-vessel",
+      passed: true,
+      metrics: { supportSamples: 16, requiredSupportSamples: 16 },
+    });
+    expect(projection.world?.ref.version).toBe(2);
+  });
+
   test("scripted Product Session 通过同一四工具闭环 imported rigid fixture", async () => {
     const session = new ProductSession(
       "session:test-imported",
@@ -76,6 +106,96 @@ describe("Gateway-owned ProductSession", () => {
     expect(Object.keys(session)).toEqual([]);
   });
 
+  test("只有 authored world 成功前进才失效旧 lastRun，stale_ref no-op 保留 evidence", async () => {
+    let turn = 0;
+    let staleExpected: unknown;
+    const factory: OmpAgentClientFactory = (tools) => {
+      const invoke = async (name: string, input: Record<string, unknown>) => {
+        const tool = tools.find((candidate) => candidate.name === name);
+        if (!tool) throw new Error(`fixture 缺少 ${name}`);
+        const result = await tool.execute(
+          `call:${name}`,
+          input,
+          undefined,
+          {} as never,
+          new AbortController().signal,
+        );
+        if (typeof result === "string") throw new Error("预期 structured tool result");
+        return result.details as { ref?: unknown };
+      };
+      return {
+        async start() {},
+        async stop() {},
+        async getState() {
+          const names = tools.map((tool) => tool.name);
+          return {
+            sessionId: "session:stale-last-run-agent",
+            toolNames: names,
+            enabledToolNames: names,
+            mountedToolNames: [],
+          };
+        },
+        async promptAndWait() {
+          turn += 1;
+          if (turn === 1) {
+            await invoke("world_write", { fixtureId: "fixture:primitive-box" });
+            const read = await invoke("world_read", {});
+            staleExpected = read.ref;
+            await invoke("world_edit", {
+              expected: read.ref,
+              targetRef: "entity:cube",
+              frameRef: "frame:world",
+              pose: {
+                position: { x: 0, y: 0, z: 2.8 },
+                rotation: { x: 0, y: 0, z: 0, w: 1 },
+              },
+            });
+            await invoke("world_run", {
+              runId: "run:stale-last-run-first",
+              programId: "program:free-fall-rigid-v1",
+            });
+          } else if (turn === 2) {
+            await invoke("world_edit", {
+              expected: staleExpected,
+              targetRef: "entity:cube",
+              frameRef: "frame:world",
+              pose: {
+                position: { x: 0, y: 0, z: 3.2 },
+                rotation: { x: 0, y: 0, z: 0, w: 1 },
+              },
+            });
+          } else {
+            const read = await invoke("world_read", {});
+            await invoke("world_edit", {
+              expected: read.ref,
+              targetRef: "entity:cube",
+              frameRef: "frame:world",
+              pose: {
+                position: { x: 0, y: 0, z: 3.2 },
+                rotation: { x: 0, y: 0, z: 0, w: 1 },
+              },
+            });
+          }
+        },
+        async getLastAssistantText() { return "completed"; },
+      };
+    };
+    const session = new ProductSession("session:local-stale-last-run", factory);
+    const first = await session.runTurn("write edit run", () => undefined);
+    expect(first.lastRun).not.toBeNull();
+    expect(() => decodeProductSessionProjection(first, first.sessionId)).not.toThrow();
+
+    const second = await session.runTurn("stale edit", () => undefined);
+    expect(second.world?.ref).toEqual(first.world?.ref);
+    expect(second.lastRun).toEqual(first.lastRun);
+    expect(() => decodeProductSessionProjection(second, second.sessionId)).not.toThrow();
+
+    const third = await session.runTurn("successful edit", () => undefined);
+    expect(third.world?.ref.snapshotId).toContain("snapshot:edit-2");
+    expect(third.lastRun).toBeNull();
+    expect(() => decodeProductSessionProjection(third, third.sessionId)).not.toThrow();
+  });
+
   test("同一 session 不允许并发 turn 交错修改世界", async () => {
     const session = new ProductSession(
       "session:test-2",
@@ -131,7 +251,7 @@ describe("Gateway-owned ProductSession", () => {
 
     await expect(lateWrite.execute(
       "call:late-product-write",
-      { cubeHeight: 2 },
+      { fixtureId: "fixture:primitive-box" },
       undefined,
       {} as never,
       new AbortController().signal,
@@ -177,7 +297,7 @@ describe("Gateway-owned ProductSession", () => {
 
     await expect(lateWrite.execute(
       "call:completed-product-write",
-      { cubeHeight: 2 },
+      { fixtureId: "fixture:primitive-box" },
       undefined,
       {} as never,
       new AbortController().signal,
@@ -206,7 +326,7 @@ describe("Gateway-owned ProductSession", () => {
           if (!write) throw new Error("fixture 缺少 world_write");
           await write.execute(
             "call:failed-write",
-            { cubeHeight: 2, marker },
+            { fixtureId: "fixture:primitive-box", marker },
             undefined,
             {} as never,
             new AbortController().signal,
@@ -255,11 +375,25 @@ describe("Gateway-owned ProductSession", () => {
           };
         },
         async promptAndWait() {
-          await invoke("world_write", { cubeHeight: 2, extra: true }).catch(() => undefined);
-          await invoke("world_write", { cubeHeight: 2 });
+          await invoke("world_write", {
+            fixtureId: "fixture:primitive-box",
+            extra: true,
+          }).catch(() => undefined);
+          await invoke("world_write", { fixtureId: "fixture:primitive-box" });
           const read = await invoke("world_read", {}) as { details: { ref: unknown } };
-          await invoke("world_edit", { expected: read.details.ref, cubeHeight: 2.8 });
-          await invoke("world_run", { runId: "run:recovered" });
+          await invoke("world_edit", {
+            expected: read.details.ref,
+            targetRef: "entity:cube",
+            frameRef: "frame:world",
+            pose: {
+              position: { x: 0, y: 0, z: 2.8 },
+              rotation: { x: 0, y: 0, z: 0, w: 1 },
+            },
+          });
+          await invoke("world_run", {
+            runId: "run:recovered",
+            programId: "program:free-fall-rigid-v1",
+          });
           responseText = "已纠正并完成";
         },
         async getLastAssistantText() { return responseText; },

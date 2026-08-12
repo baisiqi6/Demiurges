@@ -1,6 +1,6 @@
 import { createProductSessionApi } from "./product-session-api";
 import { createScriptedAgentClientFactory } from "./product-session";
-import { DIAGNOSTIC_RIGID_FIXTURE_ID } from "@demiurges/world";
+import { BALL_VESSEL_FIXTURE_ID } from "@demiurges/world";
 
 const rawPort = process.env.DEMIURGES_GATEWAY_PORT ?? "8787";
 const port = Number(rawPort);
@@ -9,7 +9,7 @@ if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
 }
 
 const api = createProductSessionApi(
-  createScriptedAgentClientFactory(DIAGNOSTIC_RIGID_FIXTURE_ID),
+  createScriptedAgentClientFactory(BALL_VESSEL_FIXTURE_ID),
 );
 const server = Bun.serve({
   hostname: "127.0.0.1",

@@ -1,4 +1,4 @@
-import type { MainModule, MjData, MjModel } from "@mujoco/mujoco";
+import type { MainModule, MjContact, MjData, MjModel } from "@mujoco/mujoco";
 
 import type {
   Entity,
@@ -7,19 +7,28 @@ import type {
   EpisodeEvent,
   EpisodeSample,
   ExplicitInputs,
+  SemanticContactEvidence,
   RuntimeProfile,
   Snapshot,
   WorldProgram,
 } from "../kernel/types";
+import {
+  BALL_REF,
+  BALL_VESSEL_FIXTURE,
+  VESSEL_REF,
+  requireBallVesselSnapshot,
+  requireSnapshotRepresentationIntegrity,
+} from "../artifacts/ball-vessel-fixture";
 import { requireDiagnosticGaussianSplatObservation } from "../artifacts/diagnostic-gaussian-splat";
 import {
   requireDiagnosticRigidCollision,
   requireDiagnosticRigidVisual,
+  requireRegisteredSnapshotIdentity,
 } from "../artifacts/diagnostic-rigid-fixture";
 import { CUBE_REF, deepFreeze, findEntity, FLOOR_REF, isDeepFrozen } from "../kernel/world";
 
-const PROGRAM_ID = "program:falling-cube";
-const PROGRAM_DURATION_SECONDS = 2.5;
+const RIGID_PROGRAM_ID = "program:free-fall-rigid-v1";
+const BALL_VESSEL_PROGRAM_ID = "program:free-fall-ball-vessel-v1";
 const PROGRAM_SAMPLE_RATE_HZ = 30;
 const RUNTIME_PROFILE_ID = "runtime:mujoco-wasm-single-3.11.0";
 const RUNTIME_PROVIDER = "MuJoCo WASM";
@@ -28,10 +37,17 @@ const RUNTIME_TIMESTEP_SECONDS = 1 / 240;
 const RUNTIME_GRAVITY = [0, 0, -9.81] as const;
 
 interface PreparedRun {
+  readonly scenario: "falling-rigid" | "ball-vessel";
   readonly floor: Entity;
-  readonly cube: Entity;
+  readonly target: Entity;
+  readonly vessel?: Entity;
   readonly stepCount: number;
   readonly sampleEverySteps: number;
+}
+
+interface CompiledRun {
+  readonly xml: string;
+  readonly geomOwners: Readonly<Record<string, Entity["ref"]>>;
 }
 
 let modulePromise: Promise<MainModule> | undefined;
@@ -110,7 +126,7 @@ function requireExactOwnKeys(
   }
 }
 
-function requireEntity(entity: Entity): void {
+function requireEntityCommon(entity: Entity): void {
   if (entity.frameRef !== "frame:world") {
     throw new Error(`${entity.ref} 必须使用 frame:world`);
   }
@@ -121,6 +137,13 @@ function requireEntity(entity: Entity): void {
   requireUnitQuaternion(entity.state.pose.rotation, `${entity.ref} rotation`);
   requireFiniteVec(entity.state.linearVelocity, `${entity.ref} linearVelocity`);
   requireFiniteVec(entity.state.angularVelocity, `${entity.ref} angularVelocity`);
+  if (!Number.isFinite(entity.physics.friction) || entity.physics.friction < 0) {
+    throw new Error(`${entity.ref} friction 必须是有限非负数`);
+  }
+}
+
+function requireEntity(entity: Entity): void {
+  requireEntityCommon(entity);
 
   const collision = entity.representations.collision;
   requireExactOwnKeys(collision, `${entity.ref} collision`, ["kind", "halfExtents"]);
@@ -188,9 +211,82 @@ function requireEntity(entity: Entity): void {
     ]);
     requireDiagnosticGaussianSplatObservation(observation);
   }
-  if (!Number.isFinite(entity.physics.friction) || entity.physics.friction < 0) {
-    throw new Error(`${entity.ref} friction 必须是有限非负数`);
+}
+
+const TEST_ONLY_TOP_LID = deepFreeze({
+  partKey: "test-only-top-lid",
+  localPose: {
+    position: [0, 0, 0.65] as const,
+    rotation: { x: 0, y: 0, z: 0, w: 1 },
+  },
+  shape: { kind: "box" as const, halfExtents: [0.5, 0.5, 0.02] as const },
+});
+
+function requireBallVesselRuntimeSnapshot(snapshot: Snapshot): {
+  readonly floor: Entity;
+  readonly vessel: Entity;
+  readonly ball: Entity;
+} {
+  requireSnapshotRepresentationIntegrity(snapshot);
+  const refs = snapshot.entities.map((entity) => entity.ref);
+  if (
+    refs.length !== 3 ||
+    refs[0] !== FLOOR_REF ||
+    refs[1] !== VESSEL_REF ||
+    refs[2] !== BALL_REF
+  ) {
+    throw new Error("ball-vessel Runtime 必须恰好为 floor/vessel/ball");
   }
+  const [floor, vessel, ball] = snapshot.entities as readonly [Entity, Entity, Entity];
+  requireEntity(floor);
+  requireEntityCommon(vessel);
+  requireEntityCommon(ball);
+  const collision = vessel.representations.collision;
+  if (collision.kind !== "compound") {
+    throw new Error("entity:vessel 必须是 compound collision");
+  }
+
+  if (collision.parts.length === BALL_VESSEL_FIXTURE.collision.parts.length) {
+    requireBallVesselSnapshot(snapshot);
+  } else if (collision.parts.length === BALL_VESSEL_FIXTURE.collision.parts.length + 1) {
+    const lid = collision.parts.at(-1);
+    if (JSON.stringify(lid) !== JSON.stringify(TEST_ONLY_TOP_LID)) {
+      throw new Error("closed proxy 只接纳 frozen test-only top lid");
+    }
+    const canonical = deepFreeze({
+      ...snapshot,
+      entities: snapshot.entities.map((entity): Entity => entity.ref === VESSEL_REF
+        ? {
+            ...entity,
+            representations: {
+              ...entity.representations,
+              collision: { kind: "compound", parts: collision.parts.slice(0, -1) },
+            },
+          }
+        : entity),
+    }) as Snapshot;
+    requireBallVesselSnapshot(canonical);
+  } else {
+    throw new Error("vessel compound 必须包含 exact 17 parts 或 test-only closed proxy");
+  }
+
+  if (
+    floor.physics.bodyType !== "static" ||
+    vessel.physics.bodyType !== "static" ||
+    floor.physics.massKg !== 0 ||
+    vessel.physics.massKg !== 0 ||
+    !isZeroVec(floor.state.linearVelocity) ||
+    !isZeroVec(floor.state.angularVelocity) ||
+    !isZeroVec(vessel.state.linearVelocity) ||
+    !isZeroVec(vessel.state.angularVelocity)
+  ) {
+    throw new Error("ball-vessel 要求静态 floor/vessel 使用 0 mass 与 0 velocity");
+  }
+  if (ball.physics.bodyType !== "dynamic") {
+    throw new Error("ball-vessel target 必须是 dynamic ball");
+  }
+  requirePositive(ball.physics.massKg, "entity:ball massKg");
+  return { floor, vessel, ball };
 }
 
 function integerRatio(value: number, label: string): number {
@@ -211,10 +307,15 @@ function prepareRun(
   }
   requirePositive(program.durationSeconds, "durationSeconds");
   requirePositive(program.sampleRateHz, "sampleRateHz");
+  const scenario = program.id === RIGID_PROGRAM_ID
+    ? "falling-rigid"
+    : program.id === BALL_VESSEL_PROGRAM_ID
+      ? "ball-vessel"
+      : null;
   if (
-    program.id !== PROGRAM_ID ||
-    program.targetRef !== CUBE_REF ||
-    program.durationSeconds !== PROGRAM_DURATION_SECONDS ||
+    scenario === null ||
+    program.targetRef !== (scenario === "falling-rigid" ? CUBE_REF : BALL_REF) ||
+    program.durationSeconds !== (scenario === "falling-rigid" ? 2.5 : 3) ||
     program.sampleRateHz !== PROGRAM_SAMPLE_RATE_HZ
   ) {
     throw new Error(`不受支持的 WorldProgram：${program.id}`);
@@ -247,33 +348,45 @@ function prepareRun(
   if (entityRefs.size !== snapshot.entities.length) {
     throw new Error("Snapshot 不能包含重复 EntityRef");
   }
-  if (
-    snapshot.entities.length !== 2 ||
-    !entityRefs.has(FLOOR_REF) ||
-    !entityRefs.has(CUBE_REF)
-  ) {
-    throw new Error("falling-cube Runtime 只支持 entity:floor 与 entity:cube");
+  let floor: Entity;
+  let target: Entity;
+  let vessel: Entity | undefined;
+  if (scenario === "falling-rigid") {
+    requireRegisteredSnapshotIdentity(snapshot);
+    if (
+      snapshot.entities.length !== 2 ||
+      !entityRefs.has(FLOOR_REF) ||
+      !entityRefs.has(CUBE_REF)
+    ) {
+      throw new Error("falling-cube Runtime 只支持 entity:floor 与 entity:cube");
+    }
+    floor = findEntity(snapshot, FLOOR_REF);
+    target = findEntity(snapshot, program.targetRef);
+    requireEntity(floor);
+    requireEntity(target);
+    if (floor.physics.bodyType !== "static" || target.physics.bodyType !== "dynamic") {
+      throw new Error("falling-cube 要求静态地面与动态目标物体");
+    }
+    if (
+      floor.physics.massKg !== 0 ||
+      !isZeroVec(floor.state.linearVelocity) ||
+      !isZeroVec(floor.state.angularVelocity)
+    ) {
+      throw new Error("静态地面必须使用 0 massKg、0 linearVelocity 与 0 angularVelocity");
+    }
+    requirePositive(target.physics.massKg, `${target.ref} massKg`);
+  } else {
+    const prepared = requireBallVesselRuntimeSnapshot(snapshot);
+    floor = prepared.floor;
+    target = prepared.ball;
+    vessel = prepared.vessel;
   }
-
-  const floor = findEntity(snapshot, FLOOR_REF);
-  const cube = findEntity(snapshot, program.targetRef);
-  requireEntity(floor);
-  requireEntity(cube);
-  if (floor.physics.bodyType !== "static" || cube.physics.bodyType !== "dynamic") {
-    throw new Error("falling-cube 要求静态地面与动态目标物体");
-  }
-  if (
-    floor.physics.massKg !== 0 ||
-    !isZeroVec(floor.state.linearVelocity) ||
-    !isZeroVec(floor.state.angularVelocity)
-  ) {
-    throw new Error("静态地面必须使用 0 massKg、0 linearVelocity 与 0 angularVelocity");
-  }
-  requirePositive(cube.physics.massKg, `${cube.ref} massKg`);
 
   return {
+    scenario,
     floor,
-    cube,
+    target,
+    vessel,
     stepCount: integerRatio(
       program.durationSeconds / profile.timestepSeconds,
       "durationSeconds / timestepSeconds",
@@ -305,22 +418,72 @@ function rotateVector(
   ];
 }
 
-function renderMjcf(prepared: PreparedRun, profile: RuntimeProfile): string {
-  const { floor, cube } = prepared;
+function renderMjcf(prepared: PreparedRun, profile: RuntimeProfile): CompiledRun {
+  const { floor, target } = prepared;
   const floorShape = floor.representations.collision;
-  const cubeShape = cube.representations.collision;
+  if (floorShape.kind !== "box") {
+    throw new Error("MuJoCo floor 只接纳 box collision");
+  }
 
-  return `<mujoco model="demiurges-falling-cube">
+  if (prepared.scenario === "falling-rigid") {
+    const targetShape = target.representations.collision;
+    if (targetShape.kind !== "box") {
+      throw new Error("falling-cube MJCF 只接纳 box collision");
+    }
+    return {
+      xml: `<mujoco model="demiurges-falling-cube">
   <compiler angle="radian" alignfree="false"/>
   <option timestep="${xmlNumber(profile.timestepSeconds)}" gravity="${xmlVec(profile.gravity)}"/>
   <worldbody>
     <geom name="floor" type="box" pos="${xmlVec(floor.state.pose.position)}" quat="${xmlVec(quaternionValues(floor))}" size="${xmlVec(floorShape.halfExtents)}" friction="${xmlNumber(floor.physics.friction)} 0.005 0.0001"/>
-    <body name="cube" pos="${xmlVec(cube.state.pose.position)}" quat="${xmlVec(quaternionValues(cube))}">
+    <body name="cube" pos="${xmlVec(target.state.pose.position)}" quat="${xmlVec(quaternionValues(target))}">
       <freejoint name="cube_free" align="false"/>
-      <geom name="cube_geom" type="box" size="${xmlVec(cubeShape.halfExtents)}" mass="${xmlNumber(cube.physics.massKg)}" friction="${xmlNumber(cube.physics.friction)} 0.005 0.0001"/>
+      <geom name="cube_geom" type="box" size="${xmlVec(targetShape.halfExtents)}" mass="${xmlNumber(target.physics.massKg)}" friction="${xmlNumber(target.physics.friction)} 0.005 0.0001"/>
     </body>
   </worldbody>
-</mujoco>`;
+</mujoco>`,
+      geomOwners: { floor: FLOOR_REF, cube_geom: CUBE_REF },
+    };
+  }
+
+  const vessel = prepared.vessel;
+  const vesselShape = vessel?.representations.collision;
+  const ballShape = target.representations.collision;
+  if (!vessel || vesselShape?.kind !== "compound" || ballShape.kind !== "sphere") {
+    throw new Error("ball-vessel MJCF 要求 compound vessel 与 sphere ball");
+  }
+  const geomOwners: Record<string, Entity["ref"]> = {
+    floor: FLOOR_REF,
+    ball_geom: BALL_REF,
+  };
+  const vesselGeoms = vesselShape.parts.map((part) => {
+    const name = `vessel_${part.partKey}`;
+    geomOwners[name] = VESSEL_REF;
+    return `      <geom name="${name}" type="box" pos="${xmlVec(part.localPose.position)}" quat="${xmlVec([
+      part.localPose.rotation.w,
+      part.localPose.rotation.x,
+      part.localPose.rotation.y,
+      part.localPose.rotation.z,
+    ])}" size="${xmlVec(part.shape.halfExtents)}" friction="${xmlNumber(vessel.physics.friction)} 0.005 0.0001"/>`;
+  }).join("\n");
+
+  return {
+    xml: `<mujoco model="demiurges-ball-vessel">
+  <compiler angle="radian" alignfree="false"/>
+  <option timestep="${xmlNumber(profile.timestepSeconds)}" gravity="${xmlVec(profile.gravity)}"/>
+  <worldbody>
+    <geom name="floor" type="box" pos="${xmlVec(floor.state.pose.position)}" quat="${xmlVec(quaternionValues(floor))}" size="${xmlVec(floorShape.halfExtents)}" friction="${xmlNumber(floor.physics.friction)} 0.005 0.0001"/>
+    <body name="vessel" pos="${xmlVec(vessel.state.pose.position)}" quat="${xmlVec(quaternionValues(vessel))}">
+${vesselGeoms}
+    </body>
+    <body name="ball" pos="${xmlVec(target.state.pose.position)}" quat="${xmlVec(quaternionValues(target))}">
+      <joint name="ball_free" type="free" damping="0.05"/>
+      <geom name="ball_geom" type="sphere" size="${xmlNumber(ballShape.radius)}" mass="${xmlNumber(target.physics.massKg)}" friction="${xmlNumber(target.physics.friction)} 0.005 0.0001"/>
+    </body>
+  </worldbody>
+</mujoco>`,
+    geomOwners,
+  };
 }
 
 export function createFallingCubeMjcf(
@@ -328,7 +491,7 @@ export function createFallingCubeMjcf(
   program: WorldProgram,
   profile: RuntimeProfile,
 ): string {
-  return renderMjcf(prepareRun(snapshot, program, profile), profile);
+  return renderMjcf(prepareRun(snapshot, program, profile), profile).xml;
 }
 
 function copyDynamicState(data: MjData): EntityState {
@@ -354,11 +517,11 @@ function copyDynamicState(data: MjData): EntityState {
   return state;
 }
 
-function applyInitialVelocity(data: MjData, cube: Entity): void {
+function applyInitialVelocity(data: MjData, target: Entity): void {
   const qvel = data.qvel as { [index: number]: number };
-  const [vx, vy, vz] = cube.state.linearVelocity;
-  const rotation = cube.state.pose.rotation;
-  const localAngularVelocity = rotateVector(cube.state.angularVelocity, {
+  const [vx, vy, vz] = target.state.linearVelocity;
+  const rotation = target.state.pose.rotation;
+  const localAngularVelocity = rotateVector(target.state.angularVelocity, {
     x: -rotation.x,
     y: -rotation.y,
     z: -rotation.z,
@@ -368,13 +531,100 @@ function applyInitialVelocity(data: MjData, cube: Entity): void {
   [qvel[3], qvel[4], qvel[5]] = localAngularVelocity;
 }
 
+function createGeomOwnerMap(
+  model: MjModel,
+  compiled: CompiledRun,
+): ReadonlyMap<number, Entity["ref"]> {
+  const result = new Map<number, Entity["ref"]>();
+  for (const [name, owner] of Object.entries(compiled.geomOwners)) {
+    const geom = model.geom(name);
+    try {
+      if (!Number.isSafeInteger(geom.id) || geom.id < 0 || result.has(geom.id)) {
+        throw new Error(`MuJoCo geom owner map 非法：${name}`);
+      }
+      result.set(geom.id, owner);
+    } finally {
+      geom.delete();
+    }
+  }
+  if (result.size !== Object.keys(compiled.geomOwners).length) {
+    throw new Error("MuJoCo geom owner map 不完整");
+  }
+  return result;
+}
+
+function contactEvidence(
+  contact: MjContact,
+  owners: ReadonlyMap<number, Entity["ref"]>,
+  targetRef: Entity["ref"],
+): SemanticContactEvidence | null {
+  const firstOwner = owners.get(contact.geom1);
+  const secondOwner = owners.get(contact.geom2);
+  if (!firstOwner || !secondOwner) {
+    throw new Error("MuJoCo contact geom 缺少 EntityRef owner");
+  }
+  if (firstOwner === secondOwner) return null;
+  const targetIsFirst = firstOwner === targetRef;
+  const targetIsSecond = secondOwner === targetRef;
+  if (!targetIsFirst && !targetIsSecond) return null;
+
+  const frame = contact.frame as ArrayLike<number>;
+  const direction = targetIsFirst ? -1 : 1;
+  const normal = [
+    direction * frame[0],
+    direction * frame[1],
+    direction * frame[2],
+  ] as const;
+  requireFiniteVec(normal, "MuJoCo contact normal");
+  const norm = Math.hypot(...normal);
+  if (Math.abs(norm - 1) > 1e-6) {
+    throw new Error("MuJoCo contact normal 必须是单位 world-space vector");
+  }
+  if (!Number.isFinite(contact.dist)) {
+    throw new Error("MuJoCo contact distance 必须有限");
+  }
+  return {
+    targetRef,
+    otherRef: targetIsFirst ? secondOwner : firstOwner,
+    normalOnTargetWorld: normal,
+    penetrationMeters: Math.max(0, -contact.dist),
+  };
+}
+
+function readSemanticContacts(
+  data: MjData,
+  owners: ReadonlyMap<number, Entity["ref"]>,
+  targetRef: Entity["ref"],
+): readonly SemanticContactEvidence[] {
+  if (!Number.isSafeInteger(data.ncon) || data.ncon < 0 || data.ncon > data.contact.size()) {
+    throw new Error("MuJoCo contact count 非法");
+  }
+  const contacts: SemanticContactEvidence[] = [];
+  for (let index = 0; index < data.ncon; index += 1) {
+    const contact = data.contact.get(index);
+    if (!contact) throw new Error(`MuJoCo contact[${index}] 缺失`);
+    try {
+      const evidence = contactEvidence(contact, owners, targetRef);
+      if (evidence) contacts.push(evidence);
+    } finally {
+      contact.delete();
+    }
+  }
+  return contacts;
+}
+
 function createSample(
   snapshot: Snapshot,
   targetRef: Entity["ref"],
   data: MjData,
+  contacts?: readonly SemanticContactEvidence[],
+  timeSeconds: number = data.time,
 ): EpisodeSample {
   if (!Number.isFinite(data.time) || !Number.isInteger(data.ncon) || data.ncon < 0) {
     throw new Error("MuJoCo observation 包含非有限 time 或无效 contact count");
+  }
+  if (!Number.isFinite(timeSeconds) || Math.abs(timeSeconds - data.time) > 1e-9) {
+    throw new Error("MuJoCo sample time 与受信采样网格不一致");
   }
   const states = Object.fromEntries(
     snapshot.entities.map((entity) => [
@@ -383,11 +633,12 @@ function createSample(
     ]),
   ) as Record<Entity["ref"], EntityState>;
 
-  return {
-    timeSeconds: data.time,
+  const sample = {
+    timeSeconds,
     states,
-    contactCount: data.ncon,
+    contactCount: contacts?.length ?? data.ncon,
   };
+  return contacts === undefined ? sample : { ...sample, contacts };
 }
 
 function createTerminalSnapshot(
@@ -444,49 +695,70 @@ export async function runFallingCube(
 ): Promise<Episode> {
   const key = executionKey(runKey(inputs), snapshotKey(snapshot));
   const prepared = prepareRun(snapshot, program, profile);
-  const modelXml = renderMjcf(prepared, profile);
+  const compiled = renderMjcf(prepared, profile);
   const mujoco = await getMujoco();
   let model: MjModel | undefined;
   let data: MjData | undefined;
 
   try {
-    model = mujoco.MjModel.from_xml_string(modelXml);
+    model = mujoco.MjModel.from_xml_string(compiled.xml);
     data = new mujoco.MjData(model);
-    applyInitialVelocity(data, prepared.cube);
+    const geomOwners = createGeomOwnerMap(model, compiled);
+    applyInitialVelocity(data, prepared.target);
     mujoco.mj_forward(model, data);
 
-    const samples: EpisodeSample[] = [createSample(snapshot, program.targetRef, data)];
+    let contacts = prepared.scenario === "ball-vessel"
+      ? readSemanticContacts(data, geomOwners, program.targetRef)
+      : undefined;
+    const samples: EpisodeSample[] = [
+      createSample(snapshot, program.targetRef, data, contacts, 0),
+    ];
     const events: EpisodeEvent[] = [];
-    let contactRecorded = data.ncon > 0;
+    let contactRecorded = contacts ? contacts.length > 0 : data.ncon > 0;
     if (contactRecorded) {
       events.push({
         type: "contact-began",
         timeSeconds: data.time,
-        entities: [program.targetRef, FLOOR_REF],
+        entities: [program.targetRef, contacts?.[0]?.otherRef ?? FLOOR_REF],
       });
     }
 
     for (let step = 1; step <= prepared.stepCount; step += 1) {
       mujoco.mj_step(model, data);
       mujoco.mj_forward(model, data);
+      contacts = prepared.scenario === "ball-vessel"
+        ? readSemanticContacts(data, geomOwners, program.targetRef)
+        : undefined;
 
-      if (!contactRecorded && data.ncon > 0) {
+      if (!contactRecorded && (contacts ? contacts.length > 0 : data.ncon > 0)) {
         events.push({
           type: "contact-began",
           timeSeconds: data.time,
-          entities: [program.targetRef, FLOOR_REF],
+          entities: [program.targetRef, contacts?.[0]?.otherRef ?? FLOOR_REF],
         });
         contactRecorded = true;
       }
 
       if (step % prepared.sampleEverySteps === 0) {
-        samples.push(createSample(snapshot, program.targetRef, data));
+        samples.push(createSample(
+          snapshot,
+          program.targetRef,
+          data,
+          contacts,
+          samples.length / program.sampleRateHz,
+        ));
       }
     }
 
     const lastSample = samples.at(-1);
     if (!lastSample || Math.abs(lastSample.timeSeconds - data.time) > 1e-9) {
-      samples.push(createSample(snapshot, program.targetRef, data));
+      samples.push(createSample(
+        snapshot,
+        program.targetRef,
+        data,
+        contacts,
+        program.durationSeconds,
+      ));
     }
 
     const terminalState = samples.at(-1)?.states[program.targetRef];

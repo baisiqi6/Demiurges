@@ -13,11 +13,11 @@ import type { Entity, Episode } from "../kernel/types";
 import { runFallingCube } from "../runtime-mujoco/run-falling-cube";
 import {
   deriveLandingSuccessContract,
-  evaluateLanding,
+  evaluateEpisode,
   LANDING_EVALUATOR_ID,
-} from "./evaluate-landing";
+} from "./evaluate-episode";
 
-describe("landing evaluator", () => {
+describe("episode evaluator", () => {
   test("Success Contract 的 center height 从 terminal collision proxy 推导", async () => {
     const episode = await runFallingCube(
       createInitialSnapshot(2),
@@ -29,7 +29,7 @@ describe("landing evaluator", () => {
 
     expect(contract.targetRef).toBe(CUBE_REF);
     expect(contract.expectedCenterHeight).toBeCloseTo(0.25, 12);
-    expect(evaluateLanding(episode, contract).passed).toBe(true);
+    expect(evaluateEpisode(episode, contract).passed).toBe(true);
     expect(isDeepFrozen(contract)).toBe(true);
   });
 
@@ -40,8 +40,8 @@ describe("landing evaluator", () => {
       MUJOCO_PROFILE,
       deepFreeze({ runId: "run:evaluation-record" }),
     );
-    const passed = evaluateLanding(episode, LANDING_SUCCESS_CONTRACT);
-    const changedContract = evaluateLanding(episode, deepFreeze({
+    const passed = evaluateEpisode(episode, LANDING_SUCCESS_CONTRACT);
+    const changedContract = evaluateEpisode(episode, deepFreeze({
       ...LANDING_SUCCESS_CONTRACT,
       expectedCenterHeight: 0.5,
     }));
@@ -85,7 +85,7 @@ describe("landing evaluator", () => {
       },
     }) as Episode;
 
-    expect(() => evaluateLanding(overflowEpisode, LANDING_SUCCESS_CONTRACT)).toThrow(
+    expect(() => evaluateEpisode(overflowEpisode, LANDING_SUCCESS_CONTRACT)).toThrow(
       "terminal linear speed 必须是有限数值",
     );
   });
@@ -110,6 +110,6 @@ describe("landing evaluator", () => {
     });
     Object.freeze(contract);
 
-    expect(() => evaluateLanding(episode, contract as never)).toThrow("plain data");
+    expect(() => evaluateEpisode(episode, contract as never)).toThrow("plain data");
   });
 });
