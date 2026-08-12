@@ -474,6 +474,50 @@
         "ttl_minutes": 120,
         "released_at": "2026-08-12T03:30:01Z"
       }
+    },
+    {
+      "id": "DH-010.1",
+      "title": "修复跨引擎 Evaluation 数值一致性",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-12",
+      "dependencies": [
+        "DH-010"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "Bun/JavaScriptCore Gateway 产生的合法 Evaluation projection 可被 Chromium/V8 的共享 codec 接受；只允许显式 numeric equivalence 内的连续数值末位差，identity、passed、离散 metrics、contract threshold 与 authority drift 继续 fail closed；focused/full tests、typecheck、build、Chromium、diff 与 EXharness 通过。",
+      "verification": "Round 2 fresh review approved; product aggregate 299414f7a4c78b1979ff1e73468b4c822286a9bb5bf71276a128e377f7271676; 153/0/2866, typecheck/build/diff/EXharness and scripted Chromium 91-frame PASS; bounded V8 probe authority independently verified.",
+      "handoff": "Round 1 P1 remediated. Fresh Round 2 reviewer must independently verify bounded parent/probe lifecycle plus original cross-engine numeric/evidence authority; no P0/P1 before closeout.",
+      "plan_path": "docs/project-harness/tasks/DH-010.1/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-12",
+        "branch": "agent/codex/DH-010.1"
+      },
+      "artifacts": {
+        "plan": "docs/project-harness/tasks/DH-010.1/plan.md",
+        "branch": "agent/codex/DH-010.1",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "fresh-independent-reviewer-round2",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-12",
+        "summary": "Closeout packet approved from the same frozen Round 2 verdict: P0/P1/P2 none; aggregate 299414f7...; all required gates and bounded lifecycle probes pass."
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "codex-dh0101-20260811-1",
+        "acquired_at": "2026-08-12T05:55:52Z",
+        "expires_at": "2026-08-12T07:55:52Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-12T06:05:01Z"
+      }
     }
   ]
 }

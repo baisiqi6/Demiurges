@@ -641,3 +641,29 @@ Independent review：
 - `harnessctl mark-done` 已将 DH-010 更新为 `done / closed`，清空 owner 与 current task pointer，并于 `2026-08-12T03:30:01Z` 释放 lease；
 - closeout verification 继续绑定 frozen product digest `85534951b9146283ffbceddec652a0440d0d38a7543ad4828a86eb42b5df1c57`、`149/0/2,857`、typecheck/build/diff/checklist/artifact hashes 与两路 adversarial review；
 - 当前仅获授权提交并推送 `agent/codex/DH-010`；未授权 PR、合并 `main`、tag 或 deploy。
+
+## 2026-08-11 — DH-010.1 跨引擎 Evaluation 收尾候选
+
+- 真实浏览器发现 Bun/JavaScriptCore producer 与 Chromium/V8 verifier 对同一 `Math.hypot` 结果存在约 `5.17e-26` 的末位差，旧 codec 因逐位相等错误拒绝合法 PASS projection；
+- 新跨引擎 regression 先在旧实现上以 `Evaluation 与受信 evaluator 结果不一致` 明确 RED，再由共享 evaluator 将派生连续数值 canonicalize 为 15 位有效数字；codec 没有增加 tolerance bypass，transport 仍需与受信 canonical Evaluation 完全相等；
+- V8 已接受真实 Bun ball-vessel projection，并拒绝被改写 `1e-12` relative 的 canonical metric；full gate 为 `151/0/2,863`，typecheck/build/diff/EXharness 与 scripted Chromium 91-frame playback/PASS 均通过；
+- frozen product aggregate 为 `6bc13dfec1c33927105bfa29fbc47ac2f95dc3d47a60732ecb1ccc98ebb20465`，详细证据见 `docs/project-harness/tasks/DH-010.1/progress.md`；当前等待 independent reviewer，未 closeout、mark-done、commit 或 push。
+
+## 2026-08-11 — DH-010.1 Round 1 probe boundedness remediation
+
+- fresh reviewer 在 aggregate `6bc13dfe...` 上确认产品数值语义、跨引擎路径与全部 authority 反例通过，但发现 Node/Vite probe 无 wall-clock deadline，给出 `changes_requested / P1=1 / may_closeout=no`；
+- remediation 先以 hung child missing runner 进入 RED，再加入 2 MB UTF-8 input budget、5 秒 parent 总 deadline、`SIGKILL + await reaping`、4 秒 probe stdin/create/load/close step deadline 与实际 hung-child regression；
+- full gate 更新为 `153/0/2,866`，typecheck/build/diff/EXharness 通过；新 aggregate `299414f7a4c78b1979ff1e73468b4c822286a9bb5bf71276a128e377f7271676` 进入 fresh Round 2；未 closeout、mark-done、commit 或 push。
+
+## 2026-08-11 — DH-010.1 Round 2 fresh review approved
+
+- fresh reviewer 在 frozen aggregate `299414f7...` 上确认起止 branch/HEAD/status/digest 不漂移；
+- focused `14/0/41`、full `153/0/2,866`、typecheck/build/diff/EXharness 均独立通过；
+- reviewer 实际确认 hung Node child 被 `SIGKILL` 并 await 回收，2 MB UTF-8 budget 与 4 秒 step / 5 秒 total deadline 生效，合法/篡改跨引擎路径符合预期；
+- verdict 为 `approved / P0=P1=P2=0 / may_closeout=yes`。Operator 可执行正常 closeout 与 mark-done；本结论不授权 merge `main`、tag、deploy 或真实 provider prompt。
+
+## 2026-08-11 — DH-010.1 Operator close completed
+
+- closeout packet 后重新登记 frozen Round 2 approval，正常 `mark-done` 成功；第一次缺少 closeout-phase approval 的 mark-done 被护栏拒绝，未使用 force override；
+- CLOSE event 为 `evt-20260812T060501Z-9debaaa1`，DH-010.1 已为 `done / closed`，lease 已释放，current task pointer 已清空；
+- 后续 authority 仅覆盖 commit + push `agent/codex/DH-010.1` 并回查 remote SHA；不包含 merge `main`、tag、deploy 或真实 provider prompt。

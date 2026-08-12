@@ -1,21 +1,21 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "generated_at": "2026-08-12T03:30:55Z",
+  "generated_at": "2026-08-12T06:05:18Z",
   "source": {
     "checklist_path": "docs/project-harness/harness-checklist.json",
-    "checklist_sha256": "6f2d66f96ff7d6b465e35e44828949a23b1d0f3a26bc3d51513bb7e38573bc10"
+    "checklist_sha256": "f64e29d3620ee954a762a10b5bbacc0349685234c244504c1d466ad43434a439"
   },
   "current_status": "",
   "current_item": null,
   "checklist_summary": {
     "todo": 0,
     "doing": 0,
-    "done": 11,
+    "done": 12,
     "blocked": 0
   },
   "workflow_summary": {
-    "closed": 11
+    "closed": 12
   },
   "paths": {
     "scope": "docs/project-harness/scope.md",
@@ -55,49 +55,68 @@
   "recent_events": [
     {
       "actor": "codex",
-      "artifacts": [],
+      "artifacts": [
+        "docs/project-harness/current/review-packet.md"
+      ],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-12T02:51:49Z",
-      "id": "evt-20260812T025149Z-173dc63a",
-      "idempotency_key": "LEASE:DH-010:renewed:codex",
-      "metadata": {
-        "force_reason": null,
-        "session": "dh010-remediation-20260811"
-      },
+      "created_at": "2026-08-12T05:46:15Z",
+      "id": "evt-20260812T054615Z-08a75a20",
+      "idempotency_key": "REVIEW:DH-010.1:requested:codex",
+      "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
-      "status": "renewed",
-      "summary": "codex renewed lease for DH-010",
+      "status": "requested",
+      "summary": "Review requested for DH-010.1",
+      "target": "independent-reviewer",
+      "task": "DH-010.1",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260812T054615Z-08a75a20 task=DH-010.1 actor=codex target=independent-reviewer status=requested artifacts=docs/project-harness/current/review-packet.md"
+    },
+    {
+      "actor": "independent-reviewer-round1",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-12T05:55:48Z",
+      "id": "evt-20260812T055548Z-1199712a",
+      "idempotency_key": "REVIEW:DH-010.1:changes_requested:independent-reviewer-round1",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "changes_requested",
+      "summary": "P1: Node/Vite cross-engine probe lifecycle lacked wall-clock deadline, input byte budget and hung-child regression; digest 6bc13d..., all functional/evidence probes otherwise passed.",
       "target": "codex",
-      "task": "DH-010",
-      "type": "LEASE",
-      "visible_header": "[LEASE] id=evt-20260812T025149Z-173dc63a task=DH-010 actor=codex target=codex status=renewed"
+      "task": "DH-010.1",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260812T055548Z-1199712a task=DH-010.1 actor=independent-reviewer-round1 target=codex status=changes_requested"
     },
     {
       "actor": "codex",
       "artifacts": [],
-      "branch": null,
+      "branch": "agent/codex/DH-010.1",
       "causation_id": null,
-      "created_at": "2026-08-12T02:55:43Z",
-      "id": "evt-20260812T025543Z-474abcd2",
-      "idempotency_key": "LEASE:DH-010:renewed:codex",
+      "created_at": "2026-08-12T05:55:52Z",
+      "id": "evt-20260812T055552Z-44c7121d",
+      "idempotency_key": "ACCEPT:DH-010.1:running:codex",
       "metadata": {
         "force_reason": null,
-        "session": "dh010-remediation-20260811"
+        "session": "codex-dh0101-20260811-1"
       },
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
-      "status": "renewed",
-      "summary": "codex renewed lease for DH-010",
+      "status": "running",
+      "summary": "codex accepted DH-010.1",
       "target": "codex",
-      "task": "DH-010",
-      "type": "LEASE",
-      "visible_header": "[LEASE] id=evt-20260812T025543Z-474abcd2 task=DH-010 actor=codex target=codex status=renewed"
+      "task": "DH-010.1",
+      "type": "ACCEPT",
+      "visible_header": "[ACCEPT] id=evt-20260812T055552Z-44c7121d task=DH-010.1 actor=codex target=codex status=running branch=agent/codex/DH-010.1"
     },
     {
       "actor": "codex",
@@ -106,62 +125,40 @@
       ],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-12T02:55:43Z",
-      "id": "evt-20260812T025543Z-210b1368",
-      "idempotency_key": "REVIEW:DH-010:requested:codex",
+      "created_at": "2026-08-12T05:56:55Z",
+      "id": "evt-20260812T055655Z-64f4c06d",
+      "idempotency_key": "REVIEW:DH-010.1:requested:codex",
       "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "requested",
-      "summary": "Review requested for DH-010",
-      "target": "cross-review-sol-max+k3-max-vessel-stale-r1",
-      "task": "DH-010",
+      "summary": "Review requested for DH-010.1",
+      "target": "fresh-independent-reviewer-round2",
+      "task": "DH-010.1",
       "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260812T025543Z-210b1368 task=DH-010 actor=codex target=cross-review-sol-max+k3-max-vessel-stale-r1 status=requested artifacts=docs/project-harness/current/review-packet.md"
+      "visible_header": "[REVIEW] id=evt-20260812T055655Z-64f4c06d task=DH-010.1 actor=codex target=fresh-independent-reviewer-round2 status=requested artifacts=docs/project-harness/current/review-packet.md"
     },
     {
-      "actor": "cross-review-sol-max+k3-max-vessel-stale-r1",
+      "actor": "fresh-independent-reviewer-round2",
       "artifacts": [],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-12T03:25:02Z",
-      "id": "evt-20260812T032502Z-041ed266",
-      "idempotency_key": "REVIEW:DH-010:approved:cross-review-sol-max+k3-max-vessel-stale-r1",
+      "created_at": "2026-08-12T06:04:52Z",
+      "id": "evt-20260812T060452Z-a08a9f36",
+      "idempotency_key": "REVIEW:DH-010.1:approved:fresh-independent-reviewer-round2",
       "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "approved",
-      "summary": "Digest 85534951: two fresh isolated paths approved. Kimi K3 Max: 149/0/2857 + 42/42 probes; Sol Max: 149/0 and bounded authority probes; both end frozen identity pass, P0/P1=0. Evidence phase6-vessel-physics-stale-ref-cross-review-evidence.md. Closeout allowed but not executed.",
+      "summary": "Fresh Round 2 approved: P0/P1/P2 none; aggregate 299414f7... stable; focused 14/0/41, full 153/0/2866, typecheck/build/diff/EXharness pass; actual hung child SIGKILL+reaping, UTF-8 budget and cross-engine authority verified.",
       "target": "codex",
-      "task": "DH-010",
+      "task": "DH-010.1",
       "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260812T032502Z-041ed266 task=DH-010 actor=cross-review-sol-max+k3-max-vessel-stale-r1 target=codex status=approved"
-    },
-    {
-      "actor": "cross-review-sol-max+k3-max-vessel-stale-r1",
-      "artifacts": [
-        "docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-cross-review-evidence.md"
-      ],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-12T03:25:25Z",
-      "id": "evt-20260812T032525Z-72a5de95",
-      "idempotency_key": "REVIEW:DH-010:approved:cross-review-sol-max+k3-max-vessel-stale-r1",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "approved",
-      "summary": "Digest 85534951: two fresh isolated paths approved. Kimi K3 Max: 149/0/2857 + 42/42 probes; Sol Max: 149/0 and bounded authority probes; both end frozen identity pass, P0/P1=0. Closeout allowed but not executed.",
-      "target": "codex",
-      "task": "DH-010",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260812T032525Z-72a5de95 task=DH-010 actor=cross-review-sol-max+k3-max-vessel-stale-r1 target=codex status=approved artifacts=docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-cross-review-evidence.md"
+      "visible_header": "[REVIEW] id=evt-20260812T060452Z-a08a9f36 task=DH-010.1 actor=fresh-independent-reviewer-round2 target=codex status=approved"
     },
     {
       "actor": "codex",
@@ -170,53 +167,49 @@
       ],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-12T03:29:51Z",
-      "id": "evt-20260812T032951Z-41553ca8",
-      "idempotency_key": "RESULT:DH-010:closeout_requested:codex",
+      "created_at": "2026-08-12T06:04:52Z",
+      "id": "evt-20260812T060452Z-6393add1",
+      "idempotency_key": "RESULT:DH-010.1:closeout_requested:codex",
       "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "closeout_requested",
-      "summary": "Closeout requested for DH-010",
-      "target": "cross-review-sol-max+k3-max-vessel-stale-r1",
-      "task": "DH-010",
+      "summary": "Closeout requested for DH-010.1",
+      "target": "fresh-independent-reviewer-round2",
+      "task": "DH-010.1",
       "type": "RESULT",
-      "visible_header": "[RESULT] id=evt-20260812T032951Z-41553ca8 task=DH-010 actor=codex target=cross-review-sol-max+k3-max-vessel-stale-r1 status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
+      "visible_header": "[RESULT] id=evt-20260812T060452Z-6393add1 task=DH-010.1 actor=codex target=fresh-independent-reviewer-round2 status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
     },
     {
-      "actor": "cross-review-sol-max+k3-max-vessel-stale-r1",
-      "artifacts": [
-        "docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-cross-review-evidence.md"
-      ],
+      "actor": "fresh-independent-reviewer-round2",
+      "artifacts": [],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-12T03:29:51Z",
-      "id": "evt-20260812T032951Z-14ecd452",
-      "idempotency_key": "REVIEW:DH-010:approved:cross-review-sol-max+k3-max-vessel-stale-r1",
+      "created_at": "2026-08-12T06:05:01Z",
+      "id": "evt-20260812T060501Z-a4ee4d8d",
+      "idempotency_key": "REVIEW:DH-010.1:approved:fresh-independent-reviewer-round2",
       "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "approved",
-      "summary": "Final frozen digest 85534951 was independently approved by Kimi K3 Max and GPT-5.6 Sol Max; P0/P1=0, all required gates/probes pass, may_closeout=yes.",
+      "summary": "Closeout packet approved from the same frozen Round 2 verdict: P0/P1/P2 none; aggregate 299414f7...; all required gates and bounded lifecycle probes pass.",
       "target": "codex",
-      "task": "DH-010",
+      "task": "DH-010.1",
       "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260812T032951Z-14ecd452 task=DH-010 actor=cross-review-sol-max+k3-max-vessel-stale-r1 target=codex status=approved artifacts=docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-cross-review-evidence.md"
+      "visible_header": "[REVIEW] id=evt-20260812T060501Z-a4ee4d8d task=DH-010.1 actor=fresh-independent-reviewer-round2 target=codex status=approved"
     },
     {
-      "actor": "codex",
-      "artifacts": [
-        "docs/project-harness/current/closeout-packet.md"
-      ],
+      "actor": "operator",
+      "artifacts": [],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-12T03:30:01Z",
-      "id": "evt-20260812T033001Z-6c714404",
-      "idempotency_key": "CLOSE:DH-010:done:codex",
+      "created_at": "2026-08-12T06:05:01Z",
+      "id": "evt-20260812T060501Z-9debaaa1",
+      "idempotency_key": "CLOSE:DH-010.1:done:operator",
       "metadata": {
         "force_reason": null
       },
@@ -225,11 +218,11 @@
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "done",
-      "summary": "DH-010 curved-vessel vertical slice independently approved and closed.",
+      "summary": "operator closed DH-010.1",
       "target": null,
-      "task": "DH-010",
+      "task": "DH-010.1",
       "type": "CLOSE",
-      "visible_header": "[CLOSE] id=evt-20260812T033001Z-6c714404 task=DH-010 actor=codex status=done artifacts=docs/project-harness/current/closeout-packet.md"
+      "visible_header": "[CLOSE] id=evt-20260812T060501Z-9debaaa1 task=DH-010.1 actor=operator status=done"
     }
   ]
 }

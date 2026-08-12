@@ -26,11 +26,18 @@ const TAIL_TIMESTAMP_TOLERANCE_SECONDS = 1e-9;
 const CONTACT_NORMAL_TOLERANCE = 1e-6;
 const SUPPORT_WORLD_UP_DOT_MINIMUM = 0.5;
 const RIM_CLEARANCE_METERS = 0.005;
+const EVALUATION_NUMBER_SIGNIFICANT_DIGITS = 15;
 
 function requireFinite(value: number, label: string): void {
   if (!Number.isFinite(value)) {
     throw new Error(`${label} 必须是有限数值`);
   }
+}
+
+function canonicalEvaluationNumber(value: number, label: string): number {
+  requireFinite(value, label);
+  const rounded = Number(value.toPrecision(EVALUATION_NUMBER_SIGNIFICANT_DIGITS));
+  return Object.is(rounded, -0) ? 0 : rounded;
 }
 
 function projectedHalfHeight(
@@ -63,9 +70,10 @@ export function deriveLandingSuccessContract(episode: Episode): LandingSuccessCo
   const floorTop =
     floor.state.pose.position[2] +
     projectedHalfHeight(floorShape.halfExtents, floor.state.pose.rotation);
-  const expectedCenterHeight =
-    floorTop + projectedHalfHeight(targetShape.halfExtents, target.state.pose.rotation);
-  requireFinite(expectedCenterHeight, "collision-derived expectedCenterHeight");
+  const expectedCenterHeight = canonicalEvaluationNumber(
+    floorTop + projectedHalfHeight(targetShape.halfExtents, target.state.pose.rotation),
+    "collision-derived expectedCenterHeight",
+  );
 
   return deepFreeze({
     id: "success:stable-on-floor",
@@ -259,11 +267,12 @@ export function deriveStableInsideVesselSuccessContract(
   ) {
     throw new Error("stable-inside-vessel evaluator 需要 sphere target 与 vessel semantic");
   }
-  const maximumOffset =
+  const maximumOffset = canonicalEvaluationNumber(
     container.representations.semantic.innerEnvelope.radiusMeters -
-    target.representations.collision.radius -
-    0.01;
-  requireFinite(maximumOffset, "stable-inside-vessel maxHorizontalOffsetMeters");
+      target.representations.collision.radius -
+      0.01,
+    "stable-inside-vessel maxHorizontalOffsetMeters",
+  );
   if (maximumOffset < 0) throw new Error("vessel inner envelope 不能容纳 target sphere");
   return deepFreeze({
     id: "success:stable-inside-vessel",
@@ -334,15 +343,28 @@ function evaluateStableInsideVessel(
     }
     const localCenter = stateInContainerFrame(targetState, containerState);
     localCenter.forEach((value, axis) => requireFinite(value, `tail local center[${axis}]`));
-    const horizontalOffset = Math.hypot(localCenter[0], localCenter[1]);
-    const speed = Math.hypot(...requireDenseFiniteVec3(
-      targetState.linearVelocity,
-      `tail sample[${sampleIndex}].linearVelocity`,
-    ));
-    const ballBottom = localCenter[2] - targetCollision.radius;
-    const ballTop = localCenter[2] + targetCollision.radius;
-    const floorDistanceError = Math.abs(
-      ballBottom - semantic.innerEnvelope.innerFloorZMeters,
+    const horizontalOffset = canonicalEvaluationNumber(
+      Math.hypot(localCenter[0], localCenter[1]),
+      `tail horizontal offset[${sampleIndex}]`,
+    );
+    const speed = canonicalEvaluationNumber(
+      Math.hypot(...requireDenseFiniteVec3(
+        targetState.linearVelocity,
+        `tail sample[${sampleIndex}].linearVelocity`,
+      )),
+      `tail linear speed[${sampleIndex}]`,
+    );
+    const ballBottom = canonicalEvaluationNumber(
+      localCenter[2] - targetCollision.radius,
+      `tail ball bottom[${sampleIndex}]`,
+    );
+    const ballTop = canonicalEvaluationNumber(
+      localCenter[2] + targetCollision.radius,
+      `tail ball top[${sampleIndex}]`,
+    );
+    const floorDistanceError = canonicalEvaluationNumber(
+      Math.abs(ballBottom - semantic.innerEnvelope.innerFloorZMeters),
+      `tail floor distance error[${sampleIndex}]`,
     );
     [horizontalOffset, speed, ballBottom, ballTop, floorDistanceError].forEach(
       (value, index) => requireFinite(value, `tail derived metric[${sampleIndex}][${index}]`),
@@ -436,12 +458,18 @@ export function evaluateEpisode(
   requireFinite(vx, "terminal linearVelocity.x");
   requireFinite(vy, "terminal linearVelocity.y");
   requireFinite(vz, "terminal linearVelocity.z");
-  const terminalLinearSpeed = Math.hypot(vx, vy, vz);
-  requireFinite(terminalLinearSpeed, "terminal linear speed");
-  const terminalCenterHeight = target.state.pose.position[2];
-  requireFinite(terminalCenterHeight, "terminal center height");
-  const heightError = Math.abs(terminalCenterHeight - contract.expectedCenterHeight);
-  requireFinite(heightError, "terminal height error");
+  const terminalLinearSpeed = canonicalEvaluationNumber(
+    Math.hypot(vx, vy, vz),
+    "terminal linear speed",
+  );
+  const terminalCenterHeight = canonicalEvaluationNumber(
+    target.state.pose.position[2],
+    "terminal center height",
+  );
+  const heightError = canonicalEvaluationNumber(
+    Math.abs(terminalCenterHeight - contract.expectedCenterHeight),
+    "terminal height error",
+  );
 
   return deepFreeze({
     id: `evaluation:${episode.id.slice("episode:".length)}:${landingContractKey(contract)}`,

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { resolve } from "node:path";
 
 import { RuntimeMvpHost } from "./host/runtime-mvp-host";
 import { BALL_VESSEL_FIXTURE_ID } from "./artifacts/ball-vessel-fixture";
@@ -61,7 +62,118 @@ async function validBallVesselProjection() {
   };
 }
 
+const MAX_V8_PROBE_INPUT_BYTES = 2_000_000;
+const V8_PROBE_TIMEOUT_MS = 5_000;
+
+async function runNodeV8Probe(
+  projection: unknown,
+  command: readonly string[],
+  timeoutMs = V8_PROBE_TIMEOUT_MS,
+) {
+  const input = JSON.stringify(projection);
+  if (new TextEncoder().encode(input).byteLength > MAX_V8_PROBE_INPUT_BYTES) {
+    throw new Error(`V8 probe input 不能超过 ${MAX_V8_PROBE_INPUT_BYTES} bytes`);
+  }
+  const repositoryRoot = resolve(import.meta.dir, "../../..");
+  const child = Bun.spawn(command, {
+    cwd: repositoryRoot,
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const stdoutPromise = new Response(child.stdout).text();
+  const stderrPromise = new Response(child.stderr).text();
+  child.stdin.write(input);
+  child.stdin.end();
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const outcome = await Promise.race([
+    child.exited.then((exitCode) => ({ kind: "exited" as const, exitCode })),
+    new Promise<{ readonly kind: "timeout" }>((resolveTimeout) => {
+      timeoutHandle = setTimeout(() => resolveTimeout({ kind: "timeout" }), timeoutMs);
+    }),
+  ]);
+  if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+
+  if (outcome.kind === "timeout") {
+    child.kill("SIGKILL");
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      stdoutPromise,
+      stderrPromise,
+    ]);
+    return {
+      exitCode,
+      result: {
+        decoded: false,
+        error: `V8 probe 超过 ${timeoutMs}ms deadline`,
+      },
+      stderr,
+      stdout,
+      timedOut: true,
+    };
+  }
+
+  const [stdout, stderr] = await Promise.all([stdoutPromise, stderrPromise]);
+  const result = stdout === ""
+    ? { decoded: false, error: stderr }
+    : JSON.parse(stdout) as { readonly decoded: boolean; readonly error?: string };
+  return {
+    exitCode: outcome.exitCode,
+    result,
+    stderr,
+    stdout,
+    timedOut: false,
+  };
+}
+
+function decodeWithNodeV8(projection: unknown) {
+  return runNodeV8Probe(projection, [
+    "node",
+    "scripts/probe-product-session-codec-v8.mjs",
+  ]);
+}
+
 describe("Product Session plain-data codec", () => {
+  test("V8 probe child 即使永不退出也必须在 deadline 后被回收", async () => {
+    const probe = await runNodeV8Probe(
+      {},
+      ["node", "-e", "setInterval(() => undefined, 1_000)"],
+      50,
+    );
+
+    expect(probe.timedOut).toBe(true);
+    expect(probe.exitCode).not.toBe(0);
+  });
+
+  test("V8 probe 在启动 child 前拒绝超过 projection transport budget 的输入", async () => {
+    await expect(decodeWithNodeV8({ payload: "x".repeat(MAX_V8_PROBE_INPUT_BYTES) }))
+      .rejects.toThrow("V8 probe input 不能超过 2000000 bytes");
+  });
+
+  test("接受 Bun producer 与 V8 verifier 的合法 Evaluation 末位舍入差", async () => {
+    const probe = await decodeWithNodeV8(await validBallVesselProjection());
+
+    expect(probe.stderr).toBe("");
+    expect(probe.result).toEqual({ decoded: true });
+    expect(probe.exitCode).toBe(0);
+  });
+
+  test("V8 verifier 仍拒绝 transport 中被改写的 canonical Evaluation metric", async () => {
+    const projection = structuredClone(await validBallVesselProjection());
+    const evaluation = projection.lastRun.evaluation;
+    if (evaluation.contractId !== "success:stable-inside-vessel") throw new Error();
+    evaluation.metrics.maxLinearSpeedMetersPerSecond *= 1 + 1e-12;
+
+    const probe = await decodeWithNodeV8(projection);
+
+    expect(probe.stderr).toBe("");
+    expect(probe.result).toEqual({
+      decoded: false,
+      error: "projection.lastRun.evaluation Evaluation 与受信 evaluator 结果不一致",
+    });
+    expect(probe.exitCode).toBe(1);
+  });
+
   test("拒绝同 ID 但 predicate/metrics 与受信 evaluator 不一致的 Evaluation", async () => {
     const projection = structuredClone(await validBallVesselProjection());
     const evaluation = projection.lastRun.evaluation;
