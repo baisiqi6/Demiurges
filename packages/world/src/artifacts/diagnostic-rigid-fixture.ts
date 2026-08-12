@@ -19,6 +19,10 @@ import {
   requireBallVesselSnapshot,
   requireSnapshotRepresentationIntegrity,
 } from "./ball-vessel-fixture";
+import {
+  TWO_JOINT_REACH_FIXTURE_ID,
+  createTwoJointReachSnapshot,
+} from "./two-joint-reach-fixture";
 
 export const PRIMITIVE_BOX_FIXTURE_ID = "fixture:primitive-box" as const;
 export const DIAGNOSTIC_RIGID_FIXTURE_ID = "fixture:diagnostic-wedge-v1" as const;
@@ -26,6 +30,7 @@ export type RigidFixtureId =
   | typeof PRIMITIVE_BOX_FIXTURE_ID
   | typeof DIAGNOSTIC_RIGID_FIXTURE_ID
   | typeof BALL_VESSEL_FIXTURE_ID;
+export type RegisteredFixtureId = RigidFixtureId | typeof TWO_JOINT_REACH_FIXTURE_ID;
 
 export const DIAGNOSTIC_RIGID_ASSET = deepFreeze({
   assetId: "asset:diagnostic-wedge-v1" as const,
@@ -131,6 +136,7 @@ export function createFixtureSnapshot(
   return deepFreeze({
     ...base,
     id: "snapshot:base-diagnostic-wedge" as const,
+    scenarioId: "scenario:diagnostic-rigid-free-fall-v1" as const,
     entities: base.entities.map((entity) =>
       entity.ref === CUBE_REF
         ? {
@@ -198,6 +204,43 @@ function requireStaticEntityIdentity(
 export function requireRegisteredSnapshotIdentity(snapshot: Snapshot): void {
   requireSnapshotRepresentationIntegrity(snapshot);
   const refs = snapshot.entities.map((entity) => entity.ref);
+  if (snapshot.scenarioId === "scenario:two-joint-planar-reach-v1") {
+    const canonical = createTwoJointReachSnapshot();
+    if (!samePlainData(snapshot.entities.map(({ state: _state, ...entity }) => entity), canonical.entities.map(({ state: _state, ...entity }) => entity))) {
+      throw new Error("articulated Snapshot topology/representation/physics 与 fixture registry 漂移");
+    }
+    const [floor, arm, target] = snapshot.entities;
+    if (refs.join("|") !== "entity:floor|entity:arm|entity:target" || arm?.state.articulated?.joints.length !== 2) {
+      throw new Error("articulated Snapshot identity 非法");
+    }
+    if (
+      !samePlainData(floor!.state, canonical.entities[0]!.state) ||
+      !samePlainData(target!.state, canonical.entities[2]!.state) ||
+      !samePlainData(
+        { pose: arm!.state.pose, linearVelocity: arm!.state.linearVelocity, angularVelocity: arm!.state.angularVelocity },
+        {
+          pose: canonical.entities[1]!.state.pose,
+          linearVelocity: canonical.entities[1]!.state.linearVelocity,
+          angularVelocity: canonical.entities[1]!.state.angularVelocity,
+        },
+      )
+    ) throw new Error("articulated fixed Entity state 与 fixture registry 漂移");
+    const jointRefs = ["joint:arm-shoulder", "joint:arm-elbow"] as const;
+    const limits = [[-1.57, 1.57], [-2.2, 2.2]] as const;
+    arm!.state.articulated!.joints.forEach((joint, index) => {
+      if (
+        joint.jointRef !== jointRefs[index] ||
+        !Number.isFinite(joint.positionRadians) ||
+        !Number.isFinite(joint.velocityRadiansPerSecond) ||
+        joint.positionRadians < limits[index]![0] ||
+        joint.positionRadians > limits[index]![1]
+      ) throw new Error("articulated joint state 与 fixture registry 漂移");
+      if (snapshot.source !== "runtime-terminal" && joint.velocityRadiansPerSecond !== 0) {
+        throw new Error("authored articulated joint velocity 必须为零");
+      }
+    });
+    return;
+  }
   if (
     refs.length === 3 &&
     refs[0] === FLOOR_REF &&
@@ -215,8 +258,14 @@ export function requireRegisteredSnapshotIdentity(snapshot: Snapshot): void {
   requireStaticEntityIdentity(snapshot.entities[0]!, canonicalPrimitive.entities[0]!);
   const target = snapshot.entities[1]!;
   if (target.representations.visual.kind === "box") {
+    if (snapshot.scenarioId !== "scenario:primitive-box-free-fall-v1") {
+      throw new Error("primitive box Snapshot scenario 与 fixture registry 漂移");
+    }
     requireStaticEntityIdentity(target, canonicalPrimitive.entities[1]!);
     return;
+  }
+  if (snapshot.scenarioId !== "scenario:diagnostic-rigid-free-fall-v1") {
+    throw new Error("diagnostic rigid Snapshot scenario 与 fixture registry 漂移");
   }
   if (
     target.representations.visual.kind !== "imported-rigid-mesh" ||

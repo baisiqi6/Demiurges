@@ -26,9 +26,8 @@ import {
   requireRegisteredSnapshotIdentity,
 } from "../artifacts/diagnostic-rigid-fixture";
 import { CUBE_REF, deepFreeze, findEntity, FLOOR_REF, isDeepFrozen } from "../kernel/world";
+import { canonicalJsonBytes, sha256Hex } from "../kernel/canonical-json";
 
-const RIGID_PROGRAM_ID = "program:free-fall-rigid-v1";
-const BALL_VESSEL_PROGRAM_ID = "program:free-fall-ball-vessel-v1";
 const PROGRAM_SAMPLE_RATE_HZ = 30;
 const RUNTIME_PROFILE_ID = "runtime:mujoco-wasm-single-3.11.0";
 const RUNTIME_PROVIDER = "MuJoCo WASM";
@@ -307,10 +306,11 @@ function prepareRun(
   }
   requirePositive(program.durationSeconds, "durationSeconds");
   requirePositive(program.sampleRateHz, "sampleRateHz");
-  const scenario = program.id === RIGID_PROGRAM_ID
-    ? "falling-rigid"
-    : program.id === BALL_VESSEL_PROGRAM_ID
-      ? "ball-vessel"
+  const scenario = snapshot.scenarioId === "scenario:ball-vessel-free-fall-v1"
+    ? "ball-vessel"
+    : snapshot.scenarioId === "scenario:primitive-box-free-fall-v1" ||
+        snapshot.scenarioId === "scenario:diagnostic-rigid-free-fall-v1"
+      ? "falling-rigid"
       : null;
   if (
     scenario === null ||
@@ -319,6 +319,10 @@ function prepareRun(
     program.sampleRateHz !== PROGRAM_SAMPLE_RATE_HZ
   ) {
     throw new Error(`不受支持的 WorldProgram：${program.id}`);
+  }
+  const { id: suppliedProgramId, ...programContent } = program;
+  if (suppliedProgramId !== `program:sha256:${sha256Hex(canonicalJsonBytes(programContent))}`) {
+    throw new Error("WorldProgram ID 与 canonical content digest 不一致");
   }
 
   if (
@@ -652,6 +656,7 @@ function createTerminalSnapshot(
     id: `snapshot:terminal-${runKey}`,
     parentId: base.id,
     source: "runtime-terminal",
+    scenarioId: base.scenarioId,
     entities: base.entities.map((entity) =>
       entity.ref === targetRef ? { ...entity, state: terminalState } : entity,
     ),
@@ -769,7 +774,8 @@ export async function runFallingCube(
     return deepFreeze({
       id: `episode:${key}`,
       baseSnapshotId: snapshot.id,
-      programId: program.id,
+      scenarioId: snapshot.scenarioId,
+      program,
       runtimeProfileId: profile.id,
       explicitInputs: inputs,
       completion: "completed",

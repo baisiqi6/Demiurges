@@ -17,7 +17,7 @@ async function validProjection() {
   const world = surface.read();
   const lastRun = await surface.run({
     runId: `run:${"x".repeat(60)}`,
-    programId: "program:free-fall-rigid-v1",
+    program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 },
   });
   return {
     sessionId: "session:local-1",
@@ -38,7 +38,7 @@ async function validImportedProjection() {
     world: surface.read(),
     lastRun: await surface.run({
       runId: "run:imported-codec",
-      programId: "program:free-fall-rigid-v1",
+      program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 },
     }),
     lastSequence: 5,
     running: false,
@@ -51,7 +51,7 @@ async function validBallVesselProjection() {
   const world = surface.read();
   const lastRun = await surface.run({
     runId: "run:ball-vessel-codec",
-    programId: "program:free-fall-ball-vessel-v1",
+    program: { kind: "free-fall", targetRef: "entity:ball", durationSeconds: 3, sampleRateHz: 30 },
   });
   return {
     sessionId: "session:local-ball-vessel",
@@ -523,13 +523,17 @@ describe("Product Session plain-data codec", () => {
     const initial = surface.write({ fixtureId: "fixture:primitive-box" });
     const pose = (z: number) => ({
       targetRef: "entity:cube",
-      frameRef: "frame:world",
-      pose: {
-        position: { x: 0, y: 0, z },
-        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      change: {
+        kind: "pose",
+        frameRef: "frame:world",
+        pose: {
+          position: { x: 0, y: 0, z },
+          rotation: { x: 0, y: 0, z: 0, w: 1 },
+        },
       },
     });
-    surface.edit({ expected: initial.ref, ...pose(2.8) });
+    const updated = structuredClone(surface.edit({ expected: initial.ref, ...pose(2.8) }));
+    const current = surface.read();
     const stale = structuredClone(surface.edit({
       expected: {
         name: CURRENT_WORLD_REF,
@@ -538,8 +542,6 @@ describe("Product Session plain-data codec", () => {
       },
       ...pose(3),
     }));
-    stale.update.snapshot.id = "snapshot:other";
-
     const event = {
       sequence: 1,
       sessionId: "session:local-1",
@@ -556,13 +558,161 @@ describe("Product Session plain-data codec", () => {
       evidence: { tool: "edit", update: stale.update },
     };
 
-    expect(() => decodeProductSessionEvent(event, "session:local-1", 1)).toThrow(
+    expect(decodeProductSessionEvent(event, "session:local-1", 1, current)).toMatchObject({
+      evidence: { update: { status: "stale_ref" } },
+    });
+    const updatedEvent = structuredClone(event);
+    updatedEvent.evidence.update = updated.update;
+    expect(decodeProductSessionEvent(
+      updatedEvent,
+      "session:local-1",
+      1,
+      initial,
+    )).toMatchObject({ evidence: { update: { status: "updated" } } });
+
+    const foreignSurface = new WorldToolSurface(new RuntimeMvpHost());
+    foreignSurface.write({ fixtureId: BALL_VESSEL_FIXTURE_ID });
+    const foreign = foreignSurface.read();
+    const foreignStale = structuredClone(event);
+    foreignStale.evidence.update.ref = foreign.ref;
+    foreignStale.evidence.update.snapshot = foreign.snapshot;
+    expect(() => decodeProductSessionEvent(
+      foreignStale,
+      "session:local-1",
+      1,
+      current,
+    )).toThrow("world authority");
+
+    stale.update.snapshot.id = "snapshot:other";
+    expect(() => decodeProductSessionEvent(event, "session:local-1", 1, current)).toThrow(
       "identity",
     );
     stale.update.snapshot.id = stale.update.ref.snapshotId;
     stale.update.operation = "adopt";
-    expect(() => decodeProductSessionEvent(event, "session:local-1", 1)).toThrow(
+    expect(() => decodeProductSessionEvent(event, "session:local-1", 1, current)).toThrow(
       "operation",
     );
+  });
+
+  test("successful read/write event 只能建立一次并沿当前 world authority 连续", () => {
+    const primitiveSurface = new WorldToolSurface(new RuntimeMvpHost());
+    const primitive = primitiveSurface.write({ fixtureId: "fixture:primitive-box" });
+    const ballSurface = new WorldToolSurface(new RuntimeMvpHost());
+    const ball = ballSurface.write({ fixtureId: BALL_VESSEL_FIXTURE_ID });
+    const event = (tool: "world_read" | "world_write", evidence: unknown) => ({
+      sequence: 1,
+      sessionId: "session:local-1",
+      turnId: "turn:local-1:1",
+      type: "tool.completed",
+      tool,
+      trace: { sequence: 1, tool, input: {}, status: "succeeded", result: {} },
+      evidence,
+    });
+
+    expect(decodeProductSessionEvent(
+      event("world_write", primitive),
+      "session:local-1",
+      1,
+    )).toMatchObject({ evidence: { tool: "write" } });
+    expect(() => decodeProductSessionEvent(
+      event("world_write", ball),
+      "session:local-1",
+      1,
+      primitive,
+    )).toThrow("不得替换");
+
+    const primitiveRead = { ...primitiveSurface.read(), tool: "read" as const };
+    expect(decodeProductSessionEvent(
+      event("world_read", primitiveRead),
+      "session:local-1",
+      1,
+      primitive,
+    )).toMatchObject({ evidence: { tool: "read" } });
+    const foreignRead = { ...ballSurface.read(), tool: "read" as const };
+    expect(() => decodeProductSessionEvent(
+      event("world_read", foreignRead),
+      "session:local-1",
+      1,
+      primitive,
+    )).toThrow("前序 world authority");
+    expect(() => decodeProductSessionEvent(
+      event("world_read", primitiveRead),
+      "session:local-1",
+      1,
+    )).toThrow("缺少既有 world authority");
+  });
+
+  test("registered rigid scenarioId 必须与 exact fixture identity 一一对应", () => {
+    const primitiveSurface = new WorldToolSurface(new RuntimeMvpHost());
+    const primitive = primitiveSurface.write({ fixtureId: "fixture:primitive-box" });
+    const relabeledPrimitive = structuredClone(primitive);
+    relabeledPrimitive.snapshot.scenarioId = "scenario:diagnostic-rigid-free-fall-v1";
+    expect(() => decodeProductSessionEvent({
+      sequence: 1,
+      sessionId: "session:local-1",
+      turnId: "turn:local-1:1",
+      type: "tool.completed",
+      tool: "world_write",
+      trace: { sequence: 1, tool: "world_write", input: {}, status: "succeeded", result: {} },
+      evidence: relabeledPrimitive,
+    }, "session:local-1", 1)).toThrow("scenario");
+  });
+
+  test("authored、Episode 与 terminal scenario authority 必须完全相等", async () => {
+    for (const [fixtureIndex, fixtureId] of ["fixture:primitive-box", DIAGNOSTIC_RIGID_FIXTURE_ID].entries()) {
+      const surface = new WorldToolSurface(new RuntimeMvpHost());
+      const written = surface.write({ fixtureId });
+      const valid = await surface.run({
+        runId: `run:scenario-${fixtureIndex}`,
+        program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 },
+      });
+      const otherScenario = fixtureId === "fixture:primitive-box"
+        ? "scenario:diagnostic-rigid-free-fall-v1"
+        : "scenario:primitive-box-free-fall-v1";
+      const forgedEpisode = structuredClone(valid);
+      forgedEpisode.episode.scenarioId = otherScenario;
+      expect(() => decodeProductSessionEvent({
+        sequence: 1,
+        sessionId: "session:local-1",
+        turnId: "turn:local-1:1",
+        type: "tool.completed",
+        tool: "world_run",
+        trace: { sequence: 1, tool: "world_run", input: {}, status: "succeeded", result: {} },
+        evidence: forgedEpisode,
+      }, "session:local-1", 1, written)).toThrow("scenario");
+
+      const forgedTerminal = structuredClone(valid);
+      forgedTerminal.episode.terminalSnapshot.scenarioId = otherScenario;
+      expect(() => decodeProductSessionEvent({
+        sequence: 1,
+        sessionId: "session:local-1",
+        turnId: "turn:local-1:1",
+        type: "tool.completed",
+        tool: "world_run",
+        trace: { sequence: 1, tool: "world_run", input: {}, status: "succeeded", result: {} },
+        evidence: forgedTerminal,
+      }, "session:local-1", 1, written)).toThrow("scenario");
+    }
+  });
+
+  test("ball-vessel scenarioId 也必须与 exact fixture identity 绑定", () => {
+    const surface = new WorldToolSurface(new RuntimeMvpHost());
+    const written = structuredClone(surface.write({ fixtureId: BALL_VESSEL_FIXTURE_ID }));
+    for (const scenarioId of [
+      "scenario:primitive-box-free-fall-v1",
+      "scenario:diagnostic-rigid-free-fall-v1",
+    ]) {
+      const relabeled = structuredClone(written);
+      relabeled.snapshot.scenarioId = scenarioId;
+      expect(() => decodeProductSessionEvent({
+        sequence: 1,
+        sessionId: "session:local-1",
+        turnId: "turn:local-1:1",
+        type: "tool.completed",
+        tool: "world_write",
+        trace: { sequence: 1, tool: "world_write", input: {}, status: "succeeded", result: {} },
+        evidence: relabeled,
+      }, "session:local-1", 1)).toThrow("scenario");
+    }
   });
 });

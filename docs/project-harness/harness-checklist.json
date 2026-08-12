@@ -518,6 +518,49 @@
         "ttl_minutes": 120,
         "released_at": "2026-08-12T06:05:01Z"
       }
+    },
+    {
+      "id": "DH-011",
+      "title": "Articulated Entity 与显式动作程序 Vertical Slice",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-12",
+      "dependencies": [
+        "DH-010.1"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "同一 read/write/edit/run 四工具通过可读取 articulated refs 与显式 actuator-sequence WorldProgram，驱动两关节机械臂在 MuJoCo 中触达目标 Frame；Episode、Evaluation、Product codec、Presentation 与 adopt authority 闭合，旧场景不回归，且无机器人专用第五工具、MuJoCo ID 泄漏或 world-model/规划范围蔓延。",
+      "verification": "Final product aggregate 440188d28046b661602a7bd129b6b104b3497a9d6fbb781e48c5e02e9026312c; two fresh executable reviewers approved P0/P1/P2=0; targeted 45/0/158, full 172/0/2958, typecheck/build/diff/EXharness and Studio 91-frame PASS.",
+      "handoff": "DH-011 implementation and dual executable cross-review are complete. Human authorized closeout/mark-done only; commit, push, merge, PR, tag, deploy and real provider prompt remain unauthorized.",
+      "plan_path": "docs/project-harness/tasks/DH-011/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-12",
+        "branch": "agent/codex/DH-011"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-011",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "fresh-executable-cross-review-round7",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-12",
+        "summary": "Two fresh isolated executable reviewers approved frozen aggregate 440188d2...; P0/P1/P2=0; 12/14 and 13/20 legal/adversarial probes; targeted 45/0/158, full 172/0/2958, typecheck/build/diff/EXharness pass; may_closeout=yes."
+      },
+      "lease": {
+        "owner": "codex-root",
+        "session": "codex-root-dh011-plan-20260812",
+        "acquired_at": "2026-08-12T13:04:47Z",
+        "expires_at": "2026-08-12T15:04:47Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-12T16:35:11Z"
+      }
     }
   ]
 }

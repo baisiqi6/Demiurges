@@ -16,6 +16,17 @@ export interface EntityState {
   readonly pose: Pose;
   readonly linearVelocity: Vec3;
   readonly angularVelocity: Vec3;
+  readonly articulated?: ArticulatedState;
+}
+
+export interface ArticulatedJointState {
+  readonly jointRef: "joint:arm-shoulder" | "joint:arm-elbow";
+  readonly positionRadians: number;
+  readonly velocityRadiansPerSecond: number;
+}
+
+export interface ArticulatedState {
+  readonly joints: readonly ArticulatedJointState[];
 }
 
 export interface BoxRepresentation {
@@ -40,6 +51,10 @@ export interface SphereCollisionRepresentation {
   readonly radius: number;
 }
 
+export interface NoCollisionRepresentation {
+  readonly kind: "none";
+}
+
 export interface CompoundCollisionPart {
   readonly partKey: string;
   readonly localPose: Pose;
@@ -54,7 +69,8 @@ export interface CompoundCollisionRepresentation {
 export type CollisionRepresentation =
   | BoxCollisionRepresentation
   | SphereCollisionRepresentation
-  | CompoundCollisionRepresentation;
+  | CompoundCollisionRepresentation
+  | NoCollisionRepresentation;
 
 export interface ImportedRigidMeshRepresentation {
   readonly kind: "imported-rigid-mesh";
@@ -101,7 +117,66 @@ export interface VesselSemanticRepresentation {
   };
 }
 
-export type SemanticRepresentation = VesselSemanticRepresentation | null;
+export interface ArticulatedSemanticRepresentation {
+  readonly kind: "articulated";
+  readonly rootFrameRef: "frame:arm-base";
+  readonly links: readonly {
+    readonly linkRef: "link:arm-base" | "link:arm-upper" | "link:arm-forearm";
+    readonly parentLinkRef: "link:arm-base" | "link:arm-upper" | null;
+    readonly lengthMeters: number;
+    readonly localPose: Pose;
+    readonly visual: { readonly kind: "capsule" | "none"; readonly radiusMeters: number; readonly lengthMeters: number };
+    readonly collision: { readonly kind: "none" };
+  }[];
+  readonly joints: readonly {
+    readonly jointRef: "joint:arm-shoulder" | "joint:arm-elbow";
+    readonly parentLinkRef: "link:arm-base" | "link:arm-upper";
+    readonly childLinkRef: "link:arm-upper" | "link:arm-forearm";
+    readonly axis: Vec3;
+    readonly limitRadians: readonly [number, number];
+    readonly type: "hinge";
+    readonly positionUnit: "rad";
+    readonly velocityUnit: "rad/s";
+  }[];
+  readonly actuators: readonly {
+    readonly actuatorRef:
+      | "actuator:arm-shoulder-position"
+      | "actuator:arm-elbow-position";
+    readonly jointRef: "joint:arm-shoulder" | "joint:arm-elbow";
+    readonly controlRangeRadians: readonly [number, number];
+    readonly controlMode: "position";
+    readonly commandUnit: "rad";
+  }[];
+  readonly sensors: readonly {
+    readonly sensorRef:
+      | "sensor:arm-shoulder-position"
+      | "sensor:arm-shoulder-velocity"
+      | "sensor:arm-elbow-position"
+      | "sensor:arm-elbow-velocity";
+    readonly jointRef: "joint:arm-shoulder" | "joint:arm-elbow";
+    readonly sourceRef: "joint:arm-shoulder" | "joint:arm-elbow";
+    readonly measurement: "position" | "velocity";
+    readonly unit: "rad" | "rad/s";
+    readonly registryOrder: 0 | 1 | 2 | 3;
+  }[];
+  readonly frames: readonly {
+    readonly frameRef: "frame:arm-base" | "frame:arm-elbow" | "frame:arm-tool";
+    readonly parentLinkRef: "link:arm-base" | "link:arm-upper" | "link:arm-forearm";
+    readonly localPose: Pose;
+  }[];
+}
+
+export interface GoalFrameSemanticRepresentation {
+  readonly kind: "goal-frame";
+  readonly frameRef: "frame:reach-target";
+  readonly localPose: Pose;
+}
+
+export type SemanticRepresentation =
+  | VesselSemanticRepresentation
+  | ArticulatedSemanticRepresentation
+  | GoalFrameSemanticRepresentation
+  | null;
 
 export interface Entity {
   readonly ref: `entity:${string}`;
@@ -127,6 +202,11 @@ export interface Snapshot {
   readonly id: `snapshot:${string}`;
   readonly parentId: Snapshot["id"] | null;
   readonly source: "write" | "edit" | "runtime-terminal";
+  readonly scenarioId:
+    | "scenario:primitive-box-free-fall-v1"
+    | "scenario:diagnostic-rigid-free-fall-v1"
+    | "scenario:ball-vessel-free-fall-v1"
+    | "scenario:two-joint-planar-reach-v1";
   readonly entities: readonly Entity[];
 }
 
@@ -143,13 +223,34 @@ export interface RefUpdateResult {
   readonly snapshot: Snapshot;
 }
 
-export interface WorldProgram {
-  readonly id: `program:${string}`;
+export interface FreeFallWorldProgram {
+  readonly id: `program:sha256:${string}`;
   readonly kind: "free-fall";
   readonly targetRef: Entity["ref"];
   readonly durationSeconds: number;
   readonly sampleRateHz: number;
 }
+
+export interface ActuatorCommand {
+  readonly actuatorRef:
+    | "actuator:arm-shoulder-position"
+    | "actuator:arm-elbow-position";
+  readonly valueRadians: number;
+}
+
+export interface ActuatorSequenceWorldProgram {
+  readonly id: `program:sha256:${string}`;
+  readonly kind: "actuator-sequence";
+  readonly targetRef: "entity:arm";
+  readonly durationSeconds: number;
+  readonly sampleRateHz: 30;
+  readonly steps: readonly {
+    readonly timeSeconds: number;
+    readonly commands: readonly [ActuatorCommand, ActuatorCommand];
+  }[];
+}
+
+export type WorldProgram = FreeFallWorldProgram | ActuatorSequenceWorldProgram;
 
 export interface RuntimeProfile {
   readonly id: `runtime:${string}`;
@@ -176,6 +277,15 @@ export interface EpisodeSample {
   readonly states: Readonly<Record<Entity["ref"], EntityState>>;
   readonly contactCount: number;
   readonly contacts?: readonly SemanticContactEvidence[];
+  readonly articulated?: {
+    readonly targetRef: "entity:arm";
+    readonly joints: readonly ArticulatedJointState[];
+    readonly sensors: readonly {
+      readonly sensorRef: string;
+      readonly value: number;
+    }[];
+    readonly activeCommands: readonly ActuatorCommand[];
+  };
 }
 
 export interface EpisodeEvent {
@@ -187,7 +297,8 @@ export interface EpisodeEvent {
 export interface Episode {
   readonly id: `episode:${string}`;
   readonly baseSnapshotId: Snapshot["id"];
-  readonly programId: WorldProgram["id"];
+  readonly scenarioId: Snapshot["scenarioId"];
+  readonly program: WorldProgram;
   readonly runtimeProfileId: RuntimeProfile["id"];
   readonly explicitInputs: ExplicitInputs;
   readonly completion: "completed";
@@ -198,6 +309,7 @@ export interface Episode {
     readonly provider: string;
     readonly version: string;
     readonly modelFormat: "MJCF";
+    readonly modelCausalDigest?: `sha256:${string}`;
   };
 }
 
@@ -221,9 +333,19 @@ export interface StableInsideVesselSuccessContract {
   readonly maxPenetrationMeters: number;
 }
 
+export interface EndEffectorReachSuccessContract {
+  readonly id: "success:end-effector-reaches-frame";
+  readonly targetRef: "entity:arm";
+  readonly goalFrameRef: "frame:reach-target";
+  readonly settleWindowSeconds: 0.5;
+  readonly positionToleranceMeters: 0.02;
+  readonly maxJointSpeedRadiansPerSecond: 0.02;
+}
+
 export type SuccessContract =
   | LandingSuccessContract
-  | StableInsideVesselSuccessContract;
+  | StableInsideVesselSuccessContract
+  | EndEffectorReachSuccessContract;
 
 export interface LandingEvaluationRecord {
   readonly id: `evaluation:${string}`;
@@ -254,9 +376,24 @@ export interface StableInsideVesselEvaluationRecord {
   };
 }
 
+export interface EndEffectorReachEvaluationRecord {
+  readonly id: `evaluation:${string}`;
+  readonly evaluatorId: "evaluator:end-effector-reach-v1";
+  readonly episodeId: Episode["id"];
+  readonly contractId: EndEffectorReachSuccessContract["id"];
+  readonly passed: boolean;
+  readonly metrics: {
+    readonly supportSamples: number;
+    readonly requiredSupportSamples: 16;
+    readonly maxPositionErrorMeters: number;
+    readonly maxJointSpeedRadiansPerSecond: number;
+  };
+}
+
 export type EvaluationRecord =
   | LandingEvaluationRecord
-  | StableInsideVesselEvaluationRecord;
+  | StableInsideVesselEvaluationRecord
+  | EndEffectorReachEvaluationRecord;
 
 export interface AdoptPolicy {
   readonly id: `adopt-policy:${string}`;

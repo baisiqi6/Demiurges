@@ -256,7 +256,7 @@ export function deriveStableInsideVesselSuccessContract(
   if (!isDeepFrozen(episode)) {
     throw new Error("Episode 必须是递归冻结的 plain data record");
   }
-  if (episode.programId !== BALL_VESSEL_PROGRAM.id) {
+  if (episode.program.id !== BALL_VESSEL_PROGRAM.id) {
     throw new Error("stable-inside-vessel evaluator 只支持登记的 ball-vessel Program");
   }
   const target = findEntity(episode.terminalSnapshot, BALL_VESSEL_PROGRAM.targetRef);
@@ -292,7 +292,7 @@ function evaluateStableInsideVessel(
   contract: StableInsideVesselSuccessContract,
 ): StableInsideVesselEvaluationRecord {
   requireStableInsideContract(contract);
-  if (episode.programId !== BALL_VESSEL_PROGRAM.id) {
+  if (episode.program.id !== BALL_VESSEL_PROGRAM.id) {
     throw new Error("stable-inside-vessel contract 与 Episode Program 不匹配");
   }
   const terminal = episode.terminalSnapshot;
@@ -446,6 +446,9 @@ export function evaluateEpisode(
   }
   if (contract.id === "success:stable-inside-vessel") {
     return evaluateStableInsideVessel(episode, contract);
+  }
+  if (contract.id === "success:end-effector-reaches-frame") {
+    throw new Error("articulated contract 必须由 evaluateArticulatedReach 处理");
   }
   const target = episode.terminalSnapshot.entities.find(
     (entity) => entity.ref === contract.targetRef,

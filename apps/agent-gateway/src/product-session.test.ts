@@ -5,7 +5,9 @@ import {
   BALL_VESSEL_FIXTURE_ID,
   BALL_VESSEL_PROGRAM,
   DIAGNOSTIC_RIGID_FIXTURE_ID,
+  TWO_JOINT_REACH_FIXTURE_ID,
   decodeProductSessionProjection,
+  decodeProductSessionProjectionTrusted,
   isDeepFrozen,
 } from "@demiurges/world";
 import {
@@ -15,6 +17,35 @@ import {
 import type { OmpAgentClientFactory, OmpAgentClientPort } from "./omp-world-agent";
 
 describe("Gateway-owned ProductSession", () => {
+  test("scripted Product Session 通过同一四工具闭环 articulated reach", async () => {
+    const session = new ProductSession(
+      "session:local-test-articulated",
+      createScriptedAgentClientFactory(TWO_JOINT_REACH_FIXTURE_ID),
+    );
+    const tools: string[] = [];
+    const projection = await session.runTurn("让机械臂触达目标 frame", (event) => {
+      if (event.type === "tool.completed") tools.push(event.tool);
+    });
+    expect(tools).toEqual(["world_write", "world_read", "world_edit", "world_run"]);
+    expect(projection.world?.snapshot.entities.map((entity) => entity.ref)).toEqual([
+      "entity:floor", "entity:arm", "entity:target",
+    ]);
+    expect(projection.lastRun?.episode.program.kind).toBe("actuator-sequence");
+    expect(projection.lastRun?.episode.samples).toHaveLength(91);
+    expect(projection.lastRun?.episode.samples[15]?.articulated?.activeCommands[0]?.valueRadians).toBe(0.65);
+    expect(projection.lastRun?.evaluation).toMatchObject({
+      contractId: "success:end-effector-reaches-frame",
+      passed: true,
+      metrics: { supportSamples: 16, requiredSupportSamples: 16 },
+    });
+    expect(await decodeProductSessionProjectionTrusted(
+      JSON.parse(JSON.stringify(projection)),
+      projection.sessionId,
+      projection.world,
+    )).toEqual(projection);
+    expect(projection.world?.ref.version).toBe(2);
+  });
+
   test("scripted Product Session 通过同一四工具闭环 ball-vessel visible fixture", async () => {
     const session = new ProductSession(
       "session:test-ball-vessel",
@@ -31,7 +62,7 @@ describe("Gateway-owned ProductSession", () => {
       "entity:vessel",
       BALL_REF,
     ]);
-    expect(projection.lastRun?.episode.programId).toBe(BALL_VESSEL_PROGRAM.id);
+    expect(projection.lastRun?.episode.program.id).toBe(BALL_VESSEL_PROGRAM.id);
     expect(projection.lastRun?.episode.samples[0]?.states[BALL_REF]).toBeDefined();
     expect(projection.lastRun?.evaluation).toMatchObject({
       contractId: "success:stable-inside-vessel",
@@ -144,36 +175,33 @@ describe("Gateway-owned ProductSession", () => {
             await invoke("world_edit", {
               expected: read.ref,
               targetRef: "entity:cube",
-              frameRef: "frame:world",
-              pose: {
+              change: { kind: "pose", frameRef: "frame:world", pose: {
                 position: { x: 0, y: 0, z: 2.8 },
                 rotation: { x: 0, y: 0, z: 0, w: 1 },
-              },
+              } },
             });
             await invoke("world_run", {
               runId: "run:stale-last-run-first",
-              programId: "program:free-fall-rigid-v1",
+              program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 },
             });
           } else if (turn === 2) {
             await invoke("world_edit", {
               expected: staleExpected,
               targetRef: "entity:cube",
-              frameRef: "frame:world",
-              pose: {
+              change: { kind: "pose", frameRef: "frame:world", pose: {
                 position: { x: 0, y: 0, z: 3.2 },
                 rotation: { x: 0, y: 0, z: 0, w: 1 },
-              },
+              } },
             });
           } else {
             const read = await invoke("world_read", {});
             await invoke("world_edit", {
               expected: read.ref,
               targetRef: "entity:cube",
-              frameRef: "frame:world",
-              pose: {
+              change: { kind: "pose", frameRef: "frame:world", pose: {
                 position: { x: 0, y: 0, z: 3.2 },
                 rotation: { x: 0, y: 0, z: 0, w: 1 },
-              },
+              } },
             });
           }
         },
@@ -384,15 +412,14 @@ describe("Gateway-owned ProductSession", () => {
           await invoke("world_edit", {
             expected: read.details.ref,
             targetRef: "entity:cube",
-            frameRef: "frame:world",
-            pose: {
+            change: { kind: "pose", frameRef: "frame:world", pose: {
               position: { x: 0, y: 0, z: 2.8 },
               rotation: { x: 0, y: 0, z: 0, w: 1 },
-            },
+            } },
           });
           await invoke("world_run", {
             runId: "run:recovered",
-            programId: "program:free-fall-rigid-v1",
+            program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 },
           });
           responseText = "已纠正并完成";
         },

@@ -7,9 +7,12 @@ import {
   DIAGNOSTIC_RIGID_ASSET,
   createBallVesselSnapshot,
   createFixtureSnapshot,
+  createTwoJointReachSnapshot,
 } from "@demiurges/world";
 import {
   createCollisionOverlay,
+  createArticulatedArmPresentation,
+  applyArticulatedArmState,
   createRimFrameOverlay,
 } from "./entity-presentation";
 import { resolveImportedVisualAsset } from "./presentation-assets";
@@ -79,5 +82,21 @@ describe("Three.js Entity presentation", () => {
       contentDigest: DIAGNOSTIC_RIGID_ASSET.contentDigest,
     };
     expect(() => resolveImportedVisualAsset(forged)).toThrow("未登记 imported visual");
+  });
+
+  test("articulated arm 保持单一 EntityRef，并由 Episode joint state 驱动 link hierarchy", () => {
+    const arm = createTwoJointReachSnapshot().entities.find((entity) => entity.ref === "entity:arm")!;
+    const root = createArticulatedArmPresentation(arm)!;
+    applyArticulatedArmState(root, {
+      ...arm.state,
+      articulated: { joints: [
+        { jointRef: "joint:arm-shoulder", positionRadians: 0.65, velocityRadiansPerSecond: 0 },
+        { jointRef: "joint:arm-elbow", positionRadians: -1, velocityRadiansPerSecond: 0 },
+      ] },
+    });
+    expect(root.getObjectByName("joint:arm-shoulder")?.rotation.z).toBe(0.65);
+    expect(root.getObjectByName("joint:arm-elbow")?.rotation.z).toBe(-1);
+    expect(root.getObjectByName("frame:arm-tool")?.userData.frameRef).toBe("frame:arm-tool");
+    expect(root.children.every((child) => child.userData.entityRef === arm.ref)).toBe(true);
   });
 });

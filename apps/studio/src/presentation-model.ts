@@ -68,6 +68,13 @@ export function evaluationMetricRows(
       },
     ];
   }
+  if (evaluation.contractId === "success:end-effector-reaches-frame") {
+    return [
+      { key: "supportCoverage", label: "settled", value: `${evaluation.metrics.supportSamples}/${evaluation.metrics.requiredSupportSamples}`, unit: "samples" },
+      { key: "maxPositionErrorMeters", label: "tool error", value: evaluation.metrics.maxPositionErrorMeters, unit: "m" },
+      { key: "maxJointSpeedRadiansPerSecond", label: "joint speed", value: evaluation.metrics.maxJointSpeedRadiansPerSecond, unit: "rad/s" },
+    ];
+  }
   return [
     {
       key: "supportCoverage",
@@ -104,10 +111,17 @@ export function evaluationMetricRows(
 
 export function runContractSummary(run: WorldRunResult | undefined): {
   readonly programId: string;
+  readonly programKind: string;
+  readonly programSteps: readonly string[];
   readonly runtimeProfileId: string;
 } {
+  const program = run?.episode.program;
   return {
-    programId: run?.episode.programId ?? "—",
+    programId: program?.id ?? "—",
+    programKind: program?.kind ?? "—",
+    programSteps: program?.kind === "actuator-sequence"
+      ? program.steps.map((step) => `${step.timeSeconds}s · ${step.commands.map((command) => `${command.actuatorRef}=${command.valueRadians}rad`).join(" · ")}`)
+      : program ? [`0s · ${program.targetRef} · ${program.durationSeconds}s @ ${program.sampleRateHz}Hz`] : [],
     runtimeProfileId: run?.episode.runtimeProfileId ?? "—",
   };
 }

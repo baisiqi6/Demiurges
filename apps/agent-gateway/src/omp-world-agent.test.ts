@@ -83,15 +83,13 @@ class ScriptedAgentClient implements OmpAgentClientPort {
     await invoke("world_edit", {
       expected: read.ref,
       targetRef: "entity:cube",
-      frameRef: "frame:world",
-      pose: {
-        position: { x: 0, y: 0, z: 2.8 },
-        rotation: { x: 0, y: 0, z: 0, w: 1 },
-      },
+      change: { kind: "pose", frameRef: "frame:world", pose: {
+        position: { x: 0, y: 0, z: 2.8 }, rotation: { x: 0, y: 0, z: 0, w: 1 },
+      } },
     });
     const run = (await invoke("world_run", {
       runId: "run:omp-fake-1",
-      programId: "program:free-fall-rigid-v1",
+      program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 },
     })) as {
       evaluation: { passed: boolean };
     };
@@ -141,15 +139,13 @@ describe("OMP World Agent Gateway", () => {
     await invoke("world_edit", {
       expected: read.ref,
       targetRef: "entity:cube",
-      frameRef: "frame:world",
-      pose: {
-        position: { x: 0, y: 0, z: 2.8 },
-        rotation: { x: 0, y: 0, z: 0, w: 1 },
-      },
+      change: { kind: "pose", frameRef: "frame:world", pose: {
+        position: { x: 0, y: 0, z: 2.8 }, rotation: { x: 0, y: 0, z: 0, w: 1 },
+      } },
     });
     const run = (await invoke("world_run", {
       runId: "run:omp-contract",
-      programId: "program:free-fall-rigid-v1",
+      program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 },
     })) as { evaluation: { passed: boolean } };
     expect(run.evaluation.passed).toBe(true);
   });
@@ -177,22 +173,20 @@ describe("OMP World Agent Gateway", () => {
     await expect(execute(edit, {
       expected: { name: "world:current", snapshotId: "snapshot:base", version: 1 },
       targetRef: "entity:cube",
-      frameRef: "frame:world",
-      pose: { position: [0, 0, 2], rotation: { x: 0, y: 0, z: 0, w: 1 } },
+      change: { kind: "pose", frameRef: "frame:world", pose: { position: [0, 0, 2], rotation: { x: 0, y: 0, z: 0, w: 1 } } },
     })).rejects.toThrow("plain JSON data");
     await expect(execute(run, {
       runId: "bad-run-id",
-      programId: "program:free-fall-rigid-v1",
+      program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 },
     })).rejects.toThrow("runId");
     await expect(execute(edit, {
       expected: { name: "world:current", snapshotId: "snapshot:base", version: 1 },
       targetRef: "entity:cube",
-      frameRef: "frame:world",
-      pose: {
+      change: { kind: "pose", frameRef: "frame:world", pose: {
         position: { x: 0, y: 0, z: Number.POSITIVE_INFINITY },
         rotation: { x: 0, y: 0, z: 0, w: 1 },
-      },
-    })).rejects.toThrow("有限数值");
+      } },
+    })).rejects.toThrow("finite");
 
     let reads = 0;
     const accessor = { fixtureId: "fixture:primitive-box" } as Record<string, unknown>;
@@ -280,6 +274,7 @@ describe("OMP World Agent Gateway", () => {
             "fixture:primitive-box",
             "fixture:diagnostic-wedge-v1",
             "fixture:ball-vessel-v1",
+            "fixture:two-joint-planar-reach-v1",
           ],
         },
       },
@@ -349,17 +344,33 @@ describe("OMP World Agent Gateway", () => {
         {} as never,
         new AbortController().signal,
       ),
-    ).rejects.toThrow("fixtureId");
+    ).rejects.toThrow("finite");
 
     expect(trace).toHaveLength(1);
     expect(trace[0]).toMatchObject({
       sequence: 1,
       tool: "world_write",
       status: "failed",
-      error: expect.stringContaining("fixtureId"),
+      error: expect.stringContaining("finite"),
     });
     expect(JSON.stringify(trace)).not.toContain("RuntimeMvpHost");
     expect(JSON.stringify(trace)).not.toContain("stack");
+  });
+
+  test("gateway admission 在 schema 前递归拒绝 nested non-finite number", async () => {
+    const tools = createOmpWorldTools(
+      new WorldToolSurface(new RuntimeMvpHost()),
+      () => undefined,
+    );
+    const write = tools.find((tool) => tool.name === "world_write");
+    if (!write) throw new Error("缺少 world_write");
+    await expect(write.execute(
+      "call:nested-non-finite",
+      { fixtureId: "fixture:primitive-box", nested: { value: Number.NaN } },
+      undefined,
+      {} as never,
+      new AbortController().signal,
+    )).rejects.toThrow("finite");
   });
 
   test("prompt 前若 active tool surface 多于四工具则 fail closed", async () => {
@@ -669,7 +680,7 @@ describe("OMP World Agent Gateway", () => {
       "call:exact-boundary",
       {
         runId: `run:${"x".repeat(60)}`,
-        programId: "program:free-fall-rigid-v1",
+        program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 },
       },
       undefined,
       {} as never,
@@ -684,7 +695,7 @@ describe("OMP World Agent Gateway", () => {
         "call:over-boundary",
         {
           runId: `run:${"x".repeat(65)}`,
-          programId: "program:free-fall-rigid-v1",
+          program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 },
         },
         undefined,
         {} as never,

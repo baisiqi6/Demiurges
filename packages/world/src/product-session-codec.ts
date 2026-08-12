@@ -20,7 +20,6 @@ import {
 } from "./artifacts/ball-vessel-fixture";
 import {
   BALL_VESSEL_PROGRAM,
-  FALLING_CUBE_PROGRAM,
   MUJOCO_PROFILE,
 } from "./kernel/world";
 import { requireDiagnosticGaussianSplatObservation } from "./artifacts/diagnostic-gaussian-splat";
@@ -41,6 +40,12 @@ import {
   deriveStableInsideVesselSuccessContract,
   evaluateEpisode,
 } from "./evaluation/evaluate-episode";
+import { evaluateArticulatedReach } from "./evaluation/evaluate-articulated-reach";
+import {
+  ARTICULATED_CANONICAL_MODEL_CAUSAL_DIGEST,
+  runArticulatedReach,
+} from "./runtime-mujoco/run-articulated-reach";
+import { requireWorldProgramEvidence, requireWorldRunInput } from "./world-tools/world-tool-contract";
 import type {
   WorldEditResult,
   WorldReadResult,
@@ -202,7 +207,11 @@ function vec3(value: unknown, label: string): void {
 }
 
 function entityState(value: unknown, label: string): EntityState {
-  const state = record(value, label, ["pose", "linearVelocity", "angularVelocity"]);
+  const preview = record(value, label);
+  const keys = preview.articulated === undefined
+    ? ["pose", "linearVelocity", "angularVelocity"]
+    : ["pose", "linearVelocity", "angularVelocity", "articulated"];
+  const state = record(value, label, keys);
   const pose = record(state.pose, `${label}.pose`, ["position", "rotation"]);
   vec3(pose.position, `${label}.pose.position`);
   const rotation = record(pose.rotation, `${label}.pose.rotation`, ["x", "y", "z", "w"]);
@@ -214,6 +223,21 @@ function entityState(value: unknown, label: string): EntityState {
   }
   vec3(state.linearVelocity, `${label}.linearVelocity`);
   vec3(state.angularVelocity, `${label}.angularVelocity`);
+  if (state.articulated !== undefined) {
+    const articulated = record(state.articulated, `${label}.articulated`, ["joints"]);
+    if (!Array.isArray(articulated.joints) || articulated.joints.length !== 2) {
+      throw new Error(`${label}.articulated.joints 必须恰好两项`);
+    }
+    const jointRefs = ["joint:arm-shoulder", "joint:arm-elbow"] as const;
+    articulated.joints.forEach((value, index) => {
+      const joint = record(value, `${label}.articulated.joints[${index}]`, [
+        "jointRef", "positionRadians", "velocityRadiansPerSecond",
+      ]);
+      if (joint.jointRef !== jointRefs[index]) throw new Error(`${label}.jointRef registry 顺序漂移`);
+      finite(joint.positionRadians, `${label}.positionRadians`);
+      finite(joint.velocityRadiansPerSecond, `${label}.velocityRadiansPerSecond`);
+    });
+  }
   return state as unknown as EntityState;
 }
 
@@ -339,7 +363,7 @@ function gaussianSplatObservation(value: unknown, label: string): void {
   requireDiagnosticGaussianSplatObservation(representation as never);
 }
 
-type ProductScenario = "falling-rigid" | "ball-vessel";
+type ProductScenario = "falling-rigid" | "ball-vessel" | "articulated-reach";
 
 function snapshotScenario(refs: readonly string[], label: string): ProductScenario {
   const refSet = new Set(refs);
@@ -354,16 +378,28 @@ function snapshotScenario(refs: readonly string[], label: string): ProductScenar
     refSet.has(VESSEL_REF) &&
     refSet.has(BALL_REF)
   ) return "ball-vessel";
-  throw new Error(`${label} 只支持 exact floor/cube 或 floor/vessel/ball scenario`);
+  if (
+    refSet.size === 3 &&
+    refSet.has(FLOOR_REF) &&
+    refSet.has("entity:arm") &&
+    refSet.has("entity:target")
+  ) return "articulated-reach";
+  throw new Error(`${label} 只支持 registered Product scenario`);
 }
 
 function snapshot(value: unknown, label: string): Snapshot {
-  const data = record(value, label, ["schemaVersion", "id", "parentId", "source", "entities"]);
+  const data = record(value, label, ["schemaVersion", "id", "parentId", "source", "scenarioId", "entities"]);
   if (data.schemaVersion !== 1) throw new Error(`${label}.schemaVersion 非法`);
   id(data.id, "snapshot:", `${label}.id`);
   if (data.parentId !== null) id(data.parentId, "snapshot:", `${label}.parentId`);
   if (data.source !== "write" && data.source !== "edit" && data.source !== "runtime-terminal") {
     throw new Error(`${label}.source 非法`);
+  }
+  if (data.scenarioId !== "scenario:primitive-box-free-fall-v1" &&
+      data.scenarioId !== "scenario:diagnostic-rigid-free-fall-v1" &&
+      data.scenarioId !== "scenario:ball-vessel-free-fall-v1" &&
+      data.scenarioId !== "scenario:two-joint-planar-reach-v1") {
+    throw new Error(`${label}.scenarioId 非法`);
   }
   if (!Array.isArray(data.entities) || data.entities.length > MAX_ENTITIES) {
     throw new Error(`${label}.entities 非法`);
@@ -386,7 +422,17 @@ function snapshot(value: unknown, label: string): Snapshot {
     const representations = record(entity.representations, `${label}.entities[${index}].representations`, [
       "visual", "collision", "observation", "semantic",
     ]);
-    if (scenario === "falling-rigid") {
+    if (scenario === "articulated-reach") {
+      if (ref === "entity:arm" && (representations.semantic as { kind?: unknown } | null)?.kind !== "articulated") {
+        throw new Error(`${label}.entity:arm articulated semantic 缺失`);
+      }
+      if (ref === "entity:target" && (representations.semantic as { kind?: unknown } | null)?.kind !== "goal-frame") {
+        throw new Error(`${label}.entity:target goal frame 缺失`);
+      }
+      if (ref === FLOOR_REF && representations.semantic !== null) {
+        throw new Error(`${label}.entity:floor semantic 必须为 null`);
+      }
+    } else if (scenario === "falling-rigid") {
       if (representations.semantic !== null) {
         throw new Error(`${label}.entities[${index}].representations.semantic 当前 scenario 必须为 null`);
       }
@@ -403,7 +449,20 @@ function snapshot(value: unknown, label: string): Snapshot {
     );
     const visualLabel = `${label}.entities[${index}].representations.visual`;
     const collisionLabel = `${label}.entities[${index}].representations.collision`;
-    if (scenario === "falling-rigid") {
+    if (scenario === "articulated-reach") {
+      if (visual.kind === "box") boxVisual(visual, visualLabel);
+      else {
+        const sphere = record(visual, visualLabel, ["kind", "radius", "color"]);
+        if (sphere.kind !== "sphere") throw new Error(`${visualLabel}.kind 非法`);
+        finite(sphere.radius, `${visualLabel}.radius`);
+        boundedString(sphere.color, `${visualLabel}.color`, 64);
+      }
+      const collision = record(representations.collision, collisionLabel);
+      if (collision.kind === "box") boxCollision(collision, collisionLabel);
+      else if (collision.kind !== "none" || Reflect.ownKeys(collision).length !== 1) {
+        throw new Error(`${collisionLabel} articulated collision 非法`);
+      }
+    } else if (scenario === "falling-rigid") {
       if (visual.kind === "box") {
         boxVisual(visual, visualLabel);
       } else {
@@ -446,7 +505,7 @@ function snapshot(value: unknown, label: string): Snapshot {
       }
     }
     if (representations.observation !== null) {
-      if (scenario === "ball-vessel") {
+      if (scenario !== "falling-rigid") {
         throw new Error(`${label}.${ref}.observation 在 ball-vessel scenario 必须为 null`);
       }
       if (ref !== CUBE_REF) {
@@ -494,7 +553,7 @@ function snapshot(value: unknown, label: string): Snapshot {
     if (cube.physics.bodyType !== "dynamic" || cube.physics.massKg <= 0) {
       throw new Error(`${label} 要求 positive-mass dynamic cube`);
     }
-  } else {
+  } else if (scenario === "ball-vessel") {
     const vessel = entities.find((entity) => entity.ref === VESSEL_REF)!;
     const ball = entities.find((entity) => entity.ref === BALL_REF)!;
     if (
@@ -510,6 +569,12 @@ function snapshot(value: unknown, label: string): Snapshot {
       ball.physics.massKg !== BALL_VESSEL_FIXTURE.ball.massKg
     ) {
       throw new Error(`${label} 要求 registered positive-mass dynamic ball`);
+    }
+  } else {
+    const arm = entities.find((entity) => entity.ref === "entity:arm")!;
+    const target = entities.find((entity) => entity.ref === "entity:target")!;
+    if (arm.physics.bodyType !== "static" || !arm.state.articulated || target.physics.bodyType !== "static") {
+      throw new Error(`${label} 要求 registered static articulated arm/target`);
     }
   }
   return decoded;
@@ -541,7 +606,11 @@ function worldReadLike(
   return data as unknown as WorldReadResult | WorldWriteResult;
 }
 
-function worldEdit(value: unknown, label: string): WorldEditResult {
+function worldEdit(
+  value: unknown,
+  label: string,
+  expectedWorld: WorldAuthorityContext,
+): WorldEditResult {
   const data = record(value, label, ["tool", "update"]);
   if (data.tool !== "edit") throw new Error(`${label}.tool 非法`);
   const update = record(data.update, `${label}.update`, ["status", "operation", "ref", "snapshot"]);
@@ -556,10 +625,35 @@ function worldEdit(value: unknown, label: string): WorldEditResult {
   if (ref.snapshotId !== current.id) {
     throw new Error(`${label}.update identity 漂移`);
   }
+  if (update.status === "stale_ref") {
+    if (!sameWorldAuthority({ ref, snapshot: current }, expectedWorld)) {
+      throw new Error(`${label}.update stale_ref 与前序 world authority 不一致`);
+    }
+  } else if (
+    current.source !== "edit" ||
+    current.parentId !== expectedWorld.snapshot.id ||
+    current.scenarioId !== expectedWorld.snapshot.scenarioId ||
+    ref.name !== expectedWorld.ref.name ||
+    ref.version !== expectedWorld.ref.version + 1
+  ) {
+    throw new Error(`${label}.update 没有从前序 world authority 直接推进`);
+  }
   return data as unknown as WorldEditResult;
 }
 
 type WorldAuthorityContext = Pick<WorldReadResult, "ref" | "snapshot">;
+
+function worldAuthority(value: WorldAuthorityContext): WorldAuthorityContext {
+  return { ref: value.ref, snapshot: value.snapshot };
+}
+
+function sameWorldAuthority(
+  left: WorldAuthorityContext | null,
+  right: WorldAuthorityContext | null,
+): boolean {
+  if (left === null || right === null) return left === right;
+  return samePlainData(worldAuthority(left), worldAuthority(right));
+}
 
 function samePlainData(left: unknown, right: unknown): boolean {
   if (Object.is(left, right)) return true;
@@ -620,6 +714,19 @@ function requireEpisodeEvidenceChain(
       expectedRefs,
       `${label}.samples[${index}].states`,
     );
+    if (runEpisode.program.kind === "actuator-sequence") {
+      for (const [ref, baseEntity] of baseEntities) {
+        const sampleState = sample.states[ref];
+        if (!sampleState) throw new Error(`${label}.samples[${index}].${ref} state 缺失`);
+        if (ref !== "entity:arm" && !samePlainData(sampleState, baseEntity.state)) {
+          throw new Error(`${label}.samples[${index}].${ref} fixed state 漂移`);
+        }
+        if (ref === "entity:arm" && !samePlainData(
+          { pose: sampleState.pose, linearVelocity: sampleState.linearVelocity, angularVelocity: sampleState.angularVelocity },
+          { pose: baseEntity.state.pose, linearVelocity: baseEntity.state.linearVelocity, angularVelocity: baseEntity.state.angularVelocity },
+        )) throw new Error(`${label}.samples[${index}].entity:arm root state 漂移`);
+      }
+    }
   });
   runEpisode.events.forEach((event, index) => {
     requireExactEntityRefs(
@@ -655,14 +762,26 @@ function requireEpisodeEvidenceChain(
 
 function episode(value: unknown, label: string): Episode {
   const data = record(value, label, [
-    "id", "baseSnapshotId", "programId", "runtimeProfileId", "explicitInputs", "completion",
+    "id", "baseSnapshotId", "scenarioId", "program", "runtimeProfileId", "explicitInputs", "completion",
     "samples", "events", "terminalSnapshot", "runtimeEvidence",
   ]);
   id(data.id, "episode:", `${label}.id`);
   id(data.baseSnapshotId, "snapshot:", `${label}.baseSnapshotId`);
-  const programId = id(data.programId, "program:", `${label}.programId`);
-  if (programId !== FALLING_CUBE_PROGRAM.id && programId !== BALL_VESSEL_PROGRAM.id) {
-    throw new Error(`${label}.programId 未登记`);
+  const programPreview = record(data.program, `${label}.program`);
+  const programData = record(data.program, `${label}.program`, programPreview.kind === "actuator-sequence"
+    ? ["id","kind","targetRef","durationSeconds","sampleRateHz","steps"]
+    : ["id","kind","targetRef","durationSeconds","sampleRateHz"]);
+  const programId = id(programData.id, "program:", `${label}.program.id`);
+  const { id: _programId, ...programContent } = programData;
+  const trustedProgram = requireWorldProgramEvidence(programContent);
+  if (programId !== trustedProgram.id || !samePlainData(programData, trustedProgram)) {
+    throw new Error(`${label}.program 与 canonical Program 不一致`);
+  }
+  if (data.scenarioId !== "scenario:primitive-box-free-fall-v1" &&
+      data.scenarioId !== "scenario:diagnostic-rigid-free-fall-v1" &&
+      data.scenarioId !== "scenario:ball-vessel-free-fall-v1" &&
+      data.scenarioId !== "scenario:two-joint-planar-reach-v1") {
+    throw new Error(`${label}.scenarioId 非法`);
   }
   if (data.runtimeProfileId !== MUJOCO_PROFILE.id) {
     throw new Error(`${label}.runtimeProfileId 未登记`);
@@ -670,14 +789,17 @@ function episode(value: unknown, label: string): Episode {
   const inputs = record(data.explicitInputs, `${label}.explicitInputs`, ["runId"]);
   id(inputs.runId, "run:", `${label}.explicitInputs.runId`);
   if (data.completion !== "completed") throw new Error(`${label}.completion 非法`);
-  const ballVessel = programId === BALL_VESSEL_PROGRAM.id;
-  const expectedSampleCount = ballVessel ? 91 : 76;
+  const articulated = trustedProgram.kind === "actuator-sequence";
+  const ballVessel = data.scenarioId === "scenario:ball-vessel-free-fall-v1";
+  const expectedSampleCount = trustedProgram.durationSeconds * trustedProgram.sampleRateHz + 1;
   if (!Array.isArray(data.samples) || data.samples.length !== expectedSampleCount) {
     throw new Error(`${label}.samples 非法`);
   }
   data.samples.forEach((value, index) => {
     const sampleLabel = `${label}.samples[${index}]`;
-    const sample = record(value, sampleLabel, ballVessel
+    const sample = record(value, sampleLabel, articulated
+      ? ["timeSeconds", "states", "contactCount", "articulated"]
+      : ballVessel
       ? ["timeSeconds", "states", "contactCount", "contacts"]
       : ["timeSeconds", "states", "contactCount"]);
     const timeSeconds = finite(sample.timeSeconds, `${sampleLabel}.timeSeconds`);
@@ -693,6 +815,39 @@ function episode(value: unknown, label: string): Episode {
     for (const key of stateKeys as string[]) {
       id(key, "entity:", `${label}.samples[${index}].states key`);
       entityState(states[key], `${label}.samples[${index}].states.${key}`);
+    }
+    if (articulated) {
+      if (contactCount !== 0) throw new Error(`${sampleLabel}.contactCount 必须为 0`);
+      const evidence = record(sample.articulated, `${sampleLabel}.articulated`, [
+        "targetRef", "joints", "sensors", "activeCommands",
+      ]);
+      if (evidence.targetRef !== "entity:arm") throw new Error(`${sampleLabel}.targetRef 非法`);
+      const state = entityState(states["entity:arm"], `${sampleLabel}.states.entity:arm`);
+      if (!samePlainData(evidence.joints, state.articulated?.joints)) {
+        throw new Error(`${sampleLabel}.joint evidence 与 state 不一致`);
+      }
+      if (!Array.isArray(evidence.sensors) || evidence.sensors.length !== 4) {
+        throw new Error(`${sampleLabel}.sensors 必须恰好四项`);
+      }
+      const sensorRefs = [
+        "sensor:arm-shoulder-position", "sensor:arm-shoulder-velocity",
+        "sensor:arm-elbow-position", "sensor:arm-elbow-velocity",
+      ];
+      const joints = state.articulated!.joints;
+      const sensorValues = [
+        joints[0]!.positionRadians, joints[0]!.velocityRadiansPerSecond,
+        joints[1]!.positionRadians, joints[1]!.velocityRadiansPerSecond,
+      ];
+      evidence.sensors.forEach((value, sensorIndex) => {
+        const sensor = record(value, `${sampleLabel}.sensors[${sensorIndex}]`, ["sensorRef", "value"]);
+        if (sensor.sensorRef !== sensorRefs[sensorIndex] || Math.abs(finite(sensor.value, `${sampleLabel}.sensor.value`) - sensorValues[sensorIndex]!) > 1e-9) {
+          throw new Error(`${sampleLabel}.sensor registry/value 漂移`);
+        }
+      });
+      const activeStep = [...trustedProgram.steps].reverse().find((step) => step.timeSeconds <= timeSeconds)!;
+      if (!samePlainData(evidence.activeCommands, activeStep.commands)) {
+        throw new Error(`${sampleLabel}.activeCommands 与 Program 不一致`);
+      }
     }
     if (ballVessel) {
       if (!Array.isArray(sample.contacts) || sample.contacts.length !== contactCount) {
@@ -731,19 +886,27 @@ function episode(value: unknown, label: string): Episode {
     );
   });
   const terminal = snapshot(data.terminalSnapshot, `${label}.terminalSnapshot`);
-  const runtime = record(data.runtimeEvidence, `${label}.runtimeEvidence`, ["provider", "version", "modelFormat"]);
+  const runtime = record(data.runtimeEvidence, `${label}.runtimeEvidence`, articulated
+    ? ["provider", "version", "modelFormat", "modelCausalDigest"]
+    : ["provider", "version", "modelFormat"]);
   if (
     runtime.provider !== MUJOCO_PROFILE.provider ||
     runtime.version !== MUJOCO_PROFILE.version ||
     runtime.modelFormat !== "MJCF"
   ) throw new Error(`${label}.runtimeEvidence identity 非法`);
+  if (articulated && (typeof runtime.modelCausalDigest !== "string" || !/^sha256:[a-f0-9]{64}$/.test(runtime.modelCausalDigest))) {
+    throw new Error(`${label}.runtimeEvidence.modelCausalDigest 非法`);
+  }
   if (terminal.source !== "runtime-terminal" || terminal.parentId !== data.baseSnapshotId) {
     throw new Error(`${label}.terminalSnapshot lineage 非法`);
   }
+  if (terminal.scenarioId !== data.scenarioId) {
+    throw new Error(`${label}.terminalSnapshot scenario 与 Episode authority 不一致`);
+  }
   const scenario = snapshotScenario(terminal.entities.map((entity) => entity.ref), label);
   if (
-    (scenario === "ball-vessel") !== ballVessel
-  ) throw new Error(`${label}.programId 与 terminal scenario 不匹配`);
+    (scenario === "ball-vessel") !== ballVessel || (scenario === "articulated-reach") !== articulated
+  ) throw new Error(`${label}.program 与 terminal scenario 不匹配`);
   return data as unknown as Episode;
 }
 
@@ -790,6 +953,17 @@ function evaluation(value: unknown, expectedEpisodeId: string, label: string): E
         throw new Error(`${label}.metrics.${key} 不能为负数`);
       }
     });
+  } else if (
+    data.contractId === "success:end-effector-reaches-frame" &&
+    data.evaluatorId === "evaluator:end-effector-reach-v1"
+  ) {
+    const metrics = record(data.metrics, `${label}.metrics`, [
+      "supportSamples", "requiredSupportSamples", "maxPositionErrorMeters", "maxJointSpeedRadiansPerSecond",
+    ]);
+    safeInteger(metrics.supportSamples, `${label}.metrics.supportSamples`);
+    if (metrics.requiredSupportSamples !== 16) throw new Error(`${label}.requiredSupportSamples 必须为 16`);
+    finite(metrics.maxPositionErrorMeters, `${label}.maxPositionErrorMeters`);
+    finite(metrics.maxJointSpeedRadiansPerSecond, `${label}.maxJointSpeedRadiansPerSecond`);
   } else {
     throw new Error(`${label} evaluator/contract identity 非法`);
   }
@@ -800,22 +974,29 @@ function worldRun(
   value: unknown,
   label: string,
   expectedWorld?: WorldAuthorityContext,
+  allowUnverifiedArticulated = false,
 ): WorldRunResult {
   const data = record(value, label, ["tool", "baseRef", "episode", "evaluation"]);
   if (data.tool !== "run") throw new Error(`${label}.tool 非法`);
   const baseRef = refRecord(data.baseRef, `${label}.baseRef`);
   const runEpisode = episode(data.episode, `${label}.episode`);
   const runEvaluation = evaluation(data.evaluation, runEpisode.id, `${label}.evaluation`);
-  if (
-    (runEpisode.programId === BALL_VESSEL_PROGRAM.id) !==
-      (runEvaluation.contractId === "success:stable-inside-vessel")
-  ) throw new Error(`${label} Program/Evaluation scenario identity 漂移`);
+  if (runEpisode.program.kind === "actuator-sequence"
+    ? runEvaluation.contractId !== "success:end-effector-reaches-frame"
+    : (runEpisode.program.id === BALL_VESSEL_PROGRAM.id) !== (runEvaluation.contractId === "success:stable-inside-vessel")) {
+    throw new Error(`${label} Program/Evaluation scenario identity 漂移`);
+  }
   if (baseRef.snapshotId !== runEpisode.baseSnapshotId) throw new Error(`${label} base identity 漂移`);
   const trustedEpisode = deepFreeze(runEpisode) as Episode;
-  const trustedContract = runEpisode.programId === BALL_VESSEL_PROGRAM.id
-    ? deriveStableInsideVesselSuccessContract(trustedEpisode)
-    : deriveLandingSuccessContract(trustedEpisode);
-  const trustedEvaluation = evaluateEpisode(trustedEpisode, trustedContract);
+  if (
+    runEpisode.program.kind === "actuator-sequence" &&
+    runEpisode.runtimeEvidence.modelCausalDigest !== ARTICULATED_CANONICAL_MODEL_CAUSAL_DIGEST
+  ) throw new Error(`${label}.runtimeEvidence 与 canonical Runtime registry 不一致`);
+  const trustedEvaluation = runEpisode.program.kind === "actuator-sequence"
+    ? evaluateArticulatedReach(trustedEpisode)
+    : evaluateEpisode(trustedEpisode, runEpisode.program.id === BALL_VESSEL_PROGRAM.id
+      ? deriveStableInsideVesselSuccessContract(trustedEpisode)
+      : deriveLandingSuccessContract(trustedEpisode));
   if (!samePlainData(runEvaluation, trustedEvaluation)) {
     throw new Error(`${label}.evaluation Evaluation 与受信 evaluator 结果不一致`);
   }
@@ -824,14 +1005,40 @@ function worldRun(
       baseRef.name !== expectedWorld.ref.name ||
       baseRef.snapshotId !== expectedWorld.ref.snapshotId ||
       baseRef.version !== expectedWorld.ref.version ||
-      runEpisode.baseSnapshotId !== expectedWorld.snapshot.id
+      runEpisode.baseSnapshotId !== expectedWorld.snapshot.id ||
+      runEpisode.scenarioId !== expectedWorld.snapshot.scenarioId
     ) throw new Error(`${label} base ref 证据链非法`);
     if (runEpisode.terminalSnapshot.id === expectedWorld.snapshot.id) {
       throw new Error(`${label} terminal Snapshot identity 必须与 base 不同`);
     }
     requireEpisodeEvidenceChain(runEpisode, expectedWorld.snapshot, `${label}.episode`);
   }
+  if (runEpisode.program.kind === "actuator-sequence" && !allowUnverifiedArticulated) {
+    throw new Error(`${label} articulated evidence 必须经过 trusted Runtime replay`);
+  }
   return data as unknown as WorldRunResult;
+}
+
+async function requireTrustedArticulatedReplay(
+  result: WorldRunResult,
+  expectedWorld: WorldAuthorityContext,
+  label: string,
+): Promise<void> {
+  if (result.episode.program.kind !== "actuator-sequence") return;
+  const { id: _programId, ...programContent } = result.episode.program;
+  const replayProgram = requireWorldRunInput({
+    runId: result.episode.explicitInputs.runId,
+    program: JSON.parse(JSON.stringify(programContent)),
+  }).program;
+  const replay = await runArticulatedReach(
+    deepFreeze(JSON.parse(JSON.stringify(expectedWorld.snapshot))) as Snapshot,
+    replayProgram as Extract<Episode["program"], { kind: "actuator-sequence" }>,
+    MUJOCO_PROFILE,
+    deepFreeze({ runId: result.episode.explicitInputs.runId }),
+  );
+  if (!samePlainData(result.episode, replay)) {
+    throw new Error(`${label}.episode 与 trusted Runtime replay 不一致`);
+  }
 }
 
 function evidence(
@@ -841,9 +1048,22 @@ function evidence(
   expectedWorld?: WorldAuthorityContext | null,
 ): ProductWorldEvidence {
   switch (tool) {
-    case "world_read": return worldReadLike(value, "read", label) as WorldReadResult;
-    case "world_write": return worldReadLike(value, "write", label) as WorldWriteResult;
-    case "world_edit": return worldEdit(value, label);
+    case "world_read": {
+      if (!expectedWorld) throw new Error(`${label} successful world_read 缺少既有 world authority`);
+      const read = worldReadLike(value, "read", label) as WorldReadResult;
+      if (!sameWorldAuthority(read, expectedWorld)) {
+        throw new Error(`${label} world_read 与前序 world authority 不一致`);
+      }
+      return read;
+    }
+    case "world_write": {
+      if (expectedWorld) throw new Error(`${label} world_write 不得替换既有 world authority`);
+      return worldReadLike(value, "write", label) as WorldWriteResult;
+    }
+    case "world_edit": {
+      if (!expectedWorld) throw new Error(`${label} world_edit 缺少前序 world authority`);
+      return worldEdit(value, label, expectedWorld);
+    }
     case "world_run": {
       if (!expectedWorld) throw new Error(`${label} world_run 缺少 authored world context`);
       return worldRun(value, label, expectedWorld);
@@ -858,11 +1078,12 @@ function toolName(value: unknown, label: string): ProductWorldToolName {
   return value as ProductWorldToolName;
 }
 
-export function decodeProductSessionEvent(
+function decodeProductSessionEventInternal(
   value: unknown,
   expectedSessionId: string,
   expectedSequence: number,
   expectedWorld?: WorldAuthorityContext | null,
+  allowUnverifiedArticulated = false,
 ): ProductSessionEvent {
   const data = record(projectPlainData(value, "Product Session event"), "Product Session event");
   if (safeInteger(data.sequence, "event.sequence", 1) !== expectedSequence) {
@@ -898,7 +1119,12 @@ export function decodeProductSessionEvent(
         if (trace.error !== undefined || data.evidence === undefined) {
           throw new Error("succeeded tool evidence 非法");
         }
-        evidence(data.evidence, tool, "event.evidence", expectedWorld);
+        if (tool === "world_run") {
+          if (!expectedWorld) throw new Error("event.evidence world_run 缺少 authored world context");
+          worldRun(data.evidence, "event.evidence", expectedWorld, allowUnverifiedArticulated);
+        } else {
+          evidence(data.evidence, tool, "event.evidence", expectedWorld);
+        }
       }
       break;
     }
@@ -916,9 +1142,35 @@ export function decodeProductSessionEvent(
   return deepFreeze(data) as unknown as ProductSessionEvent;
 }
 
-export function decodeProductSessionProjection(
+export function decodeProductSessionEvent(
+  value: unknown,
+  expectedSessionId: string,
+  expectedSequence: number,
+  expectedWorld?: WorldAuthorityContext | null,
+): ProductSessionEvent {
+  return decodeProductSessionEventInternal(value, expectedSessionId, expectedSequence, expectedWorld);
+}
+
+export async function decodeProductSessionEventTrusted(
+  value: unknown,
+  expectedSessionId: string,
+  expectedSequence: number,
+  expectedWorld?: WorldAuthorityContext | null,
+): Promise<ProductSessionEvent> {
+  const decoded = decodeProductSessionEventInternal(
+    value, expectedSessionId, expectedSequence, expectedWorld, true,
+  );
+  if (decoded.type === "tool.completed" && decoded.evidence?.tool === "run") {
+    if (!expectedWorld) throw new Error("event.evidence world_run 缺少 authored world context");
+    await requireTrustedArticulatedReplay(decoded.evidence, expectedWorld, "event.evidence");
+  }
+  return decoded;
+}
+
+function decodeProductSessionProjectionInternal(
   value: unknown,
   expectedSessionId?: string,
+  allowUnverifiedArticulated = false,
 ): ProductSessionProjection {
   const data = record(projectPlainData(value, "Product Session projection"), "Product Session projection", [
     "sessionId", "world", "lastRun", "lastSequence", "running",
@@ -934,7 +1186,34 @@ export function decodeProductSessionProjection(
     : worldReadLike(data.world, "read", "projection.world") as WorldReadResult;
   if (data.lastRun !== null) {
     if (!currentWorld) throw new Error("projection.lastRun 缺少 authored world context");
-    worldRun(data.lastRun, "projection.lastRun", currentWorld);
+    worldRun(data.lastRun, "projection.lastRun", currentWorld, allowUnverifiedArticulated);
   }
   return deepFreeze(data) as unknown as ProductSessionProjection;
+}
+
+export function decodeProductSessionProjection(
+  value: unknown,
+  expectedSessionId?: string,
+): ProductSessionProjection {
+  return decodeProductSessionProjectionInternal(value, expectedSessionId);
+}
+
+export async function decodeProductSessionProjectionTrusted(
+  value: unknown,
+  expectedSessionId?: string,
+  expectedWorld?: WorldAuthorityContext | null,
+): Promise<ProductSessionProjection> {
+  const decoded = decodeProductSessionProjectionInternal(value, expectedSessionId, true);
+  if (expectedWorld !== undefined) {
+    if (!sameWorldAuthority(decoded.world, expectedWorld)) {
+      throw new Error("projection.world 与已验证的 authored world authority 不一致");
+    }
+  }
+  if (decoded.lastRun?.episode.program.kind === "actuator-sequence") {
+    if (!decoded.world || !expectedWorld) {
+      throw new Error("projection.lastRun 缺少独立验证的 authored world authority");
+    }
+    await requireTrustedArticulatedReplay(decoded.lastRun, expectedWorld, "projection.lastRun");
+  }
+  return decoded;
 }

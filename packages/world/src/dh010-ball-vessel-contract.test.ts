@@ -12,10 +12,10 @@ import type {
   Entity,
   Episode,
   Snapshot,
-  WorldProgram,
 } from "./kernel/types";
 import {
   MUJOCO_PROFILE,
+  BALL_VESSEL_PROGRAM,
   createInitialSnapshot,
   deepFreeze,
 } from "./kernel/world";
@@ -27,10 +27,7 @@ import {
 } from "./runtime-mujoco/run-falling-cube";
 import { RuntimeMvpHost } from "./host/runtime-mvp-host";
 import { WorldToolSurface } from "./world-tools/world-tool-surface";
-import {
-  BALL_VESSEL_FIXTURE_ID,
-  FREE_FALL_BALL_VESSEL_PROGRAM_ID,
-} from "./world-tools/world-tool-contract";
+import { BALL_VESSEL_FIXTURE_ID } from "./world-tools/world-tool-contract";
 
 const BALL_REF = "entity:ball" as const;
 const VESSEL_REF = "entity:vessel" as const;
@@ -39,14 +36,6 @@ const IDENTITY_POSE = deepFreeze({
   position: [0, 0, 0] as const,
   rotation: { x: 0, y: 0, z: 0, w: 1 },
 });
-
-const BALL_VESSEL_PROGRAM = deepFreeze({
-  id: FREE_FALL_BALL_VESSEL_PROGRAM_ID,
-  kind: "free-fall" as const,
-  targetRef: BALL_REF,
-  durationSeconds: 3,
-  sampleRateHz: 30,
-}) as WorldProgram;
 
 const STABLE_INSIDE_CONTRACT = deepFreeze({
   id: "success:stable-inside-vessel",
@@ -143,6 +132,7 @@ function proposedBallVesselSnapshot(): Snapshot {
     id: "snapshot:base-ball-vessel",
     parentId: null,
     source: "write",
+    scenarioId: "scenario:ball-vessel-free-fall-v1",
     entities: [floor, vessel, ball],
   }) as Snapshot;
 }
@@ -209,7 +199,8 @@ function proposedCompletedEpisode(): Episode {
   return deepFreeze({
     id: "episode:ball-vessel-contract",
     baseSnapshotId: base.id,
-    programId: BALL_VESSEL_PROGRAM.id,
+    scenarioId: base.scenarioId,
+    program: BALL_VESSEL_PROGRAM,
     runtimeProfileId: MUJOCO_PROFILE.id,
     explicitInputs: { runId: "run:ball-vessel-contract" },
     completion: "completed",
@@ -265,7 +256,7 @@ describe("DH-010 ball-vessel RED contract", () => {
       deepFreeze({ runId: "run:ball-vessel-runtime" }),
     );
     expect(episode.completion).toBe("completed");
-    expect(episode.programId).toBe(FREE_FALL_BALL_VESSEL_PROGRAM_ID);
+    expect(episode.program.id).toBe(BALL_VESSEL_PROGRAM.id);
     expect(episode.samples).toHaveLength(91);
     expect(episode.samples[0]!.timeSeconds).toBe(0);
     expect(episode.samples.at(-1)!.timeSeconds).toBe(3);
@@ -463,16 +454,14 @@ describe("DH-010 ball-vessel RED contract", () => {
       contractId: "success:stable-inside-vessel",
     }) as unknown as AdoptPolicy;
     expect(() => createWorldRepositoryAuthority(ballPolicy)).toThrow("registry");
-    expect(RUNTIME_MVP_ADOPT_POLICY_REGISTRY).toEqual([
+    expect(RUNTIME_MVP_ADOPT_POLICY_REGISTRY).toEqual(expect.arrayContaining([
+      expect.objectContaining({ policy: ADOPT_RUNTIME_MVP_POLICY }),
       expect.objectContaining({
-        programId: "program:free-fall-rigid-v1",
-        policy: ADOPT_RUNTIME_MVP_POLICY,
-      }),
-      expect.objectContaining({
-        programId: FREE_FALL_BALL_VESSEL_PROGRAM_ID,
+        scenarioId: "scenario:ball-vessel-free-fall-v1",
+        programKind: "free-fall",
         policy: ADOPT_STABLE_INSIDE_VESSEL_POLICY,
       }),
-    ]);
+    ]));
     expect(Object.isFrozen(RUNTIME_MVP_ADOPT_POLICY_REGISTRY)).toBe(true);
   });
 
@@ -482,7 +471,7 @@ describe("DH-010 ball-vessel RED contract", () => {
     const expected = host.readRefRecord();
     const { episode } = await host.runCurrent(
       deepFreeze({ runId: "run:ball-vessel-host-policy" }),
-      BALL_VESSEL_PROGRAM.id,
+      BALL_VESSEL_PROGRAM,
     );
     const evaluation = host.evaluateEpisode(episode.id);
     expect(evaluation).toMatchObject({
@@ -503,7 +492,7 @@ describe("DH-010 ball-vessel RED contract", () => {
     const current = surface.read();
     const currentRun = await surface.run({
       runId: "run:codec-ball-vessel",
-      programId: FREE_FALL_BALL_VESSEL_PROGRAM_ID,
+      program: { kind: "free-fall", targetRef: "entity:ball", durationSeconds: 3, sampleRateHz: 30 },
     });
     const projection = {
       sessionId: "session:local-ball-vessel-red",

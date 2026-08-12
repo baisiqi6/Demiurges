@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 import {
   CURRENT_WORLD_REF,
+  BALL_VESSEL_FIXTURE_ID,
   DIAGNOSTIC_RIGID_FIXTURE_ID,
+  TWO_JOINT_REACH_FIXTURE_ID,
   RuntimeMvpHost,
   WorldToolSurface,
   createInitialSnapshot,
@@ -86,7 +88,7 @@ describe("Studio Product Session client", () => {
     const world = surface.read();
     const forgedRun = structuredClone(await surface.run({
       runId: "run:stream-forged",
-      programId: "program:free-fall-rigid-v1",
+      program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 },
     }));
     const firstStates = forgedRun.episode.samples[0]?.states;
     if (!firstStates?.["entity:cube"]) throw new Error("fixture 缺少 cube sample");
@@ -112,7 +114,7 @@ describe("Studio Product Session client", () => {
           tool: "world_run",
           input: {
             runId: "run:stream-forged",
-            programId: "program:free-fall-rigid-v1",
+            program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 },
           },
           status: "succeeded",
           result: { tool: "run" },
@@ -238,6 +240,98 @@ describe("Studio Product Session client", () => {
       client.runTurn("session:local-1", "运行", 1, () => undefined),
     ).rejects.toBeInstanceOf(ProductSessionTurnError);
     expect(calls).toBe(2);
+  });
+
+  test("completed、failed 与断流后的 projection 都不能替换已验证的 world lineage", async () => {
+    const armSurface = new WorldToolSurface(new RuntimeMvpHost());
+    armSurface.write({ fixtureId: TWO_JOINT_REACH_FIXTURE_ID });
+    const armWorld = armSurface.read();
+    const vesselSurface = new WorldToolSurface(new RuntimeMvpHost());
+    vesselSurface.write({ fixtureId: BALL_VESSEL_FIXTURE_ID });
+    const vesselWorld = vesselSurface.read();
+    const sessionId = "session:local-edit-continuity";
+    const turnId = "turn:local-edit-continuity:1";
+    const projection = {
+      sessionId,
+      world: vesselWorld,
+      lastRun: null,
+      lastSequence: 3,
+      running: false,
+    };
+
+    for (const lifecycle of ["completed", "failed", "disconnected"] as const) {
+      const terminal = lifecycle === "failed"
+        ? { sequence: 2, sessionId, turnId, type: "turn.failed", error: "failed" }
+        : { sequence: 2, sessionId, turnId, type: "turn.completed", responseText: "done" };
+      const events = [
+        { sequence: 1, sessionId, turnId, type: "turn.started" },
+        terminal,
+      ];
+      let calls = 0;
+      const client = new ProductSessionClient(async () => {
+        calls += 1;
+        if (calls === 1) {
+          if (lifecycle !== "disconnected") {
+            return chunkedResponse([`${events.map((event) => JSON.stringify(event)).join("\n")}\n`]);
+          }
+          const encoder = new TextEncoder();
+          return new Response(new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(encoder.encode(`${JSON.stringify(events[0])}\n`));
+              controller.error(new Error("simulated disconnect"));
+            },
+          }), { headers: { "content-type": "application/x-ndjson" } });
+        }
+        return Response.json(projection);
+      }, 2_000);
+
+      await expect(client.runTurn(
+        sessionId,
+        "go",
+        1,
+        () => undefined,
+        undefined,
+        armWorld,
+      )).rejects.toThrow("world authority");
+      expect(calls).toBe(2);
+    }
+  });
+
+  test("streamed world_read/write 不能替换已验证 world lineage", async () => {
+    const armSurface = new WorldToolSurface(new RuntimeMvpHost());
+    armSurface.write({ fixtureId: TWO_JOINT_REACH_FIXTURE_ID });
+    const armWorld = armSurface.read();
+    const vesselSurface = new WorldToolSurface(new RuntimeMvpHost());
+    const vesselWrite = vesselSurface.write({ fixtureId: BALL_VESSEL_FIXTURE_ID });
+    const vesselRead = { ...vesselSurface.read(), tool: "read" as const };
+    const sessionId = "session:local-event-continuity";
+    const turnId = "turn:local-event-continuity:1";
+
+    for (const [tool, evidence] of [
+      ["world_read", vesselRead],
+      ["world_write", vesselWrite],
+    ] as const) {
+      const events = [
+        { sequence: 1, sessionId, turnId, type: "turn.started" },
+        {
+          sequence: 2,
+          sessionId,
+          turnId,
+          type: "tool.completed",
+          tool,
+          trace: { sequence: 1, tool, input: {}, status: "succeeded", result: {} },
+          evidence,
+        },
+      ];
+      await expect(readProductSessionEvents(
+        chunkedResponse([`${events.map((event) => JSON.stringify(event)).join("\n")}\n`]),
+        sessionId,
+        () => undefined,
+        1,
+        undefined,
+        armWorld,
+      )).rejects.toThrow(tool === "world_write" ? "不得替换" : "前序 world authority");
+    }
   });
 
   test("断流后的 resync 会 bounded follow-up 到 non-running authoritative projection", async () => {

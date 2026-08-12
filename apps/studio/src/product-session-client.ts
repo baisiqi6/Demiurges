@@ -1,6 +1,6 @@
 import {
-  decodeProductSessionEvent,
-  decodeProductSessionProjection,
+  decodeProductSessionEventTrusted,
+  decodeProductSessionProjectionTrusted,
   type ProductSessionEvent,
   type ProductSessionProjection,
   type WorldReadResult,
@@ -15,6 +15,17 @@ const DEFAULT_TURN_TIMEOUT_MS = 120_000;
 
 type EventSink = (event: ProductSessionEvent) => void;
 type FetchPort = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+type TurnTerminal = Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }>;
+type VerifiedTurnStream = TurnTerminal & {
+  readonly verifiedWorld: Pick<WorldReadResult, "ref" | "snapshot"> | null;
+};
+
+function worldAuthority(
+  value: Pick<WorldReadResult, "ref" | "snapshot"> | null | undefined,
+): Pick<WorldReadResult, "ref" | "snapshot"> | null | undefined {
+  if (value == null) return value;
+  return Object.freeze({ ref: value.ref, snapshot: value.snapshot });
+}
 
 function mediaType(value: string | null): string {
   return (value ?? "").split(";", 1)[0]?.trim().toLowerCase() ?? "";
@@ -31,7 +42,7 @@ export async function readProductSessionEvents(
   firstSequence = 1,
   signal?: AbortSignal,
   initialWorld?: WorldReadResult | null,
-): Promise<Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }>> {
+): Promise<VerifiedTurnStream> {
   if (!response.ok) {
     throw new Error(`Agent Gateway turn request 失败：HTTP ${response.status}`);
   }
@@ -62,9 +73,10 @@ export async function readProductSessionEvents(
   let nextTraceSequence = 1;
   let eventCount = 0;
   let terminal: Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }> | undefined;
-  let acceptedWorld: Pick<WorldReadResult, "ref" | "snapshot"> | null | undefined = initialWorld;
+  let acceptedWorld: Pick<WorldReadResult, "ref" | "snapshot"> | null | undefined =
+    worldAuthority(initialWorld);
 
-  const consumeLine = (line: string) => {
+  const consumeLine = async (line: string) => {
     if (line.length === 0) return;
     eventCount += 1;
     if (eventCount > MAX_TURN_EVENTS) {
@@ -79,7 +91,7 @@ export async function readProductSessionEvents(
     } catch {
       throw new Error("Product Session event 不是合法 JSON");
     }
-    const event = decodeProductSessionEvent(
+    const event = await decodeProductSessionEventTrusted(
       value,
       sessionId,
       expectedSequence++,
@@ -100,9 +112,9 @@ export async function readProductSessionEvents(
           throw new Error("Product Session tool trace sequence 漂移");
         }
         if (event.evidence?.tool === "read" || event.evidence?.tool === "write") {
-          acceptedWorld = event.evidence;
+          acceptedWorld = worldAuthority(event.evidence);
         } else if (event.evidence?.tool === "edit") {
-          acceptedWorld = event.evidence.update;
+          acceptedWorld = worldAuthority(event.evidence.update);
         }
       }
       if (event.type === "turn.completed" || event.type === "turn.failed") {
@@ -118,7 +130,7 @@ export async function readProductSessionEvents(
       buffer += decoder.decode(value, { stream: !done });
       let newline = buffer.indexOf("\n");
       while (newline >= 0) {
-        consumeLine(buffer.slice(0, newline));
+        await consumeLine(buffer.slice(0, newline));
         buffer = buffer.slice(newline + 1);
         newline = buffer.indexOf("\n");
       }
@@ -127,7 +139,7 @@ export async function readProductSessionEvents(
       }
       if (done) break;
     }
-    consumeLine(buffer);
+    await consumeLine(buffer);
   } catch (error) {
     await reader.cancel(error).catch(() => undefined);
     throw error;
@@ -137,7 +149,7 @@ export async function readProductSessionEvents(
   if (!turnId || !terminal) {
     throw new Error("Product Session stream 缺少完整 turn lifecycle");
   }
-  return terminal;
+  return Object.freeze({ ...terminal, verifiedWorld: acceptedWorld ?? null });
 }
 
 async function readBoundedText(response: Response, maximumBytes: number): Promise<string> {
@@ -215,26 +227,37 @@ export class ProductSessionClient {
 
   async createSession(): Promise<ProductSessionProjection> {
     const response = await this.#fetch("/api/sessions", { method: "POST" });
-    return decodeProductSessionProjection(await responseJson(response));
+    return decodeProductSessionProjectionTrusted(await responseJson(response));
   }
 
   async readSession(
     sessionId: string,
     signal?: AbortSignal,
+    expectedWorld?: Pick<WorldReadResult, "ref" | "snapshot"> | null,
   ): Promise<ProductSessionProjection> {
     const response = await this.#fetch(
       `/api/sessions/${encodeURIComponent(sessionId)}`,
       signal ? { signal } : undefined,
     );
-    return decodeProductSessionProjection(await responseJson(response), sessionId);
+    return decodeProductSessionProjectionTrusted(
+      await responseJson(response),
+      sessionId,
+      expectedWorld,
+    );
   }
 
   async #readSettledSession(
     sessionId: string,
     deadline: number,
     signal?: AbortSignal,
+    expectedWorld?: Pick<WorldReadResult, "ref" | "snapshot"> | null,
   ): Promise<ProductSessionProjection> {
-    let projection = await this.#readSessionBeforeDeadline(sessionId, deadline, signal);
+    let projection = await this.#readSessionBeforeDeadline(
+      sessionId,
+      deadline,
+      signal,
+      expectedWorld,
+    );
     for (let attempt = 1; projection.running && attempt < SETTLED_RESYNC_ATTEMPTS; attempt += 1) {
       const remaining = deadline - Date.now();
       if (remaining <= 0) break;
@@ -246,7 +269,12 @@ export class ProductSessionClient {
           setTimeout(resolve, Math.min(SETTLED_RESYNC_DELAY_MS, remaining)),
         ),
       );
-      projection = await this.#readSessionBeforeDeadline(sessionId, deadline, signal);
+      projection = await this.#readSessionBeforeDeadline(
+        sessionId,
+        deadline,
+        signal,
+        expectedWorld,
+      );
     }
     if (projection.running) {
       throw new Error("Agent Gateway session 未在 resync budget 内 settled");
@@ -258,12 +286,13 @@ export class ProductSessionClient {
     sessionId: string,
     deadline: number,
     signal?: AbortSignal,
+    expectedWorld?: Pick<WorldReadResult, "ref" | "snapshot"> | null,
   ): Promise<ProductSessionProjection> {
     return this.#beforeDeadline(
       deadline,
       signal,
       "session resync GET",
-      (operationSignal) => this.readSession(sessionId, operationSignal),
+      (operationSignal) => this.readSession(sessionId, operationSignal, expectedWorld),
     );
   }
 
@@ -319,9 +348,21 @@ export class ProductSessionClient {
     initialWorld?: WorldReadResult | null,
   ): Promise<ProductSessionProjection> {
     const deadline = Date.now() + this.#turnTimeoutMs;
-    let terminal: Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }>;
+    let stream: VerifiedTurnStream | undefined;
+    let verifiedWorld: Pick<WorldReadResult, "ref" | "snapshot"> | null | undefined =
+      worldAuthority(initialWorld);
+    const acceptEvent = (event: ProductSessionEvent) => {
+      if (event.type === "tool.completed") {
+        if (event.evidence?.tool === "read" || event.evidence?.tool === "write") {
+          verifiedWorld = worldAuthority(event.evidence);
+        } else if (event.evidence?.tool === "edit") {
+          verifiedWorld = worldAuthority(event.evidence.update);
+        }
+      }
+      sink(event);
+    };
     try {
-      terminal = await this.#beforeDeadline(
+      stream = await this.#beforeDeadline(
         deadline,
         signal,
         "turn POST/stream",
@@ -338,7 +379,7 @@ export class ProductSessionClient {
           return readProductSessionEvents(
             response,
             sessionId,
-            sink,
+            acceptEvent,
             firstSequence,
             operationSignal,
             initialWorld,
@@ -346,7 +387,12 @@ export class ProductSessionClient {
         },
       );
     } catch (error) {
-      const projection = await this.#readSettledSession(sessionId, deadline, signal);
+      const projection = await this.#readSettledSession(
+        sessionId,
+        deadline,
+        signal,
+        verifiedWorld,
+      );
       throw new ProductSessionTurnError(
         error instanceof Error ? error.message : "Agent Gateway turn stream 失败",
         projection,
@@ -356,10 +402,14 @@ export class ProductSessionClient {
       deadline,
       signal,
       "final projection GET",
-      (operationSignal) => this.readSession(sessionId, operationSignal),
+      (operationSignal) => this.readSession(
+        sessionId,
+        operationSignal,
+        stream.verifiedWorld,
+      ),
     );
-    if (terminal.type === "turn.failed") {
-      throw new ProductSessionTurnError(terminal.error, projection);
+    if (stream.type === "turn.failed") {
+      throw new ProductSessionTurnError(stream.error, projection);
     }
     return projection;
   }

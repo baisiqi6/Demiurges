@@ -11,15 +11,17 @@ import type {
   RefUpdateResult,
   Snapshot,
   WorldProgram,
+  ArticulatedJointState,
 } from "../kernel/types";
 import {
-  BALL_VESSEL_PROGRAM,
   FALLING_CUBE_PROGRAM,
   MUJOCO_PROFILE,
 } from "../kernel/world";
 import { createWorldRepositoryAuthority } from "../repository/world-repository";
 import { runFallingCube } from "../runtime-mujoco/run-falling-cube";
+import { runArticulatedReach } from "../runtime-mujoco/run-articulated-reach";
 import { requireAdoptPolicyForProgram } from "./runtime-mvp-adopt-policy";
+import { evaluateArticulatedReach } from "../evaluation/evaluate-articulated-reach";
 
 export interface RuntimeMvpRunResult {
   readonly episode: Episode;
@@ -65,44 +67,42 @@ export class RuntimeMvpHost {
     return this.#authority.repository.editCurrentEntityPose(expected, targetRef, pose);
   }
 
+  editCurrentEntityJointState(
+    expected: RefRecord,
+    targetRef: Snapshot["entities"][number]["ref"],
+    joints: readonly ArticulatedJointState[],
+  ): RefUpdateResult {
+    return this.#authority.repository.editCurrentEntityJointState(expected, targetRef, joints);
+  }
+
   advance(snapshotId: Snapshot["id"], expected: RefRecord): RefUpdateResult {
     return this.#authority.repository.advance(snapshotId, expected);
   }
 
   async runCurrent(
     explicitInputs: ExplicitInputs,
-    programId: WorldProgram["id"] = FALLING_CUBE_PROGRAM.id,
+    program: WorldProgram = FALLING_CUBE_PROGRAM,
   ): Promise<RuntimeMvpRunResult> {
     const baseRef = this.#authority.repository.readRefRecord();
     const base = this.#authority.repository.readSnapshot(baseRef.snapshotId);
-    const program = programId === FALLING_CUBE_PROGRAM.id
-      ? FALLING_CUBE_PROGRAM
-      : programId === BALL_VESSEL_PROGRAM.id
-        ? BALL_VESSEL_PROGRAM
-        : null;
-    if (!program) throw new Error(`不受支持的 WorldProgram：${programId}`);
     if (!base.entities.some((entity) => entity.ref === program.targetRef)) {
-      throw new Error(`WorldProgram 与当前 scenario 不匹配：${programId}`);
+      throw new Error(`WorldProgram 与当前 scenario 不匹配：${program.id}`);
     }
-    const episode = await runFallingCube(
-      base,
-      program,
-      MUJOCO_PROFILE,
-      explicitInputs,
-    );
+    const episode = program.kind === "free-fall"
+      ? await runFallingCube(base, program, MUJOCO_PROFILE, explicitInputs)
+      : await runArticulatedReach(base, program, MUJOCO_PROFILE, explicitInputs);
     this.#authority.evidence.recordEpisode(episode);
     return Object.freeze({ episode, baseRef });
   }
 
   evaluateEpisode(episodeId: Episode["id"]): EvaluationRecord {
     const episode = this.#authority.repository.readEpisode(episodeId);
-    const policy = requireAdoptPolicyForProgram(episode.programId);
-    const evaluation = evaluateEpisode(
-      episode,
-      policy.contractId === "success:stable-inside-vessel"
+    const policy = requireAdoptPolicyForProgram(episode.scenarioId, episode.program.kind);
+    const evaluation = episode.program.kind === "actuator-sequence"
+      ? evaluateArticulatedReach(episode)
+      : evaluateEpisode(episode, policy.contractId === "success:stable-inside-vessel"
         ? deriveStableInsideVesselSuccessContract(episode)
-        : deriveLandingSuccessContract(episode),
-    );
+        : deriveLandingSuccessContract(episode));
     this.#authority.evidence.recordEvaluation(evaluation);
     return evaluation;
   }
@@ -113,7 +113,7 @@ export class RuntimeMvpHost {
     expected: RefRecord,
   ): RefUpdateResult {
     const episode = this.#authority.repository.readEpisode(episodeId);
-    const policy = requireAdoptPolicyForProgram(episode.programId);
+    const policy = requireAdoptPolicyForProgram(episode.scenarioId, episode.program.kind);
     return this.#authority.repository.adopt(
       episodeId,
       evaluationId,

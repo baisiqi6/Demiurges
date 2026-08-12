@@ -57,6 +57,7 @@ export function createCollisionOverlay(entity: Entity): THREE.Group {
     ));
     return root;
   }
+  if (collision.kind === "none") return root;
   for (const part of collision.parts) {
     const [hx, hy, hz] = part.shape.halfExtents;
     root.add(collisionMesh(
@@ -112,4 +113,81 @@ export function createRimFrameOverlay(entity: Entity): THREE.Group | undefined {
   axes.userData.frameRef = semantic.rimFrame.ref;
   root.add(ring, axes);
   return root;
+}
+
+function linkMesh(
+  entity: Entity,
+  name: string,
+  length: number,
+  color: string,
+): THREE.Mesh {
+  const mesh = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.05, Math.max(0, length - 0.1), 8, 20),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.48, metalness: 0.08 }),
+  );
+  mesh.name = name;
+  mesh.userData.entityRef = entity.ref;
+  mesh.rotation.z = -Math.PI / 2;
+  mesh.position.x = length / 2;
+  mesh.castShadow = true;
+  return mesh;
+}
+
+export function createArticulatedArmPresentation(entity: Entity): THREE.Group | undefined {
+  if (entity.representations.semantic?.kind !== "articulated") return undefined;
+  const root = new THREE.Group();
+  root.name = "entity:arm:articulated";
+  root.userData.entityRef = entity.ref;
+
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.14, 0.1, 24),
+    new THREE.MeshStandardMaterial({ color: "#334155", roughness: 0.62 }),
+  );
+  base.rotation.x = Math.PI / 2;
+  base.position.z = -0.05;
+  base.userData.entityRef = entity.ref;
+  base.userData.linkRef = "link:arm-base";
+
+  const shoulder = new THREE.Group();
+  shoulder.name = "joint:arm-shoulder";
+  shoulder.userData.entityRef = entity.ref;
+  shoulder.userData.jointRef = "joint:arm-shoulder";
+  const upper = linkMesh(entity, "link:arm-upper", 0.55, "#d97757");
+  upper.userData.linkRef = "link:arm-upper";
+  const elbowMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.075, 20, 12),
+    new THREE.MeshStandardMaterial({ color: "#f4b183", roughness: 0.38 }),
+  );
+  elbowMarker.position.x = 0.55;
+  elbowMarker.userData.entityRef = entity.ref;
+
+  const elbow = new THREE.Group();
+  elbow.name = "joint:arm-elbow";
+  elbow.position.x = 0.55;
+  elbow.userData.entityRef = entity.ref;
+  elbow.userData.jointRef = "joint:arm-elbow";
+  const forearm = linkMesh(entity, "link:arm-forearm", 0.45, "#2f6f73");
+  forearm.userData.linkRef = "link:arm-forearm";
+  const tool = new THREE.AxesHelper(0.13);
+  tool.name = "frame:arm-tool";
+  tool.position.x = 0.45;
+  tool.userData.entityRef = entity.ref;
+  tool.userData.frameRef = "frame:arm-tool";
+  elbow.add(forearm, tool);
+  shoulder.add(upper, elbowMarker, elbow);
+  root.add(base, shoulder);
+  return root;
+}
+
+export function applyArticulatedArmState(
+  root: THREE.Group,
+  state: Entity["state"],
+): void {
+  const joints = state.articulated?.joints;
+  if (!joints || joints.length !== 2) throw new Error("articulated Presentation state 缺失");
+  const shoulder = root.getObjectByName("joint:arm-shoulder");
+  const elbow = root.getObjectByName("joint:arm-elbow");
+  if (!shoulder || !elbow) throw new Error("articulated Presentation hierarchy 缺失");
+  shoulder.rotation.z = joints[0]!.positionRadians;
+  elbow.rotation.z = joints[1]!.positionRadians;
 }

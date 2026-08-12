@@ -93,27 +93,33 @@ describe("Studio trusted presentation projection", () => {
   test("Program 与 Runtime 标签来自 lastRun evidence，不来自 UI 常量", () => {
     const falling = {
       episode: {
-        programId: FALLING_CUBE_PROGRAM.id,
+        program: FALLING_CUBE_PROGRAM,
         runtimeProfileId: MUJOCO_PROFILE.id,
       },
-    } as WorldRunResult;
+    } as unknown as WorldRunResult;
     const vessel = {
       episode: {
-        programId: BALL_VESSEL_PROGRAM.id,
+        program: BALL_VESSEL_PROGRAM,
         runtimeProfileId: MUJOCO_PROFILE.id,
       },
-    } as WorldRunResult;
+    } as unknown as WorldRunResult;
 
     expect(runContractSummary(falling)).toEqual({
       programId: FALLING_CUBE_PROGRAM.id,
+      programKind: "free-fall",
+      programSteps: ["0s · entity:cube · 2.5s @ 30Hz"],
       runtimeProfileId: MUJOCO_PROFILE.id,
     });
     expect(runContractSummary(vessel)).toEqual({
       programId: BALL_VESSEL_PROGRAM.id,
+      programKind: "free-fall",
+      programSteps: ["0s · entity:ball · 3s @ 30Hz"],
       runtimeProfileId: MUJOCO_PROFILE.id,
     });
     expect(runContractSummary(undefined)).toEqual({
       programId: "—",
+      programKind: "—",
+      programSteps: [],
       runtimeProfileId: "—",
     });
   });

@@ -1,4 +1,6 @@
 export type {
+  ArticulatedJointState,
+  ArticulatedState,
   CollisionRepresentation,
   CompoundCollisionPart,
   CompoundCollisionRepresentation,
@@ -17,6 +19,19 @@ export type {
   VisualRepresentation,
   VesselSemanticRepresentation,
 } from "./kernel/types";
+export { canonicalJsonBytes, sha256Hex } from "./kernel/canonical-json";
+export {
+  ACTUATOR_SEQUENCE_GOLDEN_DIGEST,
+  FREE_FALL_GOLDEN_DIGEST,
+} from "./world-tools/world-tool-contract";
+export {
+  ARM_REF,
+  REACH_TARGET_POSITION,
+  REACH_TARGET_REF,
+  TWO_JOINT_REACH_FIXTURE_ID,
+  TWO_JOINT_REACH_SCENARIO_ID,
+  createTwoJointReachSnapshot,
+} from "./artifacts/two-joint-reach-fixture";
 export {
   BALL_REF,
   BALL_VESSEL_ASSET,
@@ -57,9 +72,23 @@ export {
 } from "./kernel/world";
 export { RuntimeMvpHost } from "./host/runtime-mvp-host";
 export {
+  ARTICULATED_CANONICAL_MODEL_CAUSAL_DIGEST,
+  ARTICULATED_MJCF,
+  articulatedModelCausalDigest,
+  articulatedForwardKinematics,
+  canonicalTargetMatchesFk,
+  requireArticulatedModelCausalDigest,
+  runArticulatedReach,
+} from "./runtime-mujoco/run-articulated-reach";
+export {
   deriveLandingSuccessContract,
   evaluateEpisode,
 } from "./evaluation/evaluate-episode";
+export {
+  END_EFFECTOR_REACH_CONTRACT,
+  END_EFFECTOR_REACH_EVALUATOR_ID,
+  evaluateArticulatedReach,
+} from "./evaluation/evaluate-articulated-reach";
 export {
   WorldToolSurface,
   type WorldEditResult,
@@ -68,17 +97,14 @@ export {
   type WorldWriteResult,
 } from "./world-tools/world-tool-surface";
 export {
-  FREE_FALL_BALL_VESSEL_PROGRAM_ID,
-  FREE_FALL_RIGID_PROGRAM_ID,
   WORLD_FIXTURE_IDS,
-  WORLD_PROGRAM_IDS,
   WORLD_TOOL_CONTRACT,
   requireWorldEditInput,
   requireWorldRunInput,
+  requireWorldProgramEvidence,
   requireWorldWriteInput,
   type WorldEditInput,
   type WorldFixtureId,
-  type WorldProgramId,
   type WorldRunInput,
   type WorldWriteInput,
 } from "./world-tools/world-tool-contract";
@@ -92,5 +118,7 @@ export {
 } from "./product-session-contract";
 export {
   decodeProductSessionEvent,
+  decodeProductSessionEventTrusted,
   decodeProductSessionProjection,
+  decodeProductSessionProjectionTrusted,
 } from "./product-session-codec";

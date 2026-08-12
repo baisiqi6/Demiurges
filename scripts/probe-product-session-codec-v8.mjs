@@ -49,11 +49,11 @@ try {
     logLevel: "silent",
     server: { middlewareMode: true },
   }));
-  const { decodeProductSessionProjection } = await withDeadline(
+  const { decodeProductSessionProjectionTrusted } = await withDeadline(
     "Vite ssrLoadModule",
     () => vite.ssrLoadModule(`/@fs${codecPath}`),
   );
-  decodeProductSessionProjection(projection, projection.sessionId);
+  await decodeProductSessionProjectionTrusted(projection, projection.sessionId);
   result = { decoded: true };
 } catch (error) {
   result = {

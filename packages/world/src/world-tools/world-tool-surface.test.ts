@@ -18,16 +18,19 @@ function jsonRoundTrip<T>(value: T): T {
 function poseAt(z: number) {
   return {
     targetRef: "entity:cube",
-    frameRef: "frame:world",
-    pose: {
-      position: { x: 0, y: 0, z },
-      rotation: { x: 0, y: 0, z: 0, w: 1 },
+    change: {
+      kind: "pose",
+      frameRef: "frame:world",
+      pose: {
+        position: { x: 0, y: 0, z },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      },
     },
   } as const;
 }
 
 function rigidRun(runId: string) {
-  return { runId, programId: "program:free-fall-rigid-v1" } as const;
+  return { runId, program: { kind: "free-fall", targetRef: "entity:cube", durationSeconds: 2.5, sampleRateHz: 30 } } as const;
 }
 
 describe("WorldToolSurface", () => {
@@ -108,7 +111,8 @@ describe("WorldToolSurface", () => {
   });
 
   test("同一四工具 surface 可创建并推演登记的 imported rigid fixture", async () => {
-    const tools = new WorldToolSurface(new RuntimeMvpHost());
+    const host = new RuntimeMvpHost();
+    const tools = new WorldToolSurface(host);
     const written = tools.write({
       fixtureId: DIAGNOSTIC_RIGID_FIXTURE_ID,
     });
@@ -119,6 +123,11 @@ describe("WorldToolSurface", () => {
     expect(run.evaluation.passed).toBe(true);
     expect(run.episode.samples[0]?.states[target.ref]).toBeDefined();
     expect(tools.read().snapshot).toBe(written.snapshot);
+    expect(host.adopt(run.episode.id, run.evaluation.id, written.ref)).toMatchObject({
+      status: "updated",
+      operation: "adopt",
+      ref: { version: 2 },
+    });
   });
 
   test("JSON round-trip expected ref 可用，stale edit 不改变 current", () => {

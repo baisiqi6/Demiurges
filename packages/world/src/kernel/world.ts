@@ -88,6 +88,7 @@ export function createInitialSnapshot(cubeHeight = 2): Snapshot {
     id: "snapshot:base",
     parentId: null,
     source: "write",
+    scenarioId: "scenario:primitive-box-free-fall-v1",
     entities,
   }) as Snapshot;
 }
@@ -109,7 +110,7 @@ export function findEntity(snapshot: Snapshot, ref: Entity["ref"]): Entity {
 }
 
 export const FALLING_CUBE_PROGRAM: WorldProgram = deepFreeze({
-  id: "program:free-fall-rigid-v1",
+  id: "program:sha256:b69c174f5e7e2c3e2da941cb21fc0a7437d64314eaa70250d22e4512fd6c0caf",
   kind: "free-fall",
   targetRef: CUBE_REF,
   durationSeconds: 2.5,
@@ -117,7 +118,7 @@ export const FALLING_CUBE_PROGRAM: WorldProgram = deepFreeze({
 }) as WorldProgram;
 
 export const BALL_VESSEL_PROGRAM: WorldProgram = deepFreeze({
-  id: "program:free-fall-ball-vessel-v1",
+  id: "program:sha256:005acb42068b42e13da677339656846ddde62fd90b434b75b99842e38a48f739",
   kind: "free-fall",
   targetRef: "entity:ball",
   durationSeconds: 3,

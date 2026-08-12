@@ -1,11 +1,11 @@
 import {
   BALL_REF,
+  BALL_VESSEL_PROGRAM,
   BALL_VESSEL_FIXTURE_ID,
-  FREE_FALL_BALL_VESSEL_PROGRAM_ID,
   PRIMITIVE_BOX_FIXTURE_ID,
   RuntimeMvpHost,
   WorldToolSurface,
-  FREE_FALL_RIGID_PROGRAM_ID,
+  FALLING_CUBE_PROGRAM,
   deepFreeze,
   type ProductSessionEvent,
   type ProductSessionProjection,
@@ -14,7 +14,8 @@ import {
   type WorldReadResult,
   type WorldEditResult,
   type WorldRunResult,
-  type RigidFixtureId,
+  type WorldFixtureId,
+  TWO_JOINT_REACH_FIXTURE_ID,
 } from "@demiurges/world";
 
 import {
@@ -43,14 +44,14 @@ function resultDetails(
 class ScriptedAgentClient implements OmpAgentClientPort {
   readonly #tools: readonly OmpHostTool[];
   readonly #nextRunId: () => string;
-  readonly #fixtureId: RigidFixtureId;
+  readonly #fixtureId: WorldFixtureId;
   #started = false;
   #responseText: string | null = null;
 
   constructor(
     tools: readonly OmpHostTool[],
     nextRunId: () => string,
-    fixtureId: RigidFixtureId,
+    fixtureId: WorldFixtureId,
   ) {
     this.#tools = tools;
     this.#nextRunId = nextRunId;
@@ -96,24 +97,65 @@ class ScriptedAgentClient implements OmpAgentClientPort {
     });
     const read = (await invoke("world_read", {})) as {
       ref: { name: string; snapshotId: string; version: number };
+      snapshot: { entities: Array<{ ref: string; representations: { semantic: unknown } }> };
     };
     const ballVessel = this.#fixtureId === BALL_VESSEL_FIXTURE_ID;
-    await invoke("world_edit", {
+    const articulated = this.#fixtureId === TWO_JOINT_REACH_FIXTURE_ID;
+    const armSemantic = articulated
+      ? read.snapshot.entities.find((entity) => entity.ref === "entity:arm")?.representations.semantic as {
+          joints: Array<{ jointRef: string }>;
+          actuators: Array<{ actuatorRef: string }>;
+        } | undefined
+      : undefined;
+    if (articulated && (!armSemantic || armSemantic.joints.length !== 2 || armSemantic.actuators.length !== 2)) {
+      throw new Error("world_read 没有提供完整 articulated affordance");
+    }
+    await invoke("world_edit", articulated ? {
+      expected: read.ref,
+      targetRef: "entity:arm",
+      change: {
+        kind: "joint-state",
+        joints: [
+          { jointRef: armSemantic!.joints[0]!.jointRef, positionRadians: 0, velocityRadiansPerSecond: 0 },
+          { jointRef: armSemantic!.joints[1]!.jointRef, positionRadians: 0, velocityRadiansPerSecond: 0 },
+        ],
+      },
+    } : {
       expected: read.ref,
       targetRef: ballVessel ? BALL_REF : "entity:cube",
-      frameRef: "frame:world",
-      pose: {
-        position: ballVessel
-          ? { x: 0.12, y: 0, z: 1.25 }
-          : { x: 0, y: 0, z: 2.8 },
-        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      change: {
+        kind: "pose",
+        frameRef: "frame:world",
+        pose: {
+          position: ballVessel
+            ? { x: 0.12, y: 0, z: 1.25 }
+            : { x: 0, y: 0, z: 2.8 },
+          rotation: { x: 0, y: 0, z: 0, w: 1 },
+        },
       },
     });
     const run = (await invoke("world_run", {
       runId: this.#nextRunId(),
-      programId: ballVessel
-        ? FREE_FALL_BALL_VESSEL_PROGRAM_ID
-        : FREE_FALL_RIGID_PROGRAM_ID,
+      program: articulated
+        ? {
+            kind: "actuator-sequence",
+            targetRef: "entity:arm",
+            durationSeconds: 3,
+            sampleRateHz: 30,
+            steps: [
+              { timeSeconds: 0, commands: [
+                { actuatorRef: armSemantic!.actuators[0]!.actuatorRef, valueRadians: 0.35 },
+                { actuatorRef: armSemantic!.actuators[1]!.actuatorRef, valueRadians: -0.35 },
+              ] },
+              { timeSeconds: 0.5, commands: [
+                { actuatorRef: armSemantic!.actuators[0]!.actuatorRef, valueRadians: 0.65 },
+                { actuatorRef: armSemantic!.actuators[1]!.actuatorRef, valueRadians: -1 },
+              ] },
+            ],
+          }
+        : ballVessel
+        ? { kind: BALL_VESSEL_PROGRAM.kind, targetRef: BALL_VESSEL_PROGRAM.targetRef, durationSeconds: BALL_VESSEL_PROGRAM.durationSeconds, sampleRateHz: BALL_VESSEL_PROGRAM.sampleRateHz }
+        : { kind: FALLING_CUBE_PROGRAM.kind, targetRef: FALLING_CUBE_PROGRAM.targetRef, durationSeconds: FALLING_CUBE_PROGRAM.durationSeconds, sampleRateHz: FALLING_CUBE_PROGRAM.sampleRateHz },
     })) as { evaluation: { passed: boolean } };
     this.#responseText = run.evaluation.passed
       ? "世界已经完成推演，确定性评测通过。"
@@ -126,7 +168,7 @@ class ScriptedAgentClient implements OmpAgentClientPort {
 }
 
 export function createScriptedAgentClientFactory(
-  fixtureId: RigidFixtureId = PRIMITIVE_BOX_FIXTURE_ID,
+  fixtureId: WorldFixtureId = PRIMITIVE_BOX_FIXTURE_ID,
 ): OmpAgentClientFactory {
   let runSequence = 0;
   return (tools) =>

@@ -38,7 +38,7 @@ type RuntimeStatus = "connecting" | "ready" | "running" | "completed" | "error";
 type ViewMode = "repository" | "episode";
 
 const DEFAULT_PROMPT =
-  "创建登记的曲面容器与球，把球放到容器上方，让它落入容器并验证稳定停留。";
+  "创建登记的两关节机械臂，读取关节与执行器约束，提交显式动作程序，让末端触达目标 Frame 并验证稳定停留。";
 
 function formatNumber(value: number, digits = 3): string {
   return Number.isFinite(value) ? value.toFixed(digits) : "—";
@@ -55,6 +55,7 @@ function collisionSummary(entity: Entity | undefined): string {
   if (collision.kind === "sphere") {
     return `sphere proxy · Ø ${formatNumber(collision.radius * 2)} m`;
   }
+  if (collision.kind === "none") return "no collision proxy";
   return `compound proxy · ${collision.parts.length} parts`;
 }
 
@@ -107,6 +108,11 @@ export default function App() {
     const semantic = selectedEntity()?.representations.semantic;
     return semantic?.kind === "vessel" ? semantic : undefined;
   });
+  const articulatedSemantic = createMemo(() => {
+    const semantic = selectedEntity()?.representations.semantic;
+    return semantic?.kind === "articulated" ? semantic : undefined;
+  });
+  const articulatedState = createMemo(() => selectedState()?.articulated);
   const contractSummary = createMemo(() => runContractSummary(lastRun()));
   const displayedSource = createMemo(() => {
     if (viewMode() === "episode") {
@@ -512,6 +518,25 @@ export default function App() {
                 </>
               )}
             </Show>
+            <Show when={articulatedSemantic()}>
+              {(semantic) => (
+                <>
+                  <div><dt>links</dt><dd data-testid="arm-links">{semantic().links.map((link) => link.linkRef).join(" · ")}</dd></div>
+                  <div><dt>joints</dt><dd data-testid="arm-joints">{semantic().joints.map((joint) => joint.jointRef).join(" · ")}</dd></div>
+                  <div><dt>actuators</dt><dd data-testid="arm-actuators">{semantic().actuators.map((actuator) => actuator.actuatorRef).join(" · ")}</dd></div>
+                  <div><dt>sensors</dt><dd data-testid="arm-sensors">{semantic().sensors.map((sensor) => `${sensor.sensorRef} [${sensor.unit}]`).join(" · ")}</dd></div>
+                  <div><dt>frames</dt><dd data-testid="arm-frames">{semantic().frames.map((frame) => frame.frameRef).join(" · ")}</dd></div>
+                </>
+              )}
+            </Show>
+            <Show when={articulatedState()}>
+              {(state) => (
+                <div>
+                  <dt>joint state</dt>
+                  <dd data-testid="arm-joint-state">{state().joints.map((joint) => `${joint.jointRef} ${formatNumber(joint.positionRadians)} rad · ${formatNumber(joint.velocityRadiansPerSecond)} rad/s`).join(" | ")}</dd>
+                </div>
+              )}
+            </Show>
             <Show when={selectedEntity()?.representations.observation}>
               {(observation) => (
                 <>
@@ -571,6 +596,8 @@ export default function App() {
           </Show>
           <dl class="compact-contract control-boundary">
             <div><dt>program</dt><dd data-testid="program-id">{contractSummary().programId}</dd></div>
+            <div><dt>kind</dt><dd data-testid="program-kind">{contractSummary().programKind}</dd></div>
+            <div><dt>steps</dt><dd data-testid="program-steps">{contractSummary().programSteps.join(" | ") || "—"}</dd></div>
             <div><dt>runtime</dt><dd data-testid="runtime-profile-id">{contractSummary().runtimeProfileId}</dd></div>
             <div><dt>adopt</dt><dd>withheld from Agent</dd></div>
           </dl>

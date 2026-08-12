@@ -17,6 +17,8 @@ import {
 } from "./alignment-evidence";
 import {
   createCollisionOverlay,
+  createArticulatedArmPresentation,
+  applyArticulatedArmState,
   createRimFrameOverlay,
   setCollisionOverlayVisible,
 } from "./entity-presentation";
@@ -45,6 +47,7 @@ interface EntityObject {
   readonly observationRoot?: THREE.Group;
   readonly collisionRoot: THREE.Group;
   readonly rimFrameRoot?: THREE.Group;
+  readonly articulatedRoot?: THREE.Group;
   active: boolean;
   splat?: SplatMesh;
   observedSourceBounds?: Bounds3;
@@ -258,8 +261,13 @@ export function ThreeViewport(props: ThreeViewportProps) {
     visualRoot.userData.entityRef = entity.ref;
     const collisionRoot = createCollisionOverlay(entity);
     const rimFrameRoot = createRimFrameOverlay(entity);
+    const articulatedRoot = createArticulatedArmPresentation(entity);
     root.add(visualRoot, collisionRoot);
     if (rimFrameRoot) root.add(rimFrameRoot);
+    if (articulatedRoot) {
+      visualRoot.visible = false;
+      root.add(articulatedRoot);
+    }
 
     if (visual.kind === "box") {
       const [hx, hy, hz] = visual.halfExtents;
@@ -281,6 +289,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
         visualRoot,
         collisionRoot,
         rimFrameRoot,
+        articulatedRoot,
         active: true,
       };
       applyPresentationMode(record, props.presentationMode);
@@ -307,6 +316,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
         visualRoot,
         collisionRoot,
         rimFrameRoot,
+        articulatedRoot,
         active: true,
       };
       applyPresentationMode(record, props.presentationMode);
@@ -325,6 +335,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
       observationRoot,
       collisionRoot,
       rimFrameRoot,
+      articulatedRoot,
       active: true,
     };
     container.dataset.assetStatus = "loading";
@@ -526,6 +537,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
       const rotation = state.pose.rotation;
       object.position.set(x, y, z);
       object.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
+      if (record.articulatedRoot) applyArticulatedArmState(record.articulatedRoot, state);
       setSelected(object, selectedRef === entity.ref);
       applyPresentationMode(record, presentationMode);
       if (selectedRef === entity.ref) {

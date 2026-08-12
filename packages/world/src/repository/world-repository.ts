@@ -14,6 +14,7 @@ import type {
   RefRecord,
   RefUpdateResult,
   Snapshot,
+  ArticulatedJointState,
 } from "../kernel/types";
 import { requireRegisteredSnapshotIdentity } from "../artifacts/diagnostic-rigid-fixture";
 import {
@@ -250,6 +251,7 @@ class WorldRepositoryState {
       id: `snapshot:edit-${this.#editSequence}`,
       parentId: parent.id,
       source: "edit",
+      scenarioId: parent.scenarioId,
       entities: parent.entities.map((entity): Entity => entity.ref === targetRef
         ? { ...entity, state: { ...entity.state, pose } }
         : entity),
@@ -306,6 +308,43 @@ class WorldRepositoryState {
     return this.#updateRef("advance", snapshot, expected, ref);
   }
 
+  editEntityJointState(
+    parentId: Snapshot["id"],
+    targetRef: Entity["ref"],
+    joints: readonly ArticulatedJointState[],
+  ): Snapshot {
+    const parent = this.readSnapshot(parentId);
+    const target = findEntity(parent, targetRef);
+    if (target.ref !== "entity:arm" || target.representations.semantic?.kind !== "articulated") {
+      throw new Error("joint-state edit target 必须是 registered articulated Entity");
+    }
+    this.#editSequence += 1;
+    return this.#insert(deepFreeze({
+      schemaVersion: 1,
+      id: `snapshot:edit-${this.#editSequence}`,
+      parentId: parent.id,
+      source: "edit",
+      scenarioId: parent.scenarioId,
+      entities: parent.entities.map((entity): Entity => entity.ref === targetRef
+        ? { ...entity, state: { ...entity.state, articulated: { joints } } }
+        : entity),
+    }) as Snapshot);
+  }
+
+  editCurrentEntityJointState(
+    expected: RefRecord,
+    targetRef: Entity["ref"],
+    joints: readonly ArticulatedJointState[],
+    ref: RefRecord["name"] = CURRENT_WORLD_REF,
+  ): RefUpdateResult {
+    this.#requireExpectation(expected, ref);
+    const current = this.readRefRecord(ref);
+    if (current.snapshotId !== expected.snapshotId || current.version !== expected.version) {
+      return deepFreeze({ status: "stale_ref", operation: "advance", ref: current, snapshot: this.readSnapshot(current.snapshotId) }) as RefUpdateResult;
+    }
+    return this.#updateRef("advance", this.editEntityJointState(expected.snapshotId, targetRef, joints), expected, ref);
+  }
+
   advance(
     snapshotId: Snapshot["id"],
     expected: RefRecord,
@@ -337,7 +376,10 @@ class WorldRepositoryState {
     if (!episode) {
       throw new Error(`Episode 尚未登记：${episodeId}`);
     }
-    if (episode.programId !== policyEntry.programId) {
+    if (
+      episode.scenarioId !== policyEntry.scenarioId ||
+      episode.program.kind !== policyEntry.programKind
+    ) {
       throw new Error("Episode Program 与 Host AdoptPolicy registry 不匹配");
     }
     const evaluation = this.#evaluations.get(evaluationId);
@@ -381,6 +423,7 @@ export interface WorldRepository {
   readRef(ref?: RefRecord["name"]): Snapshot;
   editCubeHeight(parentId: Snapshot["id"], height: number): Snapshot;
   editEntityPose(parentId: Snapshot["id"], targetRef: Entity["ref"], pose: Pose): Snapshot;
+  editEntityJointState(parentId: Snapshot["id"], targetRef: Entity["ref"], joints: readonly ArticulatedJointState[]): Snapshot;
   editCurrentCubeHeight(
     expected: RefRecord,
     height: number,
@@ -390,6 +433,12 @@ export interface WorldRepository {
     expected: RefRecord,
     targetRef: Entity["ref"],
     pose: Pose,
+    ref?: RefRecord["name"],
+  ): RefUpdateResult;
+  editCurrentEntityJointState(
+    expected: RefRecord,
+    targetRef: Entity["ref"],
+    joints: readonly ArticulatedJointState[],
     ref?: RefRecord["name"],
   ): RefUpdateResult;
   advance(
@@ -437,6 +486,8 @@ export function createWorldRepositoryAuthority(
         state.editCubeHeight(parentId, height),
       editEntityPose: (parentId: Snapshot["id"], targetRef: Entity["ref"], pose: Pose) =>
         state.editEntityPose(parentId, targetRef, pose),
+      editEntityJointState: (parentId: Snapshot["id"], targetRef: Entity["ref"], joints: readonly ArticulatedJointState[]) =>
+        state.editEntityJointState(parentId, targetRef, joints),
       editCurrentCubeHeight: (
         expected: RefRecord,
         height: number,
@@ -448,6 +499,12 @@ export function createWorldRepositoryAuthority(
         pose: Pose,
         ref?: RefRecord["name"],
       ) => state.editCurrentEntityPose(expected, targetRef, pose, ref),
+      editCurrentEntityJointState: (
+        expected: RefRecord,
+        targetRef: Entity["ref"],
+        joints: readonly ArticulatedJointState[],
+        ref?: RefRecord["name"],
+      ) => state.editCurrentEntityJointState(expected, targetRef, joints, ref),
       advance: (
         snapshotId: Snapshot["id"],
         expected: RefRecord,

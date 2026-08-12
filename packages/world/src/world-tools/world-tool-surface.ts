@@ -13,6 +13,10 @@ import {
   createFixtureSnapshot,
 } from "../artifacts/diagnostic-rigid-fixture";
 import {
+  TWO_JOINT_REACH_FIXTURE_ID,
+  createTwoJointReachSnapshot,
+} from "../artifacts/two-joint-reach-fixture";
+import {
   requireWorldEditInput,
   requireWorldRunInput,
   requireWorldWriteInput,
@@ -67,7 +71,9 @@ export class WorldToolSurface {
   write(input: unknown): WorldWriteResult {
     const { fixtureId } = requireWorldWriteInput(input);
     const snapshot = this.#host.write(
-      createFixtureSnapshot(2, fixtureId),
+      fixtureId === TWO_JOINT_REACH_FIXTURE_ID
+        ? createTwoJointReachSnapshot()
+        : createFixtureSnapshot(2, fixtureId),
     );
     return deepFreeze({
       tool: "write",
@@ -78,11 +84,9 @@ export class WorldToolSurface {
 
   edit(input: unknown): WorldEditResult {
     const parsed = requireWorldEditInput(input);
-    const update = this.#host.editCurrentEntityPose(
-      parsed.expected,
-      parsed.targetRef,
-      parsed.pose,
-    );
+    const update = parsed.change.kind === "pose"
+      ? this.#host.editCurrentEntityPose(parsed.expected, parsed.targetRef, parsed.change.pose)
+      : this.#host.editCurrentEntityJointState(parsed.expected, parsed.targetRef, parsed.change.joints);
     return deepFreeze({ tool: "edit", update }) as WorldEditResult;
   }
 
@@ -90,7 +94,7 @@ export class WorldToolSurface {
     const parsed = requireWorldRunInput(input);
     const result = await this.#host.runCurrent(
       deepFreeze({ runId: parsed.runId }),
-      parsed.programId,
+      parsed.program,
     );
     const evaluation = this.#host.evaluateEpisode(result.episode.id);
     return deepFreeze({

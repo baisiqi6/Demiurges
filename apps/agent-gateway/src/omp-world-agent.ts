@@ -183,9 +183,7 @@ interface StructuredToolResult {
 }
 
 const MAX_WORLD_TOOL_CALLS_PER_TURN = 128;
-const MAX_TOOL_INPUT_NODES = 128;
-const MAX_TOOL_INPUT_DEPTH = 6;
-const MAX_TOOL_INPUT_STRING_LENGTH = 512;
+type InputBudget = { readonly maxNodes: number; readonly maxDepth: number; readonly maxStringLength: number };
 const MAX_TRACE_DATA_NODES = 4_096;
 const MAX_TRACE_DATA_CHARS = 65_536;
 const MAX_TRACE_DATA_DEPTH = 12;
@@ -297,43 +295,60 @@ function boundedTraceString(
 
 function requireBoundedToolInput(
   value: unknown,
-  state = { nodes: MAX_TOOL_INPUT_NODES },
+  budget: InputBudget,
+  state = { nodes: budget.maxNodes },
   depth = 0,
 ): void {
-  if (depth > MAX_TOOL_INPUT_DEPTH) {
-    throw new Error(`world tool input 深度不能超过 ${MAX_TOOL_INPUT_DEPTH}`);
+  if (depth > budget.maxDepth) {
+    throw new Error(`world tool input 深度不能超过 ${budget.maxDepth}`);
   }
   state.nodes -= 1;
   if (state.nodes < 0) {
-    throw new Error(`world tool input 节点不能超过 ${MAX_TOOL_INPUT_NODES}`);
+    throw new Error(`world tool input 节点不能超过 ${budget.maxNodes}`);
   }
   if (typeof value === "string") {
-    if (value.length > MAX_TOOL_INPUT_STRING_LENGTH) {
+    if (value.length > budget.maxStringLength) {
       throw new Error(
-        `world tool input 字符串不能超过 ${MAX_TOOL_INPUT_STRING_LENGTH} 字符`,
+        `world tool input 字符串不能超过 ${budget.maxStringLength} 字符`,
       );
     }
     return;
   }
-  if (
-    value === null ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("world tool input number 必须 finite");
+    return;
+  }
+  if (value === null || typeof value === "boolean") {
     return;
   }
   if (typeof value !== "object") {
     throw new Error("world tool input 必须是 JSON data");
   }
   if (
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
+    Object.getPrototypeOf(value) !== (Array.isArray(value) ? Array.prototype : Object.prototype)
   ) {
     throw new Error("world tool input 必须是 plain JSON data");
   }
   const ownKeys = Reflect.ownKeys(value);
+  if (Array.isArray(value)) {
+    if (!Number.isSafeInteger(value.length) || value.length > state.nodes) {
+      throw new Error(`world tool input 节点不能超过 ${budget.maxNodes}`);
+    }
+    if (ownKeys.length !== value.length + 1 || ownKeys.some((key) =>
+      typeof key !== "string" || (key !== "length" && !/^(0|[1-9][0-9]*)$/.test(key)))) {
+      throw new Error("world tool input 必须是 plain dense array");
+    }
+    for (let index = 0; index < value.length; index += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
+        throw new Error("world tool input 必须是 plain dense array");
+      }
+      requireBoundedToolInput(descriptor.value, budget, state, depth + 1);
+    }
+    return;
+  }
   if (ownKeys.length > state.nodes) {
-    throw new Error(`world tool input 节点不能超过 ${MAX_TOOL_INPUT_NODES}`);
+    throw new Error(`world tool input 节点不能超过 ${budget.maxNodes}`);
   }
   for (const key of ownKeys) {
     if (typeof key !== "string") {
@@ -342,16 +357,16 @@ function requireBoundedToolInput(
     if (key === "__proto__") {
       throw new Error("world tool input 不接受 __proto__ key");
     }
-    if (key.length > MAX_TOOL_INPUT_STRING_LENGTH) {
+    if (key.length > budget.maxStringLength) {
       throw new Error(
-        `world tool input key 不能超过 ${MAX_TOOL_INPUT_STRING_LENGTH} 字符`,
+        `world tool input key 不能超过 ${budget.maxStringLength} 字符`,
       );
     }
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
       throw new Error("world tool input 必须是 plain JSON data");
     }
-    requireBoundedToolInput(descriptor.value, state, depth + 1);
+    requireBoundedToolInput(descriptor.value, budget, state, depth + 1);
   }
 }
 
@@ -393,6 +408,7 @@ export function createOmpWorldTools(
   };
   const wrap = (
     tool: (typeof OMP_WORLD_TOOL_NAMES)[number],
+    budget: InputBudget,
     execute: (input: Record<string, unknown>) => unknown | Promise<unknown>,
   ) =>
     async (
@@ -413,7 +429,7 @@ export function createOmpWorldTools(
       }
       try {
         if (_signal?.aborted) throw new Error("world tool call 已取消");
-        requireBoundedToolInput(input);
+        requireBoundedToolInput(input, budget);
         const result = await execute(input);
         const modelResult = resultForModel(result);
         const entry = deepFreeze({
@@ -448,7 +464,7 @@ export function createOmpWorldTools(
       loadMode: "essential",
       approval: "read",
       parameters: WORLD_TOOL_CONTRACT.read.input,
-      execute: wrap("world_read", (input) => {
+      execute: wrap("world_read", WORLD_TOOL_CONTRACT.read.inputBudget, (input) => {
         exactEmptyInput(input);
         return surface.read();
       }),
@@ -460,7 +476,7 @@ export function createOmpWorldTools(
       loadMode: "essential",
       approval: "write",
       parameters: WORLD_TOOL_CONTRACT.write.input,
-      execute: wrap("world_write", (input) => surface.write(input)),
+      execute: wrap("world_write", WORLD_TOOL_CONTRACT.write.inputBudget, (input) => surface.write(input)),
     }),
     Object.freeze({
       name: "world_edit",
@@ -469,7 +485,7 @@ export function createOmpWorldTools(
       loadMode: "essential",
       approval: "write",
       parameters: WORLD_TOOL_CONTRACT.edit.input,
-      execute: wrap("world_edit", (input) => surface.edit(input)),
+      execute: wrap("world_edit", WORLD_TOOL_CONTRACT.edit.inputBudget, (input) => surface.edit(input)),
     }),
     Object.freeze({
       name: "world_run",
@@ -478,7 +494,7 @@ export function createOmpWorldTools(
       loadMode: "essential",
       approval: "exec",
       parameters: WORLD_TOOL_CONTRACT.run.input,
-      execute: wrap("world_run", (input) => surface.run(input)),
+      execute: wrap("world_run", WORLD_TOOL_CONTRACT.run.inputBudget, (input) => surface.run(input)),
     }),
   ]) as unknown as OmpHostTool[];
 }

@@ -289,6 +289,10 @@ function requireCompound(
 
 function requireSemantic(value: unknown, label: string): void {
   if (value === null) return;
+  if (typeof value === "object" && value !== null && "kind" in value &&
+      ((value as { kind?: unknown }).kind === "articulated" || (value as { kind?: unknown }).kind === "goal-frame")) {
+    return;
+  }
   const semantic = exactRecord(value, label, ["kind", "rimFrame", "innerEnvelope"]);
   if (semantic.kind !== "vessel") throw new Error(`${label}.kind 非法`);
   const rimFrame = exactRecord(semantic.rimFrame, `${label}.rimFrame`, ["ref", "localPose"]);
@@ -312,6 +316,7 @@ export function requireSnapshotRepresentationIntegrity(snapshot: Snapshot): void
     "id",
     "parentId",
     "source",
+    "scenarioId",
     "entities",
   ]);
   if (!Array.isArray(root.entities)) {
@@ -340,11 +345,10 @@ export function requireSnapshotRepresentationIntegrity(snapshot: Snapshot): void
       throw new Error("Snapshot EntityRef 必须唯一");
     }
     entityRefs.add(entity.ref);
-    const state = exactRecord(entity.state, `${entity.ref}.state`, [
-      "pose",
-      "linearVelocity",
-      "angularVelocity",
-    ]);
+    const state = exactRecord(entity.state, `${entity.ref}.state`,
+      entity.ref === "entity:arm"
+        ? ["pose", "linearVelocity", "angularVelocity", "articulated"]
+        : ["pose", "linearVelocity", "angularVelocity"]);
     requirePose(state.pose, `${entity.ref}.state.pose`);
     denseVec3(state.linearVelocity, `${entity.ref}.state.linearVelocity`);
     denseVec3(state.angularVelocity, `${entity.ref}.state.angularVelocity`);
@@ -368,6 +372,8 @@ export function requireSnapshotRepresentationIntegrity(snapshot: Snapshot): void
       requirePositive(collision.radius, `${entity.ref}.collision.radius`);
     } else if (collision.kind === "compound") {
       requireCompound(collision, `${entity.ref}.collision`);
+    } else if (collision.kind === "none") {
+      exactRecord(collisionRecord, `${entity.ref}.collision`, ["kind"]);
     } else {
       throw new Error(`${entity.ref}.collision.kind 非法`);
     }
@@ -410,7 +416,7 @@ export function requireSnapshotRepresentationIntegrity(snapshot: Snapshot): void
       throw new Error(`${entity.ref}.visual.kind 非法`);
     }
     requireSemantic(representations.semantic, `${entity.ref}.semantic`);
-    if (representations.semantic !== null && collision.kind !== "compound") {
+    if ((representations.semantic as { kind?: unknown } | null)?.kind === "vessel" && collision.kind !== "compound") {
       throw new Error(`${entity.ref} vessel semantic 必须绑定 compound collision`);
     }
   });
@@ -494,6 +500,9 @@ function requireRegisteredBall(entity: Entity): void {
 
 export function requireBallVesselSnapshot(snapshot: Snapshot): void {
   requireSnapshotRepresentationIntegrity(snapshot);
+  if (snapshot.scenarioId !== "scenario:ball-vessel-free-fall-v1") {
+    throw new Error("ball-vessel Snapshot scenario 与 fixture registry 漂移");
+  }
   const refs = snapshot.entities.map((entity) => entity.ref);
   if (
     refs.length !== 3 ||
@@ -577,6 +586,7 @@ export function createBallVesselSnapshot(): Snapshot {
     id: "snapshot:base-ball-vessel",
     parentId: null,
     source: "write",
+    scenarioId: "scenario:ball-vessel-free-fall-v1",
     entities: [floor, vessel, ball],
   }) as Snapshot;
   requireBallVesselSnapshot(snapshot);
