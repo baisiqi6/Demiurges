@@ -1,21 +1,21 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "generated_at": "2026-08-12T16:35:30Z",
+  "generated_at": "2026-08-13T09:31:01Z",
   "source": {
     "checklist_path": "docs/project-harness/harness-checklist.json",
-    "checklist_sha256": "e67fe14cbec30c7e6bde165052238fc8b25b3ccf5a3b02ae0336836ef312abda"
+    "checklist_sha256": "65ccb9d699f019718dca33833a55d11ed4b249528ed999e2a7c41a40f4b6702b"
   },
   "current_status": "",
   "current_item": null,
   "checklist_summary": {
     "todo": 0,
     "doing": 0,
-    "done": 13,
+    "done": 14,
     "blocked": 0
   },
   "workflow_summary": {
-    "closed": 13
+    "closed": 14
   },
   "paths": {
     "scope": "docs/project-harness/scope.md",
@@ -53,135 +53,6 @@
   },
   "open_risks": [],
   "recent_events": [
-    {
-      "actor": "codex-root",
-      "artifacts": [
-        "docs/project-harness/current/review-packet.md"
-      ],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-12T10:48:19Z",
-      "id": "evt-20260812T104819Z-728d7ac7",
-      "idempotency_key": "REVIEW:DH-011:requested:codex-root",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "requested",
-      "summary": "Review requested for DH-011",
-      "target": "independent-cross-review-round7",
-      "task": "DH-011",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260812T104819Z-728d7ac7 task=DH-011 actor=codex-root target=independent-cross-review-round7 status=requested artifacts=docs/project-harness/current/review-packet.md"
-    },
-    {
-      "actor": "gpt-5.6-sol-round7",
-      "artifacts": [],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-12T10:58:00Z",
-      "id": "evt-20260812T105800Z-9846a815",
-      "idempotency_key": "REVIEW:DH-011:changes_requested:gpt-5.6-sol-round7",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "changes_requested",
-      "summary": "Round 7 blocked implementation: MuJoCo dynamics callbacks and mutable/shared MjModel after validation were not yet closed Runtime inputs.",
-      "target": "codex-root",
-      "task": "DH-011",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260812T105800Z-9846a815 task=DH-011 actor=gpt-5.6-sol-round7 target=codex-root status=changes_requested"
-    },
-    {
-      "actor": "codex-root",
-      "artifacts": [
-        "docs/project-harness/current/review-packet.md"
-      ],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-12T10:58:00Z",
-      "id": "evt-20260812T105800Z-34e44de2",
-      "idempotency_key": "REVIEW:DH-011:requested:codex-root",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "requested",
-      "summary": "Review requested for DH-011",
-      "target": "independent-cross-review-round8",
-      "task": "DH-011",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260812T105800Z-34e44de2 task=DH-011 actor=codex-root target=independent-cross-review-round8 status=requested artifacts=docs/project-harness/current/review-packet.md"
-    },
-    {
-      "actor": "kimi-k3+gpt-5.6-sol-round8",
-      "artifacts": [],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-12T13:04:47Z",
-      "id": "evt-20260812T130447Z-e612c862",
-      "idempotency_key": "REVIEW:DH-011:approved:kimi-k3+gpt-5.6-sol-round8",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "approved",
-      "summary": "Round 8 dual independent plan review approved; frozen aggregate bcbe0ef29d0b6dee94ffe7c1db225915db7b39203d4cee03672ceddda4f2da28; P0/P1 zero; implementation authorized, release not authorized.",
-      "target": "codex-root",
-      "task": "DH-011",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260812T130447Z-e612c862 task=DH-011 actor=kimi-k3+gpt-5.6-sol-round8 target=codex-root status=approved"
-    },
-    {
-      "actor": "codex-root",
-      "artifacts": [],
-      "branch": "agent/codex/DH-011",
-      "causation_id": null,
-      "created_at": "2026-08-12T13:04:47Z",
-      "id": "evt-20260812T130447Z-d44f86ec",
-      "idempotency_key": "ACCEPT:DH-011:running:codex-root",
-      "metadata": {
-        "force_reason": null,
-        "session": "codex-root-dh011-plan-20260812"
-      },
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "running",
-      "summary": "codex-root accepted DH-011",
-      "target": "codex-root",
-      "task": "DH-011",
-      "type": "ACCEPT",
-      "visible_header": "[ACCEPT] id=evt-20260812T130447Z-d44f86ec task=DH-011 actor=codex-root target=codex-root status=running branch=agent/codex/DH-011"
-    },
-    {
-      "actor": "codex-root",
-      "artifacts": [
-        "docs/project-harness/current/closeout-packet.md"
-      ],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-12T16:35:00Z",
-      "id": "evt-20260812T163500Z-1af90ba2",
-      "idempotency_key": "RESULT:DH-011:closeout_requested:codex-root",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "closeout_requested",
-      "summary": "Closeout requested for DH-011",
-      "target": "fresh-executable-cross-review-round7",
-      "task": "DH-011",
-      "type": "RESULT",
-      "visible_header": "[RESULT] id=evt-20260812T163500Z-1af90ba2 task=DH-011 actor=codex-root target=fresh-executable-cross-review-round7 status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
-    },
     {
       "actor": "fresh-executable-cross-review-round7",
       "artifacts": [],
@@ -223,6 +94,138 @@
       "task": "DH-011",
       "type": "CLOSE",
       "visible_header": "[CLOSE] id=evt-20260812T163511Z-bdcb9eb1 task=DH-011 actor=operator status=done"
+    },
+    {
+      "actor": "operator",
+      "artifacts": [
+        "docs/project-harness/tasks/DH-012/plan.md"
+      ],
+      "branch": "agent/codex/DH-012",
+      "causation_id": null,
+      "created_at": "2026-08-13T08:42:54Z",
+      "id": "evt-20260813T084254Z-d32f02b6",
+      "idempotency_key": "ASSIGN:DH-012:assigned:operator",
+      "metadata": {
+        "force_reason": null,
+        "session": "bootstrap-dh012"
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "assigned",
+      "summary": "operator assigned DH-012 to codex",
+      "target": "codex",
+      "task": "DH-012",
+      "type": "ASSIGN",
+      "visible_header": "[ASSIGN] id=evt-20260813T084254Z-d32f02b6 task=DH-012 actor=operator target=codex status=assigned branch=agent/codex/DH-012 artifacts=docs/project-harness/tasks/DH-012/plan.md"
+    },
+    {
+      "actor": "codex",
+      "artifacts": [],
+      "branch": "agent/codex/DH-012",
+      "causation_id": null,
+      "created_at": "2026-08-13T08:42:54Z",
+      "id": "evt-20260813T084254Z-1e2fe796",
+      "idempotency_key": "ACCEPT:DH-012:running:codex",
+      "metadata": {
+        "force_reason": null,
+        "session": "bootstrap-dh012"
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "running",
+      "summary": "codex accepted DH-012",
+      "target": "codex",
+      "task": "DH-012",
+      "type": "ACCEPT",
+      "visible_header": "[ACCEPT] id=evt-20260813T084254Z-1e2fe796 task=DH-012 actor=codex target=codex status=running branch=agent/codex/DH-012"
+    },
+    {
+      "actor": "claude-k3-dh012-final",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-13T09:30:35Z",
+      "id": "evt-20260813T093035Z-208405f8",
+      "idempotency_key": "REVIEW:DH-012:approved:claude-k3-dh012-final",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "approved",
+      "summary": "P0/P1=0；production exact read-back、Remote tools/list 单工具、token hygiene、零 channel binding 与 authority 边界均通过；DH012_MAY_CLOSE_AND_MERGE=yes。",
+      "target": "codex",
+      "task": "DH-012",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260813T093035Z-208405f8 task=DH-012 actor=claude-k3-dh012-final target=codex status=approved"
+    },
+    {
+      "actor": "codex",
+      "artifacts": [
+        "docs/project-harness/current/closeout-packet.md"
+      ],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-13T09:30:35Z",
+      "id": "evt-20260813T093035Z-ce7e2fcd",
+      "idempotency_key": "RESULT:DH-012:closeout_requested:codex",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "closeout_requested",
+      "summary": "Closeout requested for DH-012",
+      "target": "claude-k3-dh012-final",
+      "task": "DH-012",
+      "type": "RESULT",
+      "visible_header": "[RESULT] id=evt-20260813T093035Z-ce7e2fcd task=DH-012 actor=codex target=claude-k3-dh012-final status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
+    },
+    {
+      "actor": "claude-k3-dh012-final",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-13T09:31:00Z",
+      "id": "evt-20260813T093100Z-35f70938",
+      "idempotency_key": "REVIEW:DH-012:approved:claude-k3-dh012-final",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "approved",
+      "summary": "closeout packet 复核：P0/P1=0；DH012_MAY_CLOSE_AND_MERGE=yes。",
+      "target": "codex",
+      "task": "DH-012",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260813T093100Z-35f70938 task=DH-012 actor=claude-k3-dh012-final target=codex status=approved"
+    },
+    {
+      "actor": "codex-operator",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-13T09:31:01Z",
+      "id": "evt-20260813T093101Z-d41b26d5",
+      "idempotency_key": "CLOSE:DH-012:done:codex-operator",
+      "metadata": {
+        "force_reason": null
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "done",
+      "summary": "codex-operator closed DH-012",
+      "target": null,
+      "task": "DH-012",
+      "type": "CLOSE",
+      "visible_header": "[CLOSE] id=evt-20260813T093101Z-d41b26d5 task=DH-012 actor=codex-operator status=done"
     }
   ]
 }

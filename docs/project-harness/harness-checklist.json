@@ -1,7 +1,7 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "updated_at": "2026-08-12",
+  "updated_at": "2026-08-13",
   "items": [
     {
       "id": "DH-000",
@@ -560,6 +560,46 @@
         "expires_at": "2026-08-12T15:04:47Z",
         "ttl_minutes": 120,
         "released_at": "2026-08-12T16:35:11Z"
+      }
+    },
+    {
+      "id": "DH-012",
+      "title": "Coordinate-managed Operator 与 Discord 频道自助接入",
+      "status": "done",
+      "priority": "p1",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-13",
+      "dependencies": [],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "production 注册 demiurges workspace/host profile；独立 Remote MCP principal 仅可见 coordinate.channel_create；当前任务不创建频道，交由 Demiurges Operator 以固定 idempotency key 自助创建。",
+      "verification": "production workspace/host/principal exact read-back；authenticated Remote tools/list HTTP 200 且仅 coordinate.channel_create；channel_bindings=0；service active、lock free；harness validate/doctor/diff-check 通过；Claude K3 独立 review APPROVE，P0/P1=0。",
+      "handoff": "先完成独立 plan review，再进行 production workspace/policy mutation；未通过 exact tools/list 前不得创建频道。",
+      "plan_path": "docs/project-harness/tasks/DH-012/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-13",
+        "branch": "agent/codex/DH-012"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-012",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "claude-k3-dh012-final",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-13",
+        "summary": "closeout packet 复核：P0/P1=0；DH012_MAY_CLOSE_AND_MERGE=yes。"
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "bootstrap-dh012",
+        "acquired_at": "2026-08-13T08:42:54Z",
+        "expires_at": "2026-08-13T10:42:54Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-13T09:31:01Z"
       }
     }
   ]
