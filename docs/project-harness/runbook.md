@@ -103,7 +103,34 @@ Studio → ProductSessionClient → Three.js + EpisodePlayer
 
 ## 当前 execution profile
 
-当前使用 Standalone、file-backed 项目 authority。Studio 与本地 Bun Agent Gateway 已通过 loopback HTTP NDJSON/resync 建立 Product Session transport；每个 session 的 Repository、MuJoCo Runtime 与 current ref 只存在于 Gateway 内存，因此刷新或重启 Gateway 会丢失 session。Gateway production entry 要求显式设置 `DEMIURGES_OMP_MODEL=provider/model`，并使用 OMP SDK restricted session；凭证继续由 OMP 自身解析，Demiurges 不接收或传输 credential。scripted Agent client 仅保留为显式注入的 test fixture。`DH-007` 的唯一授权 `kimi-code/k3` live canary 已执行并通过，脱敏 receipt 位于 `docs/project-harness/tasks/DH-007/live-canary-receipt.md`；它不构成持续 provider 调用 authority。canonical Git remote 为 private GitHub repository `https://github.com/baisiqi6/Demiurges`；当前不存在 Coordinate workspace、deployment target、鉴权/TLS、Spark/3DGS Runtime 或 world-model provider。
+项目文件继续使用 repo-local、file-backed authority；`harness-checklist.json` 与
+`tasks/<id>/plan.md` 仍是规范事实。DH-012 只增加 Coordinate-managed **channel/control-plane profile**：
+production Coordinate 保存 workspace identity、`macbook-local` host profile、Remote MCP principal、events
+与 Discord channel binding。它不把 Mac 路径伪装成 server-local checkout，也不给 Demiurges principal
+授予 server-side file lifecycle tools；未来若需要服务器直接消费项目文件，必须另开部署镜像契约。
+
+本机 Codex 配置使用 `codex mcp add coordinate_demiurges ...` 写入 `~/.codex/config.toml`，只声明 Remote MCP URL、
+`bearer_token_env_var=COORDINATE_DEMIURGES_MCP_TOKEN` 与单工具 allowlist
+`coordinate.channel_create`；`/Users/Admin/.local/bin/codex-demiurges` 从本机 Keychain 注入 token 后启动
+Codex。当前 Codex CLI 0.145.0 实测没有加载 worktree 内 `.codex/config.toml`，所以不维护一份无效的
+project-local 副本。token 明文不进入 Git、文档、日志或 policy。新 Operator task 必须先用其
+authenticated Remote `tools/list` 证明 exact tool 可见，再创建频道。
+
+`.artifacts/harness/` 是 ignored、worktree-local runtime。canonical main 缺失时，从当前 EXharness
+`skills/long-running-project-harness/references/scripts/` 复制普通文件，并机械替换：
+`HARNESS_ROOT=docs/project-harness`、`PROJECT_ROOT_DEPTH=2`、
+`SCRIPTS_DIR=.artifacts/harness`、`PROJECT_NAME=Demiurges`；拒绝任何残留 `{{...}}`，随后运行
+`.artifacts/harness/harnessctl validate`、`doctor` 与 `state`。不得从历史 worktree 注册长期路径。
+
+Studio 与本地 Bun Agent Gateway 已通过 loopback HTTP NDJSON/resync 建立 Product Session transport；
+每个 session 的 Repository、MuJoCo Runtime 与 current ref 只存在于 Gateway 内存，因此刷新或重启
+Gateway 会丢失 session。Gateway production entry 要求显式设置
+`DEMIURGES_OMP_MODEL=provider/model`，并使用 OMP SDK restricted session；凭证继续由 OMP 自身解析，
+Demiurges 不接收或传输 credential。scripted Agent client 仅保留为显式注入的 test fixture。
+`DH-007` 的唯一授权 `kimi-code/k3` live canary 已执行并通过，脱敏 receipt 位于
+`docs/project-harness/tasks/DH-007/live-canary-receipt.md`；它不构成持续 provider 调用 authority。
+canonical Git remote 为 private GitHub repository `https://github.com/baisiqi6/Demiurges`；当前不存在
+产品 deployment target、鉴权/TLS、Spark/3DGS Runtime 或 world-model provider。
 
 ## Commit 与 push 验证
 
