@@ -30,7 +30,27 @@ import {
   setCollisionOverlayVisible,
 } from "./entity-presentation";
 import { resolveImportedVisualAsset } from "./presentation-assets";
-import { resolveRegisteredPresentationAsset } from "./registered-presentation";
+import {
+  hasExactRegisteredPresentationScenario,
+  resolveRegisteredObserverEntry,
+  resolveRegisteredPresentationAsset,
+} from "./registered-presentation";
+import { CameraRig } from "./camera-rig";
+import {
+  FALLBACK_WORLD_BOUNDS,
+  boundaryWarning,
+  boundsFromCenterHalfExtents,
+  cameraKeyAdmission,
+  fitBounds,
+  isEditableTarget,
+  poseDataset,
+  resolveObserverBounds,
+  transformBounds,
+  unionBounds,
+  type Bounds3 as ObserverBounds3,
+  type CameraPose,
+  type ObserverMode,
+} from "./observer-camera";
 
 const DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET_URL = new URL(
   "../../../../packages/world/assets/diagnostic-wedge-3dgs-v1.ply",
@@ -62,6 +82,7 @@ interface EntityObject {
   readonly generation: number;
   active: boolean;
   splat?: SplatMesh;
+  visualLocalBounds?: ObserverBounds3;
   observedSourceBounds?: Bounds3;
   alignmentEvidence?: AlignmentEvidence;
 }
@@ -139,6 +160,13 @@ function disposeSparkWhenIdle(spark: SparkRenderer): void {
 export function ThreeViewport(props: ThreeViewportProps) {
   let container!: HTMLDivElement;
   const [ready, setReady] = createSignal(false);
+  const [observerMode, setObserverMode] = createSignal<ObserverMode>("overview");
+  const [flySpeed, setFlySpeed] = createSignal(1.2);
+  const [entryTruthLabel, setEntryTruthLabel] = createSignal("ENTRY POSE · AUTHORED FALLBACK");
+  const [entryProvenance, setEntryProvenance] = createSignal("等待世界 Presentation context");
+  const [boundsProvenance, setBoundsProvenance] = createSignal("authored-fallback");
+  const [boundaryState, setBoundaryState] = createSignal<"inside" | "near" | "unknown">("unknown");
+  const [presentationError, setPresentationError] = createSignal<string>();
   const objects = new Map<Entity["ref"], EntityObject>();
   const loader = new GLTFLoader();
   const raycaster = new THREE.Raycaster();
@@ -148,11 +176,23 @@ export function ThreeViewport(props: ThreeViewportProps) {
   let renderer: THREE.WebGLRenderer | undefined;
   let spark: SparkRenderer | undefined;
   let controls: OrbitControls | undefined;
+  let gridHelper: THREE.GridHelper | undefined;
+  let worldBoundsHelper: THREE.Box3Helper | undefined;
+  let cameraRig: CameraRig | undefined;
+  let cameraTarget = new THREE.Vector3(0, 0, 0.65);
+  let observerBounds: ObserverBounds3 = FALLBACK_WORLD_BOUNDS;
+  let observerContextKey: string | undefined;
+  let reducedMotion: MediaQueryList | undefined;
   let resizeObserver: ResizeObserver | undefined;
   let renderFrame: number | undefined;
   let resizeFrame: number | undefined;
   let pendingSize: { width: number; height: number } | undefined;
   let disposed = false;
+  let lastFrameTime: number | undefined;
+  let renderedFrameCount = 0;
+  let pointerStart: { id: number; x: number; y: number } | undefined;
+  let draggingLook = false;
+  let ownedPointerLock = false;
   let nextGeneration = 0;
   const assetStates = new Map<string, RegisteredAssetLoadStatus>();
 
@@ -172,16 +212,73 @@ export function ThreeViewport(props: ThreeViewportProps) {
     publishAssetStates();
   };
 
+  const clearPresentationError = () => {
+    delete container.dataset.observerRepresentationError;
+    setPresentationError(undefined);
+  };
+
+  const markPresentationError = (code: string, message: string) => {
+    container.dataset.observerRepresentationError = code;
+    setPresentationError(message);
+  };
+
   const isCurrent = (ref: Entity["ref"], record: EntityObject) => {
     const current = objects.get(ref);
     return !disposed && record.active && current === record &&
       current.generation === record.generation;
   };
 
-  const renderScene = () => {
+  const currentCameraPose = (): CameraPose => ({
+    position: camera
+      ? [camera.position.x, camera.position.y, camera.position.z]
+      : [0, 0, 1],
+    target: [cameraTarget.x, cameraTarget.y, cameraTarget.z],
+  });
+
+  const setCameraPose = (pose: CameraPose) => {
+    if (!camera) return;
+    camera.position.set(...pose.position);
+    cameraTarget.set(...pose.target);
+    camera.lookAt(cameraTarget);
+    if (controls?.enabled) {
+      controls.target.copy(cameraTarget);
+      controls.update();
+    }
+  };
+
+  const effectiveLayers = (): PresentationLayers => ({
+    ...props.presentationLayers,
+    collision: observerMode() === "explore" ? false : props.presentationLayers.collision,
+  });
+
+  const publishObserverState = () => {
+    if (!camera) return;
+    const pose = currentCameraPose();
+    const boundary = boundaryWarning(observerBounds, pose.position);
+    setBoundaryState(boundary);
+    container.dataset.observerMode = observerMode();
+    container.dataset.cameraPose = poseDataset(pose);
+    container.dataset.rafCount = String(renderedFrameCount);
+    container.dataset.flySpeed = cameraRig?.flySpeed.toFixed(2) ?? flySpeed().toFixed(2);
+    container.dataset.entryTruth = entryTruthLabel().includes("UNVERIFIED")
+      ? "authored-unverified"
+      : "authored-fallback";
+    container.dataset.entryProvenance = entryProvenance();
+    container.dataset.boundsProvenance = boundsProvenance();
+    container.dataset.boundary = boundary;
+    container.dataset.collisionEffective = String(effectiveLayers().collision);
+  };
+
+  const renderScene = (timestamp = performance.now()) => {
     renderFrame = undefined;
     if (disposed) return;
+    const deltaSeconds = lastFrameTime === undefined ? 0 : (timestamp - lastFrameTime) / 1000;
+    lastFrameTime = timestamp;
+    const update = cameraRig?.update(deltaSeconds);
     if (scene && camera && renderer) renderer.render(scene, camera);
+    renderedFrameCount += 1;
+    publishObserverState();
+    if (update?.needsNextFrame) scheduleRender();
   };
 
   const scheduleRender = () => {
@@ -206,6 +303,186 @@ export function ThreeViewport(props: ThreeViewportProps) {
     publishAssetStates();
     current.splat?.dispose();
     disposeObject(current.root);
+  };
+
+  const primitiveLocalBounds = (entity: Entity): ObserverBounds3 | undefined => {
+    const visual = entity.representations.visual;
+    if (visual.kind === "box") {
+      return boundsFromCenterHalfExtents([0, 0, 0], visual.halfExtents);
+    }
+    if (visual.kind === "sphere") {
+      return boundsFromCenterHalfExtents([0, 0, 0], [visual.radius, visual.radius, visual.radius]);
+    }
+    const collision = entity.representations.collision;
+    if (collision.kind === "box") {
+      return boundsFromCenterHalfExtents([0, 0, 0], collision.halfExtents);
+    }
+    if (collision.kind === "sphere") {
+      return boundsFromCenterHalfExtents([0, 0, 0], [collision.radius, collision.radius, collision.radius]);
+    }
+    if (collision.kind === "compound") {
+      return unionBounds(collision.parts.map((part) => {
+        const local = boundsFromCenterHalfExtents([0, 0, 0], part.shape.halfExtents);
+        return local
+          ? transformBounds(local, part.localPose.position, part.localPose.rotation)
+          : undefined;
+      }));
+    }
+    return undefined;
+  };
+
+  const entityWorldBounds = (
+    entity: Entity,
+    state: Entity["state"],
+    record: EntityObject | undefined,
+    allowRegistered: boolean,
+  ): { readonly bounds: ObserverBounds3; readonly provenance: string } => {
+    let registeredBounds: ObserverBounds3 | undefined;
+    for (const representation of allowRegistered
+      ? [entity.representations.observation, entity.representations.visual]
+      : []) {
+      if (representation?.kind !== "registered-gaussian-splat" &&
+          representation?.kind !== "registered-rigid-mesh") continue;
+      try {
+        const resolved = resolveRegisteredPresentationAsset(representation);
+        const registered = transformBounds(
+          resolved.calibration.targetBounds,
+          state.pose.position,
+          state.pose.rotation,
+        );
+        if (registered) {
+          registeredBounds = registered;
+          break;
+        }
+      } catch {
+        markPresentationError("registry-binding", "REGISTERED PRESENTATION INTEGRITY FAILED");
+      }
+    }
+    const loaded = record?.visualLocalBounds
+      ? transformBounds(record.visualLocalBounds, state.pose.position, state.pose.rotation)
+      : undefined;
+    const local = primitiveLocalBounds(entity);
+    const primitiveOrCollision = local
+      ? transformBounds(local, state.pose.position, state.pose.rotation)
+      : undefined;
+    return resolveObserverBounds({
+      registered: registeredBounds,
+      loadedDigest: loaded,
+      primitiveOrCollision,
+      fallbackPosition: state.pose.position,
+    });
+  };
+
+  const focusEntity = (ref: Entity["ref"] | undefined) => {
+    if (!camera || !ref || observerMode() !== "inspect") return;
+    const entity = props.snapshot?.entities.find((candidate) => candidate.ref === ref);
+    if (!entity) return;
+    const state = props.sample?.states[ref] ?? entity.state;
+    let allowRegistered = false;
+    try {
+      allowRegistered = hasExactRegisteredPresentationScenario(props.snapshot);
+    } catch {
+      markPresentationError("registry-binding", "REGISTERED PRESENTATION INTEGRITY FAILED");
+    }
+    const result = entityWorldBounds(entity, state, objects.get(ref), allowRegistered);
+    const fitted = fitBounds(result.bounds, camera.aspect, camera.fov, 1.12);
+    setBoundsProvenance(result.provenance);
+    cameraRig?.focus(fitted.pose);
+    scheduleRender();
+  };
+
+  const refreshObserverContext = (snapshot: Snapshot | undefined, reset = false) => {
+    if (!camera || !cameraRig) return;
+    const hasPersistentLoadError = [...assetStates.values()].some((status) => status === "error") ||
+      container.dataset.observationStatus === "error" ||
+      container.dataset.assetStatus === "error";
+    if (!hasPersistentLoadError) clearPresentationError();
+    let allowRegistered = false;
+    try {
+      allowRegistered = hasExactRegisteredPresentationScenario(snapshot);
+    } catch {
+      markPresentationError("registry-binding", "REGISTERED PRESENTATION INTEGRITY FAILED");
+    }
+    const resolvedBounds = (snapshot?.entities ?? []).map((entity) => {
+      const state = props.sample?.states[entity.ref] ?? entity.state;
+      return entityWorldBounds(entity, state, objects.get(entity.ref), allowRegistered);
+    });
+    observerBounds = unionBounds(resolvedBounds.map((entry) => entry.bounds)) ?? FALLBACK_WORLD_BOUNDS;
+    const overview = fitBounds(observerBounds, camera.aspect, camera.fov);
+    let explorePose: CameraPose = {
+      position: [
+        overview.center[0],
+        observerBounds.min[1] + (observerBounds.max[1] - observerBounds.min[1]) * 0.22,
+        Math.min(Math.max(overview.center[2], observerBounds.min[2] + 0.5), observerBounds.max[2] - 0.05),
+      ],
+      target: [overview.center[0], overview.center[1], overview.center[2]],
+    };
+    let truth = "ENTRY POSE · AUTHORED FALLBACK";
+    let provenance = "deterministic fit-bounds fallback";
+    let registeredBoundsProvenance = resolvedBounds.some((entry) => entry.provenance === "registered")
+      ? "registered"
+      : resolvedBounds.some((entry) => entry.provenance === "derived-from-loaded-digest")
+        ? "derived-from-loaded-digest"
+        : "authored-fallback";
+    try {
+      const entry = resolveRegisteredObserverEntry(snapshot);
+      if (entry) {
+        const entity = snapshot!.entities.find((candidate) => candidate.ref === entry.entityRef)!;
+        const worldEntryBounds = transformBounds(entry.bounds, entity.state.pose.position, entity.state.pose.rotation);
+        const worldEntryPosition = transformBounds(
+          { min: entry.entryPose.position, max: entry.entryPose.position },
+          entity.state.pose.position,
+          entity.state.pose.rotation,
+        );
+        const worldEntryTarget = transformBounds(
+          { min: entry.entryPose.target, max: entry.entryPose.target },
+          entity.state.pose.position,
+          entity.state.pose.rotation,
+        );
+        if (!worldEntryBounds || !worldEntryPosition || !worldEntryTarget) {
+          throw new Error("registered Observer entry transform 无效");
+        }
+        explorePose = {
+          position: worldEntryPosition.min,
+          target: worldEntryTarget.min,
+        };
+        truth = "ENTRY POSE · AUTHORED / UNVERIFIED";
+        provenance = entry.provenance;
+        registeredBoundsProvenance = "registered";
+      }
+    } catch {
+      markPresentationError("entry-fallback", "REGISTERED ENTRY INTEGRITY FAILED · USING FINITE FALLBACK");
+    }
+    cameraRig.setResetPoses({
+      overview: overview.pose,
+      inspect: fitBounds(observerBounds, camera.aspect, camera.fov, 1.12).pose,
+      explore: explorePose,
+    });
+    cameraRig.setEnvelope(overview.envelope);
+    observerBounds = overview.bounds;
+    if (worldBoundsHelper) {
+      worldBoundsHelper.box.min.set(...observerBounds.min);
+      worldBoundsHelper.box.max.set(...observerBounds.max);
+      worldBoundsHelper.visible = effectiveLayers().bounds;
+      worldBoundsHelper.updateMatrixWorld(true);
+    }
+    if (gridHelper) {
+      gridHelper.position.z = observerBounds.min[2];
+      gridHelper.scale.setScalar(Math.max(0.5, overview.radius / 4));
+      gridHelper.visible = effectiveLayers().grid;
+    }
+    setEntryTruthLabel(truth);
+    setEntryProvenance(provenance);
+    setBoundsProvenance(registeredBoundsProvenance);
+    const key = snapshot
+      ? `${snapshot.id}:${snapshot.scenarioId}:${snapshot.entities.map(visualSignature).join("|")}`
+      : "empty";
+    if (reset || observerContextKey === undefined || observerContextKey !== key && observerMode() === "overview") {
+      cameraRig.reset();
+      scheduleRender();
+    }
+    observerContextKey = key;
+    publishObserverState();
   };
 
   const evidenceFor = (
@@ -246,9 +523,27 @@ export function ThreeViewport(props: ThreeViewportProps) {
     const observation = entity.representations.observation;
     const observationRoot = record.observationRoot;
     if (!observation || !observationRoot) return;
-    const registered = observation.kind === "registered-gaussian-splat"
-      ? resolveRegisteredPresentationAsset(observation)
-      : undefined;
+    let registered: ReturnType<typeof resolveRegisteredPresentationAsset> | undefined;
+    try {
+      if (observation.kind === "registered-gaussian-splat") {
+        if (!hasExactRegisteredPresentationScenario(props.snapshot)) {
+          throw new Error("registered Observation 不属于 exact scenario");
+        }
+        registered = resolveRegisteredPresentationAsset(observation);
+      }
+    } catch {
+      record.root.userData.observationAssetId = observation.assetId;
+      setAssetState(observation.assetId, "error");
+      container.dataset.observationStatus = "error";
+      container.dataset.observationError = "registry";
+      delete container.dataset.observationEntityRef;
+      container.dataset.alignmentStatus = "fail";
+      props.onAlignmentEvidence?.(undefined);
+      refreshObserverContext(props.snapshot);
+      markPresentationError("observation-registry", "REGISTERED OBSERVATION INTEGRITY FAILED");
+      scheduleRender();
+      return;
+    }
     const controller = new AbortController();
     record.abortControllers.add(controller);
     if (registered) {
@@ -336,7 +631,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
       };
       record.splat = splat;
       observationRoot.add(splat);
-      applyPresentationLayers(record, props.presentationLayers);
+      applyPresentationLayers(record, effectiveLayers());
       container.dataset.observationStatus = "loaded";
       delete container.dataset.observationError;
       container.dataset.observationEntityRef = entity.ref;
@@ -350,7 +645,8 @@ export function ThreeViewport(props: ThreeViewportProps) {
       } else {
         delete container.dataset.alignmentStatus;
       }
-      renderScene();
+      refreshObserverContext(props.snapshot);
+      scheduleRender();
     } catch {
       if (splat) {
         observationRoot.remove(splat);
@@ -370,7 +666,12 @@ export function ThreeViewport(props: ThreeViewportProps) {
       delete container.dataset.observationEntityRef;
       container.dataset.alignmentStatus = "fail";
       props.onAlignmentEvidence?.(undefined);
-      renderScene();
+      refreshObserverContext(props.snapshot);
+      markPresentationError(
+        `observation-${stage}`,
+        `OBSERVATION PRESENTATION INTEGRITY FAILED · ${stage.toUpperCase()}`,
+      );
+      scheduleRender();
     } finally {
       record.abortControllers.delete(controller);
     }
@@ -379,12 +680,28 @@ export function ThreeViewport(props: ThreeViewportProps) {
   const loadVisual = async (entity: Entity, record: EntityObject): Promise<void> => {
     const visual = entity.representations.visual;
     if (visual.kind !== "imported-rigid-mesh" && visual.kind !== "registered-rigid-mesh") return;
-    const registered = visual.kind === "registered-rigid-mesh"
-      ? resolveRegisteredPresentationAsset(visual)
-      : undefined;
-    const imported = visual.kind === "imported-rigid-mesh"
-      ? resolveImportedVisualAsset(visual)
-      : undefined;
+    let registered: ReturnType<typeof resolveRegisteredPresentationAsset> | undefined;
+    let imported: ReturnType<typeof resolveImportedVisualAsset> | undefined;
+    try {
+      if (visual.kind === "registered-rigid-mesh") {
+        if (!hasExactRegisteredPresentationScenario(props.snapshot)) {
+          throw new Error("registered Visual 不属于 exact scenario");
+        }
+        registered = resolveRegisteredPresentationAsset(visual);
+      } else {
+        imported = resolveImportedVisualAsset(visual);
+      }
+    } catch {
+      record.root.userData.visualAssetId = visual.assetId;
+      if (visual.kind === "registered-rigid-mesh") setAssetState(visual.assetId, "error");
+      container.dataset.assetStatus = "error";
+      container.dataset.assetEntityRef = entity.ref;
+      container.dataset.assetId = visual.assetId;
+      refreshObserverContext(props.snapshot);
+      markPresentationError("visual-registry", "REGISTERED VISUAL INTEGRITY FAILED");
+      scheduleRender();
+      return;
+    }
     const assetId = registered?.asset.assetId ?? imported!.assetId;
     const controller = new AbortController();
     record.abortControllers.add(controller);
@@ -455,20 +772,35 @@ export function ThreeViewport(props: ThreeViewportProps) {
           if (material instanceof THREE.MeshStandardMaterial) material.wireframe = true;
         }
       });
+      parsed.updateMatrixWorld(true);
+      const visualBounds = new THREE.Box3().setFromObject(parsed);
+      if (!visualBounds.isEmpty() && [
+        visualBounds.min.x, visualBounds.min.y, visualBounds.min.z,
+        visualBounds.max.x, visualBounds.max.y, visualBounds.max.z,
+      ].every(Number.isFinite)) {
+        record.visualLocalBounds = {
+          min: [visualBounds.min.x, visualBounds.min.y, visualBounds.min.z],
+          max: [visualBounds.max.x, visualBounds.max.y, visualBounds.max.z],
+        };
+      }
       record.visualRoot.add(parsed);
       container.dataset.assetStatus = "loaded";
       if (registered) setAssetState(assetId, "loaded");
       setSelected(record.root, props.selectedRef === entity.ref);
-      applyPresentationLayers(record, props.presentationLayers);
-      renderScene();
+      applyPresentationLayers(record, effectiveLayers());
+      refreshObserverContext(props.snapshot);
+      scheduleRender();
     } catch {
       if (parsed && !record.visualRoot.children.includes(parsed)) disposeObject(parsed);
       if (!isCurrent(entity.ref, record)) return;
       if (registered && assetStates.get(assetId) !== "not-imported") {
         setAssetState(assetId, "error");
       }
+      record.visualLocalBounds = undefined;
       if (container.dataset.assetStatus === "loading") container.dataset.assetStatus = "error";
-      renderScene();
+      refreshObserverContext(props.snapshot);
+      markPresentationError("visual-load", "VISUAL PRESENTATION INTEGRITY FAILED");
+      scheduleRender();
     } finally {
       record.abortControllers.delete(controller);
     }
@@ -542,7 +874,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
       void loadVisual(entity, record);
     }
     if (observationRoot) void loadObservation(entity, record);
-    applyPresentationLayers(record, props.presentationLayers);
+    applyPresentationLayers(record, effectiveLayers());
     return record;
   };
 
@@ -583,9 +915,10 @@ export function ThreeViewport(props: ThreeViewportProps) {
     }
   };
 
-  const selectAtPointer = (event: PointerEvent) => {
-    if (!camera || !renderer) return;
+  const entityAtPointer = (event: PointerEvent): Entity["ref"] | undefined => {
+    if (!camera || !renderer) return undefined;
     const bounds = renderer.domElement.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return undefined;
     pointer.set(
       ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
       -((event.clientY - bounds.top) / bounds.height) * 2 + 1,
@@ -599,9 +932,135 @@ export function ThreeViewport(props: ThreeViewportProps) {
     while (object && typeof object.userData.entityRef !== "string") {
       object = object.parent;
     }
-    if (object?.userData.entityRef) {
-      props.onSelect?.(object.userData.entityRef as Entity["ref"]);
+    return object?.userData.entityRef as Entity["ref"] | undefined;
+  };
+
+  const changeObserverMode = (mode: ObserverMode) => {
+    clearInput();
+    setObserverMode(mode);
+    cameraRig?.setMode(mode);
+    for (const record of objects.values()) applyPresentationLayers(record, effectiveLayers());
+    if (mode === "explore") renderer?.domElement.focus({ preventScroll: true });
+    scheduleRender();
+  };
+
+  const resetObserver = () => {
+    clearInput();
+    cameraRig?.reset();
+    renderer?.domElement.focus({ preventScroll: true });
+    scheduleRender();
+  };
+
+  const ownsKeyboard = (event: KeyboardEvent): boolean => {
+    if (!renderer) return false;
+    return cameraKeyAdmission({
+      viewportFocused: document.activeElement === renderer.domElement,
+      pointerOwned: renderer.domElement.hasPointerCapture(pointerStart?.id ?? -1) ||
+        document.pointerLockElement === renderer.domElement,
+      editableTarget: isEditableTarget(event.target),
+    });
+  };
+
+  const releasePointerInput = () => {
+    if (renderer && pointerStart && renderer.domElement.hasPointerCapture(pointerStart.id)) {
+      renderer.domElement.releasePointerCapture(pointerStart.id);
     }
+    pointerStart = undefined;
+    draggingLook = false;
+  };
+
+  const clearInput = () => {
+    cameraRig?.clearInput();
+    releasePointerInput();
+    scheduleRender();
+  };
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (!ownsKeyboard(event)) return;
+    if (event.code === "Escape") {
+      event.preventDefault();
+      clearInput();
+      renderer?.domElement.blur();
+      return;
+    }
+    if (event.code === "KeyF" && observerMode() === "inspect") {
+      event.preventDefault();
+      focusEntity(props.selectedRef);
+      return;
+    }
+    if (cameraRig?.keyDown(event.code)) {
+      event.preventDefault();
+      scheduleRender();
+    }
+  };
+
+  const onKeyUp = (event: KeyboardEvent) => {
+    if (cameraRig?.keyUp(event.code)) {
+      event.preventDefault();
+      scheduleRender();
+    }
+  };
+
+  const onPointerDown = (event: PointerEvent) => {
+    if (!renderer) return;
+    renderer.domElement.focus({ preventScroll: true });
+    pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    if (observerMode() === "explore") {
+      draggingLook = true;
+      renderer.domElement.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    }
+  };
+
+  const onPointerMove = (event: PointerEvent) => {
+    if (!draggingLook || observerMode() !== "explore" || !cameraRig) return;
+    const deltaX = event.movementX || (pointerStart ? event.clientX - pointerStart.x : 0);
+    const deltaY = event.movementY || (pointerStart ? event.clientY - pointerStart.y : 0);
+    pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    cameraRig.look(deltaX, deltaY);
+    scheduleRender();
+  };
+
+  const onPointerUp = (event: PointerEvent) => {
+    const start = pointerStart;
+    if (observerMode() === "inspect" && start && start.id === event.pointerId &&
+        Math.hypot(event.clientX - start.x, event.clientY - start.y) <= 4) {
+      const ref = entityAtPointer(event);
+      if (ref) props.onSelect?.(ref);
+    }
+    releasePointerInput();
+  };
+
+  const onDoubleClick = (event: MouseEvent) => {
+    if (observerMode() !== "inspect") return;
+    const ref = entityAtPointer(event as unknown as PointerEvent);
+    if (ref) {
+      props.onSelect?.(ref);
+      focusEntity(ref);
+    }
+  };
+
+  const onWheel = (event: WheelEvent) => {
+    if (observerMode() !== "explore" || document.activeElement !== renderer?.domElement) return;
+    event.preventDefault();
+    const speed = cameraRig?.adjustSpeed(event.deltaY);
+    if (speed !== undefined) setFlySpeed(speed);
+    publishObserverState();
+  };
+
+  const onPointerLockChange = () => {
+    const ownsNow = document.pointerLockElement === renderer?.domElement;
+    if (ownedPointerLock && !ownsNow) clearInput();
+    ownedPointerLock = ownsNow;
+  };
+
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "hidden") clearInput();
+  };
+
+  const onControlsChange = () => {
+    if (controls?.enabled) cameraTarget.copy(controls.target);
+    scheduleRender();
   };
 
   onMount(() => {
@@ -623,7 +1082,8 @@ export function ThreeViewport(props: ThreeViewportProps) {
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.domElement.dataset.testid = "world-canvas";
     renderer.domElement.setAttribute("aria-label", "Demiurges 三维世界观察窗口");
-    renderer.domElement.addEventListener("pointerdown", selectAtPointer);
+    renderer.domElement.tabIndex = 0;
+    renderer.domElement.setAttribute("role", "application");
     container.append(renderer.domElement);
 
     controls = new OrbitControls(camera, renderer.domElement);
@@ -632,8 +1092,55 @@ export function ThreeViewport(props: ThreeViewportProps) {
     controls.minDistance = 1.2;
     controls.maxDistance = 16;
     controls.maxPolarAngle = Math.PI * 0.92;
-    controls.addEventListener("change", scheduleRender);
+    controls.addEventListener("change", onControlsChange);
     controls.update();
+
+    reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const initial = fitBounds(FALLBACK_WORLD_BOUNDS, 1, camera.fov);
+    cameraRig = new CameraRig(
+      {
+        getPose: currentCameraPose,
+        setPose: setCameraPose,
+        setControlsEnabled: (enabled) => {
+          if (!controls) return;
+          controls.enabled = enabled;
+          if (enabled) {
+            controls.target.copy(cameraTarget);
+            controls.update();
+          }
+        },
+        setEnvelope: (envelope) => {
+          if (!camera || !controls || !scene) return;
+          camera.near = envelope.near;
+          camera.far = envelope.far;
+          camera.updateProjectionMatrix();
+          controls.minDistance = envelope.minDistance;
+          controls.maxDistance = envelope.maxDistance;
+          scene.fog = new THREE.Fog("#dce2dc", envelope.fogNear, envelope.fogFar);
+        },
+      },
+      {
+        overview: initial.pose,
+        inspect: fitBounds(FALLBACK_WORLD_BOUNDS, 1, camera.fov, 1.12).pose,
+        explore: { position: [0, -1, 1], target: [0, 0, 1] },
+      },
+      () => reducedMotion?.matches ?? false,
+    );
+    cameraRig.setEnvelope(initial.envelope);
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", clearInput);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener("pointerlockchange", onPointerLockChange);
+    renderer.domElement.addEventListener("pointerdown", onPointerDown);
+    renderer.domElement.addEventListener("pointermove", onPointerMove);
+    renderer.domElement.addEventListener("pointerup", onPointerUp);
+    renderer.domElement.addEventListener("pointercancel", clearInput);
+    renderer.domElement.addEventListener("lostpointercapture", clearInput);
+    renderer.domElement.addEventListener("dblclick", onDoubleClick);
+    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
+    renderer.domElement.addEventListener("blur", clearInput);
 
     spark = new SparkRenderer({
       renderer,
@@ -655,6 +1162,20 @@ export function ThreeViewport(props: ThreeViewportProps) {
     axes.position.set(-2.7, -2.7, 0.01);
     scene.add(axes);
 
+    gridHelper = new THREE.GridHelper(10, 20, "#6b7d74", "#a8b4ae");
+    gridHelper.rotation.x = Math.PI / 2;
+    gridHelper.visible = false;
+    scene.add(gridHelper);
+    worldBoundsHelper = new THREE.Box3Helper(
+      new THREE.Box3(
+        new THREE.Vector3(...FALLBACK_WORLD_BOUNDS.min),
+        new THREE.Vector3(...FALLBACK_WORLD_BOUNDS.max),
+      ),
+      "#a94d32",
+    );
+    worldBoundsHelper.visible = false;
+    scene.add(worldBoundsHelper);
+
     resizeObserver = new ResizeObserver(([entry]) => {
       if (!entry || !camera || !renderer) return;
       const { width, height } = entry.contentRect;
@@ -669,7 +1190,8 @@ export function ThreeViewport(props: ThreeViewportProps) {
         camera.aspect = size.width / size.height;
         camera.updateProjectionMatrix();
         renderer.setSize(size.width, size.height, false);
-        renderScene();
+        refreshObserverContext(props.snapshot, observerMode() === "overview");
+        scheduleRender();
       });
     });
     resizeObserver.observe(container);
@@ -681,7 +1203,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
     const sample = props.sample;
     const snapshot = props.snapshot;
     const selectedRef = props.selectedRef;
-    const presentationLayers = props.presentationLayers;
+    props.presentationLayers;
     syncObjects(snapshot);
 
     let selectedEvidence: AlignmentEvidence | undefined;
@@ -702,11 +1224,13 @@ export function ThreeViewport(props: ThreeViewportProps) {
       object.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
       if (record.articulatedRoot) applyArticulatedArmState(record.articulatedRoot, state);
       setSelected(object, selectedRef === entity.ref);
-      applyPresentationLayers(record, presentationLayers);
+      applyPresentationLayers(record, effectiveLayers());
       if (selectedRef === entity.ref) {
         selectedEvidence = evidenceFor(entity, state, record);
       }
     }
+    if (gridHelper) gridHelper.visible = effectiveLayers().grid;
+    if (worldBoundsHelper) worldBoundsHelper.visible = effectiveLayers().bounds;
     selectedEvidence ??= [...objects.values()]
       .map((record) => record.alignmentEvidence)
       .find((evidence) => evidence !== undefined);
@@ -716,18 +1240,40 @@ export function ThreeViewport(props: ThreeViewportProps) {
     } else {
       delete container.dataset.alignmentStatus;
     }
-    renderScene();
+    refreshObserverContext(snapshot);
+    scheduleRender();
   });
 
   onCleanup(() => {
     disposed = true;
+    cameraRig?.dispose();
     if (renderFrame !== undefined) cancelAnimationFrame(renderFrame);
     if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
     resizeObserver?.disconnect();
-    controls?.removeEventListener("change", scheduleRender);
+    window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keyup", onKeyUp);
+    window.removeEventListener("blur", clearInput);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+    document.removeEventListener("pointerlockchange", onPointerLockChange);
+    controls?.removeEventListener("change", onControlsChange);
     controls?.dispose();
-    renderer?.domElement.removeEventListener("pointerdown", selectAtPointer);
+    renderer?.domElement.removeEventListener("pointerdown", onPointerDown);
+    renderer?.domElement.removeEventListener("pointermove", onPointerMove);
+    renderer?.domElement.removeEventListener("pointerup", onPointerUp);
+    renderer?.domElement.removeEventListener("pointercancel", clearInput);
+    renderer?.domElement.removeEventListener("lostpointercapture", clearInput);
+    renderer?.domElement.removeEventListener("dblclick", onDoubleClick);
+    renderer?.domElement.removeEventListener("wheel", onWheel);
+    renderer?.domElement.removeEventListener("blur", clearInput);
     for (const ref of [...objects.keys()]) removeObject(ref);
+    if (gridHelper) {
+      scene?.remove(gridHelper);
+      disposeObject(gridHelper);
+    }
+    if (worldBoundsHelper) {
+      scene?.remove(worldBoundsHelper);
+      disposeObject(worldBoundsHelper);
+    }
     if (spark) {
       scene?.remove(spark);
       disposeSparkWhenIdle(spark);
@@ -736,5 +1282,48 @@ export function ThreeViewport(props: ThreeViewportProps) {
     renderer?.domElement.remove();
   });
 
-  return <div class="world-viewport" data-testid="world-viewport" ref={container} />;
+  return (
+    <div class="world-viewport" data-testid="world-viewport" ref={container}>
+      <div class="observer-controls" aria-label="Observer modes">
+        <div class="observer-mode-switch" role="group" aria-label="Observer mode">
+          {(["overview", "inspect", "explore"] as const).map((mode) => (
+            <button
+              type="button"
+              data-testid={`observer-mode-${mode}`}
+              aria-pressed={observerMode() === mode}
+              onClick={() => changeObserverMode(mode)}
+            >
+              {mode === "overview" ? "Overview" : mode === "inspect" ? "Inspect" : "进入世界"}
+            </button>
+          ))}
+          <button type="button" data-testid="observer-reset" onClick={resetObserver}>Reset</button>
+        </div>
+        <div class="observer-readout" aria-live="polite">
+          <strong data-testid="observer-current-mode">
+            {observerMode() === "overview"
+              ? "Overview · 世界外部概览"
+              : observerMode() === "inspect"
+                ? "Inspect · Orbit / Entity focus"
+                : "Explore · Fly（无 validated navigation surface）"}
+          </strong>
+          <span data-testid="observer-entry-truth">{entryTruthLabel()}</span>
+          <span data-testid="observer-entry-provenance">{entryProvenance()}</span>
+          <span data-testid="observer-bounds-provenance">BOUNDS · {boundsProvenance()}</span>
+          {presentationError()
+            ? <em class="observer-error" role="alert" data-testid="observer-presentation-error">{presentationError()}</em>
+            : null}
+          <span data-testid="observer-help">
+            {observerMode() === "explore"
+              ? `W/A/S/D 平移 · Q/E 升降 · Shift 加速 · 滚轮调速 ${flySpeed().toFixed(2)} m/s · 拖拽视线 · Esc 释放`
+              : observerMode() === "inspect"
+                ? "单击选择 · F / 双击聚焦 · 鼠标 Orbit"
+                : "完整世界边界 · 可开启 Grid / Bounds / Alignment / Collision debug layers"}
+          </span>
+          {observerMode() === "explore" && boundaryState() !== "inside"
+            ? <em data-testid="observer-boundary-warning">当前世界边界 / 未知区域</em>
+            : null}
+        </div>
+      </div>
+    </div>
+  );
 }

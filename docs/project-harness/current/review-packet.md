@@ -2,24 +2,24 @@
 
 ## Subject
 
-- Checklist item: `DH-011`
-- Reviewer: `independent-cross-review-round8`
-- Updated at: `2026-08-12`
-- Canonical plan path: `docs/project-harness/tasks/DH-011/plan.md`
+- Checklist item: `DH-014`
+- Reviewer: `sol-max+deepseek-v4-pro-round4`
+- Updated at: `2026-08-14`
+- Canonical plan path: `docs/project-harness/tasks/DH-014/plan.md`
 
 ## Item Snapshot
 
-- Title: Articulated Entity 与显式动作程序 Vertical Slice
-- Status: todo
-- Workflow status: changes_requested
+- Title: Observer Modes 与 Enter World 交互
+- Status: doing
+- Workflow status: review_requested
 - Priority: p0
-- Owner: codex-root
-- Session: codex-root-dh011-plan-20260812
-- Dependencies: DH-010.1
+- Owner: codex
+- Session: codex-dh014-observer-20260814
+- Dependencies: DH-013
 
 ## Acceptance
 
-同一 read/write/edit/run 四工具通过可读取 articulated refs 与显式 actuator-sequence WorldProgram，驱动两关节机械臂在 MuJoCo 中触达目标 Frame；Episode、Evaluation、Product codec、Presentation 与 adopt authority 闭合，旧场景不回归，且无机器人专用第五工具、MuJoCo ID 泄漏或 world-model/规划范围蔓延。
+实现 Overview、Inspect、Explore 三种可见 Observer；Marble 可从 registered authored entry pose 进入；Z-up Fly、Inspect focus、Overview fit bounds、输入生命周期与按需 rAF 满足计划；相机不改变 Snapshot/Ref/Episode/Evaluation authority；focused/full/typecheck/build/diff/EXharness/Chromium 与 independent implementation cross-review 全部通过
 
 ## Verification
 
@@ -27,7 +27,7 @@
 
 ## Handoff
 
-先完成两路 independent plan review；两路均 approved 后才 accept 并进入实现。
+先完成 independent plan cross-review；P0/P1=0 且 approved 后方可实现。实现后必须再次 independent implementation cross-review；未经新授权不得 commit/push/merge/tag/deploy。
 
 ## Review Inputs
 
@@ -40,407 +40,313 @@
 ## Canonical Plan Content
 
 ```md
-# DH-011 计划：Articulated Entity 与显式动作程序 Vertical Slice
+# DH-014 计划：Observer Modes 与 Enter World 交互
 
 ## 状态与 Authority
 
-- Status：`plan_review`；两路 independent plan review 均批准前，不进入产品实现。
-- Branch：`agent/codex/DH-011`。
-- Worktree：`/Users/Admin/projects/WorkTrees/Demiurges-DH-011`。
-- Base：`06a2c392bbc2a001d1b31b3cde15b2eb3f9f6cca`（已合并 DH-010.1 的 `main`）。
-- Human 已授权：创建独立 worktree/branch、登记 EXharness 节点、编写并交叉审查本计划；双审批准后，在本 worktree 内实现、验证并进行结果交叉审查。
-- 当前未授权：真实 provider prompt、credential 使用、commit、push DH-011、PR、merge `main`、tag、deploy、发布 package 或访问真实设备。
+- Status：`planning`；
+- Mode：`high-risk` Presentation interaction slice；
+- Branch：`agent/codex/DH-014`；
+- Worktree：`/Users/Admin/projects/WorkTrees/Demiurges-DH-014`；
+- Base / main：`c655c544bb88010f42e0dd9e570f7f04923d9b6e`；
+- Human 已授权创建 DH-014、设计、独立交叉审查、通过后实现、验证与 implementation cross-review；
+- 未授权 commit、push、merge `main`、tag、deploy、新 provider generation 或重新调用 Marble / Hunyuan 生成；
+- Plan gate：只有 independent cross-review 的 P0/P1 均为 0 且结论为 `approved`，才进入产品实现；
+- Closeout gate：实现完成后仍需 independent implementation cross-review 批准，本轮不自行 closeout。
+
+## 已接管的稳定设计输入
+
+main worktree 中原有的四份 doc-only changes 已逐字复制到本 worktree；main 原改动保持不变。接管时 SHA-256：
+
+| 文件 | SHA-256 |
+|---|---|
+| `docs/project-harness/observer-embodiment.md` | `c290ebcd70e8c3776cf808275c49528a2e6bb191c5b8944c0f2a80511cc55a4b` |
+| `docs/project-harness/README.md` | `2be98ae14e49cd2cfc32b162f56cd3e4e8c60c8bf8fd540ff7cbb1bbbcc517c6` |
+| `docs/project-harness/architecture.md` | `fef6f9d56d30bd1e2b0d36340603a58b7fc6b8f630234f73bd4f6e9f23c57dcb` |
+| `docs/project-harness/domain-model.md` | `9102a3d16806873dca31a118340ddac030c2101e28bd5a27349e4fd5ce8e0acf` |
+
+这些文档是 DH-014 的设计输入，不因被复制而获得独立 commit authority。后续若 reviewer 要求修改正文，必须留下 plan review 证据，不能静默改写最初输入。
 
 ## Goal
 
-用一个可见、确定性、可评测的“两关节平面机械臂触达目标 Frame”任务，证明 Demiurges 的四工具不依赖机器人专用函数，也不只是固定 `fixtureId/programId` 菜单：
+在不扩大 Kernel 或 Agent authority 的前提下，把现有单一 Orbit viewport 收敛为三个显式、可见、可恢复的 Presentation Observer：
 
 ```text
-read articulated topology, frames, limits and actuator ranges
-+ edit initial joint state
-+ run an explicit bounded actuator sequence
-→ immutable action-conditioned Episode
-+ terminal Snapshot
-+ deterministic reach EvaluationRecord
+Overview Observer
+  └── 世界外部概览 / fit registered world bounds / debug layers
+
+Inspect Observer
+  └── Orbit / Entity selection / trusted bounds focus
+
+Explore Observer
+  └── registered entry pose / Z-up Fly / bounded input ownership
 ```
 
-本切片的本质不是“增加一个机械臂模型”，而是建立第一条真正的控制语义：Agent 读取世界中已有的稳定引用，提交一段显式 `WorldProgram`，Runtime 展开动作与时间，Episode 留下动作、关节状态和终态证据。
-
-## 第一性原则与最小边界
-
-### 1. 四工具数量保持不变
-
-model-facing surface 仍然只有：
-
-```text
-read / write / edit / run
-```
-
-不得新增 `move_arm`、`set_joint`、`reach_target`、`grasp` 或其他机器人专用第五工具。机器人能力必须来自四工具参数与世界中可读取的结构，而不是来自工具名称。
-
-### 2. Articulated Entity 是一个 Entity，不是一袋 MuJoCo objects
-
-机械臂在 Snapshot、Repository ref、Product Session、selection、Episode 与 Evaluation 中只有一个 authoritative `EntityRef`：`entity:arm`。link、joint、actuator、sensor 与 frame 是这个 Entity 内可寻址的 articulated representation/state component，不自动升级为顶层 Entity。
-
-稳定引用使用 Harness-owned namespace，例如：
-
-- `link:arm-base`、`link:arm-upper`、`link:arm-forearm`；
-- `joint:arm-shoulder`、`joint:arm-elbow`；
-- `actuator:arm-shoulder-position`、`actuator:arm-elbow-position`；
-- `sensor:arm-shoulder-position`、`sensor:arm-shoulder-velocity`、`sensor:arm-elbow-position`、`sensor:arm-elbow-velocity`；
-- `frame:arm-base`、`frame:arm-elbow`、`frame:arm-tool`、`frame:reach-target`。
-
-MuJoCo `body id`、`joint id`、`actuator id`、`sensor id`、array index、name table offset 与 raw `mjData` memory offset 始终是 Runtime 内部实现细节，不得成为上述稳定引用，也不得进入 Product Session、Agent trace 或 Presentation authority。
-
-### 3. 不改变不可约记录集合，只增加第二个真实任务所需的 closed variants
-
-`Snapshot`、`Entity`、`WorldProgram`、`Episode`、`EvaluationRecord`、`Artifact` 与 `Ref` 仍是不可约记录。允许为 articulated topology/state、actuator program 和 reach evaluation 增加有界 discriminated variants；禁止引入通用 robotics SDK、任意 component graph、plugin registry 或开放 MJCF authoring。
-
-Geometry roadmap 中“导入 articulated fixture 不需要修改 Kernel record”的含义冻结为：不增加 `RobotSnapshot`、`JointEntity`、`ActuatorEntity` 等平行不可约记录，不改变 Entity 的 authority/identity 规则；允许在既有 Entity representation 与 Entity state 内增加 articulated closed variant。
-
-### 4. `edit` 继续只改变静态描述
-
-`edit` model-facing input 的 exact shape 固定为 `{expected,targetRef,change}`；`change` 只能是以下两个 closed variant，不接受顶层 legacy `frameRef/pose`：
-
-```ts
-type PoseEditChange = {
-  kind: "pose";
-  frameRef: "frame:world";
-  pose: {
-    position: { x: number; y: number; z: number };
-    rotation: { x: number; y: number; z: number; w: number };
-  };
-};
-
-type JointStateEditChange = {
-  kind: "joint-state";
-  joints: [
-    {
-      jointRef: "joint:arm-shoulder";
-      positionRadians: number;
-      velocityRadiansPerSecond: number;
-    },
-    {
-      jointRef: "joint:arm-elbow";
-      positionRadians: number;
-      velocityRadiansPerSecond: number;
-    },
-  ];
-};
-```
-
-`pose` 保留现有 rigid Entity pose 编辑；`joint-state` 只修改 `entity:arm` 的初始 joint position/velocity，并产生 child Snapshot。joint array 必须恰好两项且按 fixture joint registry 顺序；position 必须在对应 semantic joint limit 内，`velocityRadiansPerSecond` 在 DH-011 必须逐字为 `0`。这仍允许 Agent 选择任意合法初始关节构型，但不把高速 limit-impact/constraint solver 偷渡进第一个 control slice；非零初速度是后续独立能力。所有 object 都要求 exact enumerable own data properties、plain prototype、无 symbol/accessor/extra field；array 必须 dense、exact length，不能 sparse。
-
-`joint-state` edit 不能产生 Episode、虚构控制历史或直接修改 Runtime terminal。旧的 pose-only input 一次性迁移到 discriminated shape，不保留第二条 legacy parser 或 compatibility flag。
-
-Host-owned scenario admission matrix 是单一事实面，`world_write`、`edit`、`run`、Repository 与 codec 都从它消费：
-
-| fixtureId | scenarioId | 允许 edit | 允许 Program |
-|---|---|---|---|
-| `fixture:primitive-box` | `scenario:primitive-box-free-fall-v1` | `entity:cube + pose` | `free-fall(entity:cube,2.5s,30Hz)` |
-| `fixture:diagnostic-wedge-v1` | `scenario:diagnostic-rigid-free-fall-v1` | `entity:cube + pose` | `free-fall(entity:cube,2.5s,30Hz)` |
-| `fixture:ball-vessel-v1` | `scenario:ball-vessel-free-fall-v1` | `entity:ball + pose` | `free-fall(entity:ball,3s,30Hz)` |
-| `fixture:two-joint-planar-reach-v1` | `scenario:two-joint-planar-reach-v1` | `entity:arm + joint-state` | `actuator-sequence(entity:arm,0.5..5s,30Hz)` |
-
-矩阵之外的 targetRef/change.kind/program.kind/duration/sample rate 组合全部拒绝。`entity:target` 是固定 goal marker，不能被 pose edit；articulated scenario 不接受 free-fall，前三个 rigid scenario 不接受 actuator-sequence。`fixtureId` 只用于 `world_write` admission，不作为 Snapshot 中可伪造的 scenario authority；写入后由 exact registry 验证的 `scenarioId` 接续 lineage。
-
-### 5. `run` 接收显式 WorldProgram，而不是机器人专用预制程序
-
-`run` 的 model-facing input 从 `{runId, programId}` 演进为 `{runId, program}`。本切片只支持两个 closed program variants：
-
-1. `free-fall`：exact plain-data shape 为
-   `{kind:"free-fall",targetRef,durationSeconds,sampleRateHz}`，其中 `targetRef` 是 scenario registry 指定的 dynamic EntityRef，seconds/Hz 均为 SI；
-2. `actuator-sequence`：exact plain-data shape 固定为：
-
-```ts
-type ActuatorSequenceProgramContent = {
-  kind: "actuator-sequence";
-  targetRef: "entity:arm";
-  durationSeconds: number;
-  sampleRateHz: 30;
-  steps: Array<{
-    timeSeconds: number;
-    commands: [
-      {
-        actuatorRef: "actuator:arm-shoulder-position";
-        valueRadians: number;
-      },
-      {
-        actuatorRef: "actuator:arm-elbow-position";
-        valueRadians: number;
-      },
-    ];
-  }>;
-};
-```
-
-Program、step、command 的 object 都使用 exact plain-data 规则；`steps` 与 `commands` 都是 dense array。每个 step 必须恰好两个 command，并按 actuator registry 的 shoulder/elbow 顺序；`valueRadians` 是 position actuator 的 SI radian target，不允许无单位 `value`、torque、velocity 或 alias 字段。`free-fall` 与 `actuator-sequence` 都至少一个真实 scenario consumer；不新增第三个开放 variant。
-
-两个 variant 必须进入同一个 admission/canonicalization 路径。`free-fall` 不得在 Host 内保留按旧 `programId` 选择常量的第二条暗路；Host 只根据 current fixture/scenario 验证其 target、duration 与 sample rate 是否属于该 scenario 的受信 closed contract。
-
-Program admission 固定为：descriptor-safe plain-data projection → exact discriminated validation → recursively frozen canonical content → `canonicalJsonBytes` → SHA-256。`canonicalJsonBytes` 是 repo-owned 单一函数：array 保持已验证顺序；object key 在每一层按 UTF-16 code unit 升序排列；不输出 whitespace；string/finite IEEE-754 number/null/boolean 使用 ECMAScript `JSON.stringify` token encoding；拒绝 `-0`、非 finite、lone surrogate 与 schema 外 value，且不得预先 round number。UTF-8 使用无 BOM 的 `TextEncoder`。同一函数由 Host、Repository、codec 与 Node/V8 probe 消费，禁止各写一份 stringify helper。
-
-digest 输入只包含不带 `id` 的 admitted content，避免自引用；Host 再附加固定 ID `program:sha256:<64 lowercase hex>`。Agent 不提供 ID。Kernel `Episode` 用完整 frozen `program` 替换 detached `programId` 字段，`program.id` 必须与 canonical content digest 一致，Episode identity 同时绑定 base Snapshot、ExplicitInputs 与 Program digest。Product transport、Repository record 与 codec 都保留并复算完整 Program evidence，不能只留下一个无法复核的字符串。
-
-跨引擎 golden vectors 固定为：
-
-```text
-{"durationSeconds":2.5,"kind":"free-fall","sampleRateHz":30,"targetRef":"entity:cube"}
-sha256:b69c174f5e7e2c3e2da941cb21fc0a7437d64314eaa70250d22e4512fd6c0caf
-
-{"durationSeconds":3,"kind":"actuator-sequence","sampleRateHz":30,"steps":[{"commands":[{"actuatorRef":"actuator:arm-shoulder-position","valueRadians":0.35},{"actuatorRef":"actuator:arm-elbow-position","valueRadians":-0.35}],"timeSeconds":0},{"commands":[{"actuatorRef":"actuator:arm-shoulder-position","valueRadians":0.65},{"actuatorRef":"actuator:arm-elbow-position","valueRadians":-1}],"timeSeconds":0.5}],"targetRef":"entity:arm"}
-sha256:a8544a063f5993e976a80d10448890c7a57579d2824ae73ea74bdcf38ab53b55
-```
-
-“registered Program”不表示预注册整段 command sequence。Host-owned scenario registry 的稳定 ID 固定为 `scenario:primitive-box-free-fall-v1`、`scenario:diagnostic-rigid-free-fall-v1`、`scenario:ball-vessel-free-fall-v1` 与 `scenario:two-joint-planar-reach-v1`。`world_write` 从 exact fixture registry 创建 Snapshot 时写入 `snapshot.scenarioId`；Agent 不能提供或修改它。`edit` child 与 Runtime terminal 必须逐字继承同一个 `scenarioId`，Repository/codec 同时验证该 ID 与对应 scenario 的不可编辑 topology/representation/physics invariant，不能只信字符串；允许变化的字段仅限该 scenario 明列的 pose 或 joint-state edit surface。因此 scenario identity 可跨 child Snapshot 保持，却不能由 EntityRef 猜测或 detached fixture alias 伪造。
-
-Program kind 与 base Snapshot 的受信 `scenarioId` 相容、经 Host admission 得到 canonical digest，并与 completed Episode 一起由同一 Runtime evidence authority 记录时，才是 registered。Episode 必须 exact 保存 `scenarioId`，Repository 记录键绑定 `scenarioId + baseSnapshotId + program.id + runId`；codec 复核 base/terminal/current lineage 中 scenarioId 一致。AdoptPolicy registry 按受信 `(scenarioId, program.kind, evaluatorId, contractId)` 选择，而不是按 content-derived Program ID 建白名单；任意合法 actuator sequence 只要产生 completed + passed 的受信 Episode都能使用同一 reach policy。未被 Repository evidence authority 记录的 Episode/Program、digest/content 不一致、unknown kind、scenario mismatch 或 evaluator/contract mismatch 都是“unregistered”，不能 adopt。
-
-#### Action clock（唯一时序语义）
-
-- articulated profile 固定 `timestepSeconds = 1/240`，Program 固定 `sampleRateHz = 30`；`durationSeconds × 240` 与 `durationSeconds × 30` 都必须是安全整数；
-- `steps[0].timeSeconds` 必须为 `0`，其余 step 严格递增；每个 step 必须落在 30Hz sample grid，且 `0 <= timeSeconds < durationSeconds`，terminal time 不接受新 step；
-- 每个 step 必须恰好包含 fixture 中两个 actuatorRef 各一次；缺失、额外、重复或不同顺序产生 alias 的输入都拒绝。command array canonical order 固定按 fixture actuator registry 顺序；
-- command 采用 zero-order hold。唯一 execution loop 使用整数 `physicsTick`，不得另写 sample loop：
-
-```text
-durationTicks = durationSeconds * 240
-sampleStrideTicks = 240 / 30  // 8
-heldCommands = none
-for physicsTick = 0 .. durationTicks inclusive:
-  if a step is scheduled at physicsTick:
-    atomically replace heldCommands with that exact two-command set
-  write heldCommands to mjData.ctrl
-  mj_forward(model, data)
-  if physicsTick % sampleStrideTicks == 0:
-    record exactly one sample at physicsTick / 240
-  if physicsTick == durationTicks:
-    break
-  mj_step(model, data)
-```
-
-canonical 3-second run 因而恰好调用 `mj_step` 720 次、`mj_forward` 721 次并记录 91 个 sample；terminal sample 记录后立即 break，绝不执行第 721 次 `mj_step`。step 只可能落在 8-tick sample boundary，所以 command 先应用、再 forward、再被同 timestamp sample 观察；其后到下一 step 前保持不变；
-- sample grid 是闭区间 `[0,durationSeconds]`，sample count 固定为 `durationSeconds × 30 + 1`。terminal sample 位于 duration，携带最后一组 held commands；Episode terminal Snapshot 必须与 terminal sample articulated state 一致；
-- step/physics/sample timestamp 全部从整数 tick 派生，不能累计浮点时间，也不能用 epsilon 猜测边界。
-
-`actuator-sequence` admission 还要求 `0.5 <= durationSeconds <= 5`，因此 reach evaluator 总有完整 16-sample settle window；不足 0.5 秒在 run admission 阶段直接拒绝，不产生 completed Episode。最多 `16` steps、每 step 恰好 `2` commands。`WORLD_TOOL_CONTRACT` 改为 per-tool budget 单一事实面：read/write/edit 保持既有 `maxNodes=128,maxDepth=6,maxStringLength=512`，仅 run 为 `maxNodes=256,maxDepth=8,maxStringLength=512`；Gateway 根据被调用工具读取对应 budget，不能把 run 上限变成全局放宽。UTF-8 body 仍服从 Gateway 既有 `16,384 bytes` 上限。Phase 1 的 RED 必须覆盖第 `17` step、第三 command、缺失 command、非 sample-grid 时间、terminal-time step、少于 0.5 秒、terminal 后 extra `mj_step` 与以上 action-clock tamper。
-
-Runtime 在仿真前验证每个 actuatorRef 属于 target Entity、command 落在声明 control range、step 无重复 actuatorRef、时间闭合且 fixture/program kind 匹配。任何未知 ref、alias、越界、乱序、重复、sparse/accessor/non-finite 或额外字段都 fail closed，不做 clamp、normalize 或 best effort。
-
-### 6. Evaluation authority 仍由 Host 派生
-
-Agent 只能提交动作，不能提交 evaluator、Success Contract、target Frame、tolerance 或 AdoptPolicy。Host 根据受信 articulated fixture/scenario 派生：
-
-- `success:end-effector-reaches-frame`；
-- target Entity/Frame；
-- position tolerance；
-- settle window、最大关节速度或 tool-frame speed；
-- 对应 evaluator 与 AdoptPolicy。
-
-`run` 仍不推进 current ref；只有已登记 policy、completed Episode 和 passed Evaluation 才能由独立 Harness control 执行 adopt。
-
-Reach evaluator 的唯一证据路径固定如下：
-
-1. base Snapshot 的 `entity:arm` articulated registry 提供 immutable topology、root frame 与 link local geometry；base Snapshot 的 `entity:target` state + semantic local frame 提供唯一 `frame:reach-target` world pose；
-2. Runtime sample 从 MuJoCo `qpos/qvel` 经 private mapping 还原 exact `jointRef → {positionRadians, velocityRadiansPerSecond}`。sensor inventory 固定恰好四个 scalar observation，registry 顺序为 shoulder-position、shoulder-velocity、elbow-position、elbow-velocity；每个 sample 按该顺序记录 `{sensorRef,value}`，position 单位 `rad`、velocity 单位 `rad/s`。每个 sensor value 必须在 `1e-9` 内等于对应 mapped joint state；sensor 只闭合 loaded-model observation，不提升为 evaluator authority；
-3. evaluator 使用 repo-owned articulated registry 与 sample joint state执行唯一 deterministic forward kinematics，重算 `frame:arm-tool` world position；Episode 不存第二份 authoritative tool-frame pose；
-4. position error 只使用三维 Euclidean norm；stability 只使用两个 joint velocity 的最大绝对值。settle window 固定为 terminal 前 `0.5s`、30Hz 闭区间共 `16` samples；每个 sample 都必须满足 error `<= 0.02m` 且 max joint speed `<= 0.02rad/s`；
-5. base Snapshot、全部 samples 与 TerminalSnapshot 中 `entity:arm` fixed root pose、`entity:target` pose、goal frame local pose及 articulated topology/physics 必须 exact 不变；任何漂移由 Runtime/codec fail closed。
-
-## Diagnostic world
-
-使用 repo-owned、确定性的最小 fixture：
-
-- `entity:floor`：static floor；
-- `entity:arm`：固定基座的两转动关节平面机械臂；
-- `entity:target`：无动力、可见、可寻址的目标标记，拥有 `frame:reach-target`；
-- exact owner table：arm owns `link:arm-base|arm-upper|arm-forearm`、两个 joint、两个 actuator、四个 sensor 及 `frame:arm-base|arm-elbow|arm-tool`；target owns `frame:reach-target`；floor 不拥有 articulated sub-ref；
-- arm root world pose 固定为 position `[0,0,0.75]m`、identity quaternion `[0,0,0,1]`。`link:arm-base` fixed body local pose 是 identity；活动平面为 world XY，两个 hinge axis 在各 joint local frame 都是 `[0,0,1]`；zero configuration 时 upper 与 forearm 都沿 parent local `+X`；
-- shoulder joint anchor 是 base local `[0,0,0]m`；upper body local pose 是该 anchor 上的 identity。elbow joint anchor 是 upper local `[0.55,0,0]m`；forearm body local pose 是该 anchor 上的 identity。`frame:arm-elbow` 位于 upper local `[0.55,0,0]m`，`frame:arm-tool` 位于 forearm local `[0.45,0,0]m`，两者 local rotation 都是 identity；
-- upper/forearm 的 joint-center link lengths 固定 `0.55m / 0.45m`，capsule radius 均为 `0.05m`。capsule 使用 local `fromto` medial endpoints：upper `[0.05,0,0]→[0.50,0,0]`、forearm `[0.05,0,0]→[0.40,0,0]`，所以含半球端帽的总长恰好为 link length，不允许把 `fromto` segment length 误当总长；每个 moving link 恰好一个 collision/visual capsule；
-- upper/forearm mass 固定 `1.2kg / 0.8kg`。explicit inertial local pose 分别为 position `[0.275,0,0]m / [0.225,0,0]m`、identity rotation；diagonal inertia 固定 `[0.003,0.035,0.035]kg·m² / [0.002,0.015,0.015]kg·m²`，products of inertia 全为 `0`；不得依赖 geometry inference、balanceinertia 或 inertia defaults；
-- shoulder/elbow semantic joint limits 固定 `[-1.57,1.57]rad / [-2.2,2.2]rad`，initial position/velocity 都是 `0`。Host 在 edit/run admission 检查 initial position 与 command，Runtime 在每个 physics tick 检查 qpos；任何越界立即 fail closed，不产生 completed Episode。为使本 slice 的 accepted trajectory 保持无 constraint 的 deterministic piecewise-smooth dynamics，MJCF joint 固定 `limited=false`，不创建 joint-limit constraint；damping 固定 `1.2 / 0.9 N·m·s/rad`，`frictionloss=0`、armature=`0`、stiffness=`0`、ref/springref=`0`。semantic limit 仍由 Harness authority 真实执行，不能 clamp 或依赖 MuJoCo limit softness；compiler `autolimits=false`；
-- 两个 position actuator 都是 joint transmission，`gear=[1,0,0,0,0,0]`，actuator `group=0`，`ctrllimited=true`、`forcelimited=true`、`dyntype=none`、`gaintype=fixed`、`biastype=affine`。shoulder/elbow 的 effective `gainprm[0]=kp` 固定 `40 / 32`，`biasprm=[0,-kp,-kv]` 且 `kv` 固定 `4 / 3.2 N·m·s/rad`，其余 gain/bias params 为 `0`；control range 与 joint limit 相同，force range固定 `[-30,30]N·m / [-20,20]N·m`。因此 `valueRadians` 通过 gear=1 唯一解释为 joint position target，force range 唯一解释为 joint torque；loaded readback 要求两个 actuator group 都 exact 为 0；
-- sensor inventory 恰好四个：`jointpos(shoulder)`、`jointvel(shoulder)`、`jointpos(elbow)`、`jointvel(elbow)`，分别映射四个 frozen sensorRef，scalar dimension 均为 1，registry/load order 与前述顺序一致；
-- `entity:target` world pose 固定为 canonical target position 与 identity rotation，physics bodyType=`static`、massKg=`0`；visual 是 radius `0.04m` sphere，collision 使用显式 closed representation `{kind:"none"}`，semantic goal frame local pose是 identity。它是可见、可寻址但不参与物理接触的目标，不允许把 visual sphere 偷编译为 MuJoCo collision geom，也不允许依赖 contact penetration 达到 `0.02m` tolerance。floor 保持既有 canonical static representation/physics；
-- articulated MJCF 的 contact policy 显式关闭 arm 自碰撞：两个 arm capsule 都固定 `contype=0,conaffinity=0,condim=1,friction="0 0 0",margin=0,gap=0`；target 没有 geom；floor 保持独立 static geom但与 arm 不形成 contact pair。因本 task 无接触，禁止通过 `solref/solimp` 或软穿透影响 canonical trajectory。compiled model 必须 exact readback geom contact masks 且没有 explicit contact pair；Runtime 在全部 `721` 次 `mj_forward` 后逐次断言 `mjData.ncon === 0` 且 constraint row count `mjData.nefc === 0`。`nconmax` 只是容量，不作为零接触证据；
-- articulated RuntimeProfile/MJCF option 固定为 MuJoCo `3.11.0`、`timestep=1/240`、`gravity="0 0 -9.81"`、`wind="0 0 0"`、`density=0`、`viscosity=0`、`integrator="RK4"`、`solver="Newton"`、`iterations=100`、`tolerance=1e-12`、`jacobian="dense"`、`cone="pyramidal"`、`impratio=1`；compiler 固定 `angle="radian"`、`autolimits="false"`、`balanceinertia="false"`、`alignfree="false"`。loaded `disableflags=0`、`enableflags=0` 与 `disableactuator=0` 是 exact expected values；两个 `group=0` actuator 都不能被 mask 关闭。actuation、passive damping、gravity 与 sensors enabled，所有 optional enable flags disabled。由于 `limited=false`、`frictionloss=0`、contact masks 为零且 Runtime 要求 `ncon=0`，accepted run 不产生 joint-limit、frictionloss 或 contact constraint；ZOH command 切换与 finite actuator force limits 使 dynamics 准确描述为 deterministic piecewise-smooth，而非全程 smooth。若任何 constraint 数量/active constraint 非零，Runtime fail closed，不产生 completed Episode。证据分两层：repo-owned canonical MJCF generator 的 exact output/golden hash 与 parser/source assertions证明 compile-time directives；loaded `mjModel` readback 证明可观测的 compiled options/flags（包括 `disableactuator`）、actuator groups、arrays、mapping、contact masks 与 counts；Runtime 逐 tick 证明无 constraint/contact、actuation未被禁用与 semantic limits未越界。不得声称从 compiled model 唯一反推出 compiler source，也不能继承全局 MuJoCo defaults；
-- entire loaded canonical MJCF exact counts 固定为：`nbody=5`（含 world、arm-base、upper、forearm、target；target body 只承载 site）、`njnt=2`、`nq=2`、`nv=2`、`nu=2`、`na=0`、`nmocap=0`、`nuserdata=0`、`nplugin=0`、`nsensor=4`、`nsensordata=4`、`ngeom=3`（floor、两个 non-contact capsule）、`nsite=4`（arm-base、arm-elbow、arm-tool、reach-target）。不得出现 activation/mocap/userdata/plugin state、free joint、target geom、额外 body/geom/site、hidden actuator、contact pair 或 plugin sensor。
-
-canonical target 由 frozen final joint target `shoulder=0.65rad, elbow=-1.0rad` 的同一 forward kinematics 得到，world pose 固定为 position `[0.8605638099833013,0.17854850979986867,0.75]m`、identity rotation。canonical Program 固定 `durationSeconds=3`，共 `91` samples，含两个 step：`t=0` command `[0.35,-0.35]rad`，`t=0.5` command `[0.65,-1.0]rad`。这确保非零双关节与真实 multi-step action clock 都参与 PASS；若第一次实现证据表明上述显式动力学无法在 frozen tolerance 内 settle，必须把失败当作计划事实重新审查，不允许 silent tuning。
-
-Runtime admission 必须分别验证 canonical MJCF source/generator hash 与 loaded-model readback。loaded readback exact 覆盖 option/flags/disableactuator、root/body/joint/inertial/geom/site transform、mass/inertia、joint flags/axis/limits/damping/friction/armature/stiffness、actuator group/transmission/gear/dyn/gain/bias/control/force、contact-disable attributes、sensor owner/type/order/dimension与 entire-model exact counts；source gate exact 覆盖 compiler directives和所有 emitted attributes。对每一个会改变动力学或 FK 的 frozen 参数族至少有单参数 drift negative；gear、actuator group/disable mask、COM pose、capsule endpoint、target hidden geom/contact、integrator/timestep、sensor count/order、terminal extra step 必须各有独立 executable negative。
-
-每次 `run` 必须在 validated compiled model 上构造全新的 `MjData`，禁止跨 run 复用。初始化顺序固定为：fresh data → `mj_resetData` → `time=0` → 从 base Snapshot 写 exact qpos 与 zero qvel → 写 current held ctrl → `mj_forward`。模型已保证 `na=nmocap=nuserdata=nplugin=0`；在首次 forward 前以及全部 721 个 forward/step boundary，Runtime exact 断言 `qfrc_applied[0..nv)=0` 与每个 body 的 `xfrc_applied[0..6*nbody)=0`，并断言 `disableactuator=0`。任何非零 applied force、残留 time/qvel/ctrl、复用污染 data 或 actuator mask 漂移都在产生 sample/completed Episode 前 fail closed。negative tests 必须注入单个非零 qfrc、xfrc、disableactuator bit 与 reused-data time/qvel，证明拒绝而非产生第二条 trajectory。
-
-Runtime ownership 同样是 contract：每个 articulated run 从 canonical MJCF 在 Runtime-private critical section 中构造 private `MjModel` + fresh `MjData`；两者引用不进入 Host callback、Repository、Agent、Presentation 或全局 cache，也不与并发 run 共享。从 model compile/readback validation 开始到 final causal-field revalidation、Episode freeze 和 native object disposal 结束之间，不执行 `await`、event dispatch、user callback 或任何可重入 hook。MuJoCo 允许影响 dynamics 的全局 callback surface（至少 `mjcb_control`、`mjcb_passive`、`mjcb_act_dyn`、`mjcb_act_gain`、`mjcb_act_bias`）在进入 critical section 前必须由 Runtime adapter exact 验证为 null/disabled，并在每次 forward/step 前后与退出时重复验证；本 slice 不注册任何 MuJoCo callback。若当前 WASM binding 无法 introspect/独占这些 callback，就不执行 articulated run，而不是假定安全。
-
-loaded model causal fields 在首次 sample 前生成 repo-owned exact `modelCausalDigest`，覆盖前述所有 option/flag/body/joint/inertial/geom/actuator/sensor/mapping/count fields；每次 forward/step boundary 至少重验 callback-null、model identity 与 immutable adapter ownership，terminal sample 后在产生 Episode 前重新计算完整 digest并要求 exact 相等。validation 后修改 mass/inertia/damping/option/gain/bias/gear/range/actuator group 或替换 model reference 都 fail closed。negative tests 必须在 validation 后注入 `mjcb_control`、`mjcb_passive`、一个 actuator callback、一个 model causal field mutation 与 shared-model replacement，证明全部在第一个 sample或completed Episode前拒绝。
-
-第一条 articulated task 只要求触达，不抓取、不推动物体。这样可以先验证 action-conditioned evolution、关节状态和 frame evidence，而不把 grasp/contact/planning 的多个问题揉进同一切片。
-
-## Kernel 与 Runtime evidence
-
-### Articulated representation
-
-新增 closed articulated representation/state 至少表达：
-
-- root frame；
-- links 的 stable ref、parent relation、local transform 与 visual/collision mapping；
-- joints 的 stable ref、parent/child link、type、axis、limits 与 units；
-- actuators 的 stable ref、jointRef、control mode、range 与 units；
-- 四个 sensors 的 stable ref、sourceRef、measurement kind、registry order 与 units；
-- joint position/velocity 的 initial、sample 与 terminal state。
-
-不要建立任意 scene graph DSL；fixture 的 exact topology 由 repo-owned registry/compiler 验证。现有 rigid Entity 必须继续使用原有轻量 representation/state，不为它们制造空 links/joints arrays。
-
-### Episode evidence
-
-每个 articulated Episode sample 至少闭合：
-
-- timestamp；
-- root Entity state；
-- exact joint position/velocity set；
-- 当时生效的 exact actuator command evidence；
-- exact 四项 joint position/velocity sensor measurements，顺序与 registry 一致；
-- 不存 authoritative tool-frame pose；Evaluator 与 codec 必须用受信 topology + joint state 走同一 forward-kinematics function 重算。
-
-Product codec 必须复核 Program digest/content、action clock、base Snapshot、sample joint/sensor/command、fixed arm/target state、terminal Snapshot、forward kinematics 与 Evaluation 之间的 exact ref/topology/units/command closure。Presentation 计算出来的 link transform 不能反向成为 Episode 或 Snapshot state。
-
-### MuJoCo mapping
-
-MuJoCo compiler 建立 Runtime-private stable-ref mapping，并验证模型中 exact body/joint/actuator/sensor 数量与 owner。缺失、重复、调换、axis/limit/control-range 漂移、错误 owner 或额外隐藏 actuator 都 fail closed。Runtime 输出必须从 mapping 还原 Harness refs，不能输出 raw MuJoCo IDs。
-
-## Evaluation contract
-
-新增 `success:end-effector-reaches-frame`，冻结：
-
-- `targetRef = entity:arm`；
-- `toolFrameRef = frame:arm-tool`；
-- `goalFrameRef = frame:reach-target`；
-- terminal 前连续 `0.5s / 16 samples` settle window；
-- 每个 window sample 的三维 Euclidean tool-frame position error，threshold `0.02m`；
-- 每个 window sample 的两个 joint speed 最大绝对值，threshold `0.02rad/s`；
-- finite state、完整 sample grid 与明确 numeric tolerance。
-
-PASS 必须来自 Episode articulated state 与受信 forward kinematics/Runtime evidence，不能来自 Three.js transform、canvas pixels、Agent narration 或“命令值看起来正确”。
-
-至少有以下 adversarial controls：
-
-1. 只改 Evaluation `passed/metrics`、只改 target/tool FrameRef 或只改 Program command 后，Product codec 拒绝；
-2. terminal 单帧碰巧在 tolerance 内、但 settle window 内仍高速运动时 FAIL；
-3. actuatorRef 交换、未知/重复、control 越界、step 乱序/重复/缺失、Program 与 fixture 错配时 fail closed；
-4. joint state 缺失/额外/alias、joint limit 越界、sensor owner 错误、MuJoCo ID 泄漏时 fail closed；
-5. Presentation link transform 被篡改不能改变 Snapshot/Episode/Evaluation authority；
-6. `run` 完成后 current ref 不变，explicit adopt 后才推进；failed Evaluation、错误 policy 或未登记 Program 不能 adopt。
-7. 同一 base/Runtime/Program 重跑必须达到 RuntimeProfile 声明的 numeric equivalence；只改变第二个 step 的一个 command 时 Program digest 必须改变，并在 `t>=0.5` 后产生对应 joint trajectory 与 terminal 差异，`t<0.5` 的 samples 保持 numeric equivalent。
-
-`runtime:mujoco-wasm-single-3.11.0` 的 articulated numeric equivalence 固定为逐 sample、同 index/ref/order 比较：两次 run 的 timestamp 与 discrete refs/commands 必须 exact 相等；两个 joint 的 qpos、qvel、四个 sensor value 以及 TerminalSnapshot articulated qpos/qvel 使用 `abs(a-b) <= 1e-12 + 1e-12 * max(abs(a),abs(b))`。比较前仍要求 finite，`-0` canonicalize 为 `0`；不允许以 Evaluation threshold 代替 trajectory equivalence。跨 Bun/Node transport 对已 canonicalized Episode/Evaluation 使用 exact plain-data equality。
-
-paired causal control 固定把 canonical 第二 step 的 shoulder command 从 `0.65` 改为 `0.55rad`，其余输入 exact 不变；`t<0.5` samples 必须满足上述 equivalence，`t>=0.5` 至少一个 shoulder qpos sample 差异 `>1e-6rad` 且 terminal tool-position Euclidean difference `>1e-6m`。negative tests 分别把 qpos、qvel、sensor 与 terminal 值改为刚好超过 `1e-12 + 1e-12*scale` 并要求 verifier 拒绝。
-
-## In scope
-
-1. 增加 repo-owned 两关节 articulated fixture 与精确 topology/units/frame registry。
-2. 为 Entity representation/state 增加最小 articulated closed variant，不新增平行 Kernel record。
-3. 将 `edit` 演进为 pose/joint-state discriminated change，保持静态/动态分离。
-4. 将 `run` 演进为显式 `WorldProgram` input；保留 free-fall 与 actuator-sequence 两个真实 program variants，不保留 `programId` legacy parser。
-5. MuJoCo Runtime 编译并执行固定基座、两个 hinge joints、两个 position actuators 与 joint sensors。
-6. Episode 记录 action-conditioned joint/command/frame evidence，TerminalSnapshot 闭合 articulated state。
-7. 增加 end-effector reach Success Contract、Evaluation 与受信 AdoptPolicy。
-8. 扩展 `WORLD_TOOL_CONTRACT`、Host parser、OMP schema、Gateway pre-admission、Product Session codec 与 JSON-safe budgets 的单一事实面。
-9. Studio 呈现 link hierarchy、joint/actuator/sensor refs、tool/target frames、Episode playback 与 PASS/FAIL；Three.js 仍只是 Presentation。
-10. 增加 deterministic scripted four-tool flow，证明 read 后提交显式 actuator sequence 可以完成任务；不发送真实模型 prompt。
-11. 保持 DH-001～010.1 的 rigid/vessel/3DGS/Spark/Agent/Repository/adopt/transport regressions。
+用户相机始终是 Presentation-local state。任何模式切换、键鼠移动、reset、focus 或转场都不得修改 `Snapshot`、`Ref`、`Episode`、`EvaluationRecord`、`AdoptPolicy` 或四工具 contract。
+
+## 当前实现事实
+
+- `ThreeViewport.tsx` 当前持有 `Scene`、Z-up `PerspectiveCamera`、`OrbitControls`、`SparkRenderer`、Entity render records、selection raycast 与单一按需 `scheduleRender()`；
+- 当前没有永久 animation loop：Orbit change、Spark `onDirty`、resize、asset completion 与 reactive state change 才触发 render；
+- 当前固定 camera pose `[4.4,-5.4,3.4]` 位于 Marble registered bounds 外，无法表达“进入世界”；
+- `registered-presentation.ts` 已是 Studio 内将 registered representation 解析为 asset/calibration/witness/same-origin URL 的受信 Presentation registry seam；
+- Marble environment 的 registered SPZ calibration target bounds 已存在；provider 未提供 navigation surface 或 validated camera pose；
+- `App.tsx` 已有可见 Presentation layer 开关与 Agent `textarea`，因此输入隔离必须覆盖真实相邻交互；
+- 项目是 SolidJS + Three.js，不引入 React/shadcn/Motion/GSAP。
 
 ## Non-goals
 
-- 抓取、夹爪、接触操纵、逆运动学求解器、OMPL/Mink、轨迹优化或自动 task planner；
-- 任意 URDF/MJCF/USD/SDF 上传、网络 URL、asset marketplace 或通用机器人 importer；
-- 通用 robotics Adapter SDK、hardware abstraction、ROS、真实设备或控制频率/安全认证；
-- arbitrary torque/force controller、闭环 policy callback、在线 VLM loop 或模型生成代码；
-- world-model provider、视频预测、latent state、shadow Runtime 或 branching rollout；
-- 任意 frame graph、任意 component schema、plugin system、第五个 world tool；
-- 3DGS 新能力或 UI redesign；只保持既有 Observation/Presentation 不回归；
-- 真实 provider prompt、commit/push、PR、merge、tag、deploy 或 package release，除非 Human 后续单独授权。
+- 不修改 `packages/world` Kernel、Repository、Runtime、Episode、Evaluation、AdoptPolicy、codec 或四工具语义；
+- 不实现 `Embodied Observer`、角色/机器人/车辆/sensor runtime；
+- 不实现 Walk、导航网格、重力相机、角色碰撞、跳跃、蹲伏、minimap、VR/AR、gamepad、移动端双摇杆；
+- 不建立 plugin SDK、provider adapter framework、controller inheritance tree 或通用 camera ecosystem；
+- 不从 Lyaup 复制源码、控制器、prompt、测试、UI 文案或假设 Y-up 的运动数学；
+- 不新增 provider 请求，不下载或生成新资产；只复用 DH-013 ignored local cache。
 
-## Acceptance
+## 最小设计
 
-1. **Stable articulated identity**：机械臂在 Snapshot、Repository、Product Session、selection、Episode、TerminalSnapshot 与 Evaluation 中始终只有一个顶层 `EntityRef`；link/joint/actuator/sensor/frame refs 稳定且 exact，MuJoCo/Three object identity 不泄漏。
-2. **Readable control affordance**：`world_read` 返回足以构造合法动作的 topology、joint axis/limits、actuator range/units、initial state、tool frame 与 target frame；Agent 不需要预先硬编码机器人专用函数。
-3. **Static/dynamic separation**：`world_edit(change.kind=joint-state)` 只产生 child Snapshot；`world_run` 才产生带时间与 command evidence 的 Episode；二者不能互相伪装。
-4. **Explicit action program**：`world_run` 消费有界 plain-data `WorldProgram`，Program identity/content 与 Episode 闭合；不再接受裸 `programId`，未知/alias/extra/sparse/accessor/non-finite/越界/乱序/重复输入 fail closed。
-5. **Four-tool breadth**：同一 restricted OMP surface 仍恰好暴露四工具，并可表达原 free-fall、ball-vessel 与新 articulated reach；不得出现 robot-specific fifth tool 或 ambient tool。
-6. **Real articulated physics**：MuJoCo 模型真实包含并驱动 exact 两个 hinge joint、两个 actuator 与 sensors；错误 mapping/axis/limit/range/owner 在执行前或 codec admission 时 fail closed。
-7. **Action-conditioned evidence**：Episode samples 的 joint state、active commands、sample grid、terminal state 与 Program 一致；改变 command 必须产生可观测的 trajectory/terminal 差异，不能由固定动画伪造。
-8. **Deterministic evaluation**：canonical action sequence 稳定 PASS；错误单关节、交换 actuator、单帧命中但未 settle、错误 frame 与 evaluation forgery 均 FAIL 或被拒绝；Evaluation 不读取 Presentation 或 Agent narration。
-9. **Authority closure**：`run` 不推进 current ref；只有 registered reach contract 的 completed+passed Episode 能由独立 control adopt，failed/forged/mismatched evidence 拒绝。
-10. **Visible Product slice**：真实 Chromium 中可检查 arm hierarchy/refs/frames、逐帧播放两 link 运动并看到结构化 Program/Episode/Evaluation；reset 与第二 Session 不继承旧 selection、timeline 或 Three objects。
-11. **No patch stack**：不增加 `moveArm` shortcut、`robotMode` flag、legacy/modern 双 run parser、renderer-to-state fallback、第二份 tool schema 或 fixture-specific codec copy；新增抽象只服务已有 free-fall 与新 actuator sequence 的两个真实 program variants。
-12. **Regression gates**：targeted RED/adversarial tests、`bun test`、`bun run typecheck`、`bun run build`、真实 Chromium acceptance、`git diff --check` 与 EXharness validation 全部通过。
+### 1. Presentation-local data
 
-## 实现阶段
+新增最小纯数据面，文件建议为 `apps/studio/src/presentation-three/observer-camera.ts`：
 
-### Phase 1 — Contract RED 与 frozen fixture design
+```ts
+type ObserverMode = "overview" | "inspect" | "explore";
 
-- 先写 tool input、articulated identity/topology、edit/run separation、Program content identity、codec drift 与 adopt authority 的失败测试；
-- 冻结两关节 fixture 的 link lengths、axes、limits、actuator ranges、frames、units、target pose、duration、sample rate、settle window 与 tolerances；
-- 用旧实现上的明确 RED 证明 `programId` 菜单无法表达 action sequence，且 articulated refs/state 尚不存在。
+type CameraPose = {
+  position: readonly [number, number, number];
+  target: readonly [number, number, number];
+};
 
-### Phase 2 — Kernel closed variants 与 tool contract migration
+type ObserverWorldContext = {
+  worldBounds: Bounds3;
+  worldBoundsTruth: "registered" | "derived-from-loaded-digest" | "authored-fallback";
+  overviewReset: CameraPose;
+  inspectReset: CameraPose;
+  exploreReset: CameraPose;
+  entryTruth: "authored-unverified" | "authored-fallback";
+  entryProvenance: string;
+};
+```
 
-- 增加最小 articulated representation/state、actuator-sequence Program 与 reach Evaluation variants；
-- `WORLD_TOOL_CONTRACT` 作为 Host、Gateway pre-admission 与 OMP schema 的唯一输入事实面；
-- 一次性迁移 pose edit 与 free-fall run 调用，不保留 legacy parser。
-- Phase 1 的 tool/action-clock/Program digest RED 在本阶段转 GREEN；Runtime trajectory 与 reach evaluator RED 保持到 Phase 3。
+该模块只负责：finite/dense 数据校验、world/entity bounds、Z-up movement、fit bounds、fallback pose、boundary proximity、editable target/input admission 与 continuous-frame predicate。它不持有 DOM、Three Scene、Snapshot ref 或 Repository。truth literal 全链路只使用上述两个 exact 值，不再引入 `registered-authored-unverified` 之类的第三种别名。
 
-### Phase 3 — Repository、MuJoCo 与 Evaluation vertical slice
+### 2. Presentation registry 中的 Marble entry pose
 
-- repo-owned fixture、joint-state edit、MuJoCo private mappings、action execution、Episode/Terminal 与 evaluator 形成非 UI 闭环；
-- canonical run PASS，adversarial commands/refs/mappings FAIL；
-- `run`/adopt authority 与 existing scenarios 回归。
+只扩展 Studio `registered-presentation.ts`，不修改 world registry / Snapshot schema：
 
-### Phase 4 — Product Session、codec 与 restricted Agent closure
+- key：`scenario:marble-hunyuan-composite-v1`；
+- registered world bounds：从 Marble registered observation 的 calibration `targetBounds` 解析，不复制第二份 bounds literal；
+- entry pose：本切片 authored 的 finite Z-up pose，必须位于 registered bounds 内；初始候选为 `position=[0,-1.2,1.15]`、`target=[0,0.2,1.05]`；
+- truth level：`authored-unverified`；
+- provenance：绑定 `asset:marble-world-500k-spz-v1`、`calibration:marble-spz-v1` 与 DH-014 operator-authored method；
+- 该记录只被 Presentation resolver 消费，不进入 Snapshot、Product Session projection 或 Agent tool evidence。
 
-- Product projection/event/trace 对 articulated Program 与 evidence exact admission；
-- scripted restricted four-tool turn 先 `read`，再提交显式 action Program；
-- 证明 active/enabled tools 恰好四个，mounted tools 为空且无 ambient capability。
+只有 `resolveRegisteredPresentationAsset()` 完整校验 scenario 中的 registered representation、manifest、asset、calibration、witness 后，Observer resolver 才返回 `entryTruth="authored-unverified"`。同 scenario 的 manifest/binding 漂移、resolver throw、non-finite/degenerate bounds 或 entry pose 不在 registered bounds 内，均不得部分采用 registry 数据：改用 finite deterministic fit-bounds fallback，标记 `entryTruth="authored-fallback"`、`worldBoundsTruth="authored-fallback"`，并让原本的 asset error 继续可见。fallback 不能被命名或显示为 registered/provider-verified。
 
-### Phase 5 — Studio 可见切片
+若 implementation probe 证明候选 entry pose 位于 splat 空洞或朝向错误，应只在 plan 中记录可见证据后调整该 authored literal；不得声称 provider-verified。
 
-- Three.js 根据 Snapshot/Episode state 渲染 link poses；
-- inspector 显示 hierarchy、joint/actuator/sensor refs、frames、units 与 Program；
-- timeline 从 sample 0 逐帧播放到 settled reach，PASS/FAIL 来自 Product evidence。
+### 3. 一个组合式 CameraRig
 
-### Phase 6 — Full gate 与 fresh independent cross-review
+新增 `camera-rig.ts`，允许一个小型 class 或等价 closure；禁止 controller subclass：
 
-- 运行全部 acceptance gates，冻结 product digest 与 Git status；
-- 两位 fresh reviewer 相互隔离，分别执行 source/contract review 与可执行 adversarial review；
-- 任一 reviewer 给出 P0/P1 或 `changes_requested`，只修根因并发起 fresh round；
-- 双审批准前不 closeout/mark-done；Human 未另行授权前不 commit/push/merge。
+```text
+CameraRig
+├── camera + OrbitControls
+├── active ObserverMode
+├── reset pose per mode
+├── pressed keys + pointer ownership
+├── overview/inspect/explore direct strategy functions
+└── update(deltaSeconds) -> { cameraChanged, needsNextFrame }
+```
 
-### Targeted regression matrix
+职责：
 
-| 能力 | 必须保持的 targeted gate |
-|---|---|
-| primitive/imported rigid free-fall | explicit `free-fall` Program 经统一 admission，landing Evaluation 与 adopt authority PASS |
-| ball-vessel | 91-sample containment、16/16 support、contact/representation/physics drift fail closed |
-| 3DGS/Spark | Observation/Presentation alignment 与 lifecycle 不因 articulated rendering 回归 |
-| restricted OMP | active/enabled tools 恰好四个、mounted/ambient 为空，nested explicit Program 经真实 `tool.execute` 到达 Host |
-| Product Session/codec | Program digest、articulated refs/action clock/samples/Evaluation 重算闭合，transport tamper fail closed |
-| Repository/adopt | run 不推进 ref；registered scenario-kind-contract PASS 才能 adopt；forged/unrecorded evidence拒绝 |
-| cross-engine Evaluation | Bun producer → JSON → Node/V8 verifier 合法通过，canonical metric/Program tamper 拒绝，bounded probe lifecycle 保持 |
+- `setMode`：先清按键/拖拽/pointer state，再切换 controller；
+- `reset`：使用当前 mode 的独立 reset pose；
+- `focusSelection`：只接受由受信 representation resolver 得到的 target/bounds；
+- `update`：仅 Explore active movement 或短转场改变 camera；
+- `dispose`：移除所有监听、清 pressed state、dispose OrbitControls；
+- 不持有 `Snapshot`，只接收已经解析的 Presentation context 与 selection target。
 
-## Plan review focus
+第一版 mouse look 使用 pointer capture + drag，不主动请求 Pointer Lock。仍注册防御性的 `pointerlockchange`：只要 lock owner 从本 viewport canvas 消失就 `clearInput()`；Chromium 通过用户手势临时请求/退出 lock 验证该 cleanup。Explore 必须 `controls.enabled=false`；回到 Overview/Inspect 时先把 `controls.target` 同步到 CameraRig 当前 target，再 enable/update。所有 canvas listener 只有 CameraRig 一个 owner，按 register 的逆序 dispose。
 
-在实现前，reviewer 必须重点回答：
+### 4. 三种行为
 
-1. 显式 `WorldProgram` 是否是四工具摆脱固定动作菜单所需的最小抽象，还是仍有更小的真实方案？
-2. articulated topology/state 是否保持一个 Entity authority，而没有把 Kernel 变成机器人本体库？
-3. `edit` 与 `run` 的迁移是否避免 legacy patch stack，并保持旧场景可表达？
-4. Program/Episode/Evaluation/codec/adopt 的证据闭包是否足以拒绝模型自报成功与 transport forgery？
-5. 是否把抓取、规划、world model、通用 importer 或 robotics SDK 偷渡进 DH-011？
-6. Acceptance 是否可执行、可观察，并足以证明“控制语义”而非固定动画？
+#### Overview
+
+- 以 registered world bounds 或 deterministic fallback bounds 计算 fit pose。calibration `targetBounds` 是 entity-local：将 8 个角点经 entity pose 变换到 world-local 后再 union；不得把 asset-local bounds 直接当 world bounds；
+- viewport 显示 `Overview · 世界外部概览`；
+- Orbit 可用于外部检查，但 reset 始终回到 fit-bounds pose；
+- grid、bounds、alignment、collision 仍由显式 UI 开关控制。
+
+fit 使用 bounds center + bounding-sphere radius，并以当前 aspect 同时计算 vertical/horizontal FOV 所需距离，加入固定 margin。任一轴退化时使用最小 extent epsilon；全体 bounds invalid/missing 时使用固定 finite fallback bounds。resize、representation resolution 或 world bounds 改变后重算 Overview reset。`camera.near/far`、fog near/far、Orbit `minDistance/maxDistance` 从 radius 与 fit distance 派生，保证完整 bounds 位于 frustum/control envelope；不得继续依赖现有 `far=40`、fog `8/15`、`maxDistance=16` 常量。所有投影值必须 finite、`near>0`、`far>near`。
+
+#### Inspect
+
+- 保留 `OrbitControls`；
+- selection 仅属于 Inspect：pointerup 相对 pointerdown 位移不超过 4 CSS px 才 raycast，且只返回既有 `EntityRef`；Overview 与 Explore 不触发 selection，Explore drag-look 起点也不触发 `onSelect`；
+- `F` 或双击聚焦选中 Entity；
+- target/bounds 解析优先级：registered calibration `targetBounds`（8 角经 entity pose 转 world）→ digest-verified GLB 成功 parse 后从 loaded Object3D 计算 world `Box3` → primitive visual/collision bounds → stable entity-pose fallback。普通 `imported-rigid-mesh` registry 本身没有 bounds，绝不虚构 “registered imported bounds”；
+- loaded GLB bounds 只有在既有 digest/same-origin import contract 成功且 Box3 finite/non-empty 后才标记 `derived-from-loaded-digest`；asset 未完成、缺失、解析失败或 Box3 异常时立即使用 collision/primitive/fallback，并显示对应 provenance；
+- 无 representation 时不得产生 NaN，fallback 仍必须 finite。
+
+registered resolver throw 属于可见 representation error；Observer 只把 focus/reset 降级为 finite fallback，不吞掉或改写原 asset error。
+
+#### Explore
+
+- 只有用户点击可见 `进入世界` 或显式切换 Explore 才进入；
+- Marble 使用 registered authored entry pose；其他场景使用可标识的 authored fallback；
+- `W/S` 沿当前水平 forward，`A/D` 沿水平 right，`Q/E` 沿 world Z，全部基于 `worldUp=[0,0,1]`；
+- 同时按键向量归一化，避免斜向超速；`Shift` 使用固定倍率；delta time clamp，防止后台恢复后跃迁；
+- wheel 只在 viewport 拥有输入时调整有限范围 fly speed；
+- mouse drag 可控制 yaw/pitch；pointer lock 作为可选增强，不是唯一入口；`Esc` 释放输入并清键；
+- 接近或越过 registered bounds 时显示 `当前世界边界 / 未知区域`；这只是 Presentation warning，不阻止 Fly；
+- Explore 的 effective collision visibility 固定为 false，但保留 App 中用户的 collision toggle preference；离开 Explore 后恢复该 preference，不用相机模式改写用户设置；
+- viewport 内始终显示 entry truth/provenance：registered Marble 为 `ENTRY POSE · AUTHORED / UNVERIFIED`，fallback 为 `ENTRY POSE · AUTHORED FALLBACK`，并提供稳定 `data-testid`/dataset 供 Chromium 断言；
+- 显示可见操作提示：`W/A/S/D` 平移、`Q/E` 升降、`Shift` 加速、滚轮调速、拖拽视线、`Esc` 释放；Inspect 显示 `F / 双击聚焦`。
+
+### 5. 输入 ownership 与 lifecycle
+
+- canvas/container 具有 `tabindex=0` 和可见 focus ring；
+- 键盘只在 viewport focus 或 pointer capture/lock 属于当前 viewport 时进入 CameraRig；
+- keyboard event 只有 target 为本 viewport container/canvas，或当前 pointer capture/lock owner 为本 viewport 时才接管；mode/reset/layer 等按钮获得焦点时不取得 Fly keyboard ownership；模式按钮点击后可显式把 focus 交给 viewport；
+- 若 event target 是 `input`、`textarea`、`select`、`button`、`a`、`contenteditable` 或其后代，立即拒绝；
+- `window.blur`、`document.visibilitychange(hidden)`、mode change、pointer-lock exit、`pointercancel`、`lostpointercapture`、canvas/container blur 与 unmount 全部调用同一 `clearInput()`；
+- pointer/mouse listener 只在 active component 生命周期内注册；
+- Agent textarea 聚焦时全局按键不能被 CameraRig 接收。
+
+### 6. 按需 render scheduler
+
+沿用 `ThreeViewport` 当前单一 rAF seam，不另建 timer/loop：
+
+```text
+scheduleRender(reason)
+  -> at most one queued rAF
+  -> CameraRig.update(delta)
+  -> renderer.render
+  -> only when movement/transition remains active, queue next rAF
+```
+
+连续帧只允许：
+
+- Explore 有 active movement；
+- mode/reset/focus transition 未结束；
+- Episode playback 通过现有 reactive sample 触发；
+- Spark `onDirty` 请求帧。
+
+无按键、无转场且 Spark 不 dirty 时，完成当前帧后不得再排队。增加 instrumentation/test seam，证明 idle 不自调度。
+
+idle 的 exact 判据是：Episode playback inactive、无 active movement、无转场、Spark 未 dirty。进入 idle 后允许消费至多一个已排队帧，随后 rAF counter 必须稳定；movement 时 counter 增长，keyup/blur/mode clear 后再次稳定。EpisodePlayer 保持既有 clock owner，sample reactive update 只向 viewport 的同一个 scheduler 请求单帧，不建立第二个 viewport loop。
+
+### 7. reduced motion
+
+- 使用 `matchMedia("(prefers-reduced-motion: reduce)")`；
+- reduce 下 mode/reset/focus 直接设置最终 pose，或转场时间为 0；
+- 功能、键盘操作和 reset 不得因 reduced motion 被禁用。
+
+## 预计修改面
+
+允许修改：
+
+- `apps/studio/src/presentation-three/observer-camera.ts`（新，纯数学/策略）；
+- `apps/studio/src/presentation-three/observer-camera.test.ts`（新）；
+- `apps/studio/src/presentation-three/camera-rig.ts`（新，DOM/Three adapter）；
+- `apps/studio/src/presentation-three/camera-rig.test.ts`（新，状态机/调度 seam）；
+- `apps/studio/src/presentation-three/registered-presentation.ts/.test.ts`；
+- `apps/studio/src/presentation-three/ThreeViewport.tsx`；
+- `apps/studio/src/App.tsx`、`styles.css`；
+- 必要的 Studio Presentation tests；
+- DH-014 task docs 与既有四份设计输入。
+
+默认禁止修改 `packages/world/**` 与 `apps/agent-gateway/**`。若实现发现必须修改，视为 plan boundary 失败：停止并回到 reviewer/Human，而不是顺手扩展。
+
+## 测试与验收矩阵
+
+### Pure/unit
+
+1. Z-up movement：W/S/A/D 在水平相机 basis，Q/E 仅改变 Z；斜向归一化、Shift、delta clamp、finite pose；
+2. mode/reset/transition：三 mode 各有 reset；切换可中断；reduced motion 直接结束；
+3. focus：registered/imported/primitive bounds 产生 finite target 与 fit distance；missing 3DGS 使用 fallback；
+4. input admission：viewport focus/capture 才接管；input/textarea/select/contenteditable 拒绝；
+5. stuck key：blur、hidden、mode change、pointer-lock exit、unmount 后 pressed set 为空且不再请求帧；
+6. registered entry：scenario exact 命中，pose 位于 registered bounds，provenance/truth level exact；foreign scenario 只能 authored fallback；
+7. Overview fit：Marble world bounds、primitive、imported mesh 与 missing asset 都 finite、可复现；
+8. authority：相机操作前后同一 frozen `Snapshot/Ref/Episode/Evaluation` object/serialized bytes 不变；CameraRig 没有 authority import/callback；
+9. scheduler：movement/transition 才返回 `needsNextFrame=true`；idle、blur、mode clear 后为 false；
+10. fallback：primitive、imported mesh、3DGS absent/not-imported/error、Marble loaded 均有确定 reset/context。
+
+补充 mandatory cases：registry manifest/binding drift 与 resolver throw；entry pose 越界；degenerate/invalid bounds；resize/aspect 后重新 fit；near/far/fog/control envelope；近垂直凝视时水平 forward 退化使用最后一次有效 yaw；Explore/Orbit controls handoff；click-vs-drag selection；`pointercancel`/`lostpointercapture`；listener 逆序 dispose。`camera-rig.test.ts` 使用注入的 fake controls、event owner、rAF clock，不引入 jsdom/happy-dom，也不直接实例化真实 DOM `OrbitControls`。
+
+### Existing regression
+
+- existing selection、Orbit、Spark load/dispose、alignment、layer toggles、Episode playback 与 Product Session tests 全部保持；
+- `bun test`、typecheck、build、diff-check、EXharness validate/doctor 全通过；
+- product authority files在实现前后用固定 path SHA aggregate 证明未修改。
+
+### Chromium acceptance
+
+使用 DH-013 的真实 local provider cache；不联网 provider，不 generation。至少证明：
+
+1. Marble 场景点击 `进入世界` 后 camera 位于 registered entry bounds 内，画面不再是 AABB 外部黑色外壳；
+2. `Overview / Inspect / Explore` 三个可见控件可切换，当前模式、操作提示、entry truth/provenance 与 bounds provenance 始终显示；
+3. Explore 的 W/S/A/D/Q/E、Shift、wheel speed、mouse look、Esc/reset 正确且 pose finite；
+4. Agent textarea 聚焦输入同样按键时 camera pose 不变；
+5. Inspect 单击选择，`F` 与双击 frame 同一 Entity；
+6. Overview reset 查看完整 registered bounds，可显式打开 grid/bounds/alignment/collision；
+7. Explore 初始与切回时 dense collision wireframe不可见；
+8. blur、切 tab、mode change、pointer-lock exit 后无 stuck movement；
+9. 3DGS missing/error fallback 不产生 blank viewport，三模式仍可恢复；
+10. console 无 page error，camera dataset/pose 无 NaN/Infinity；
+11. 通过 `data-testid`/container dataset 暴露 camera pose、active mode、rAF counter、entry/bounds provenance 与 boundary warning；idle（playback inactive + 无输入 + 无转场 + Spark clean）消费至多一个 pending frame 后至少 1 秒计数稳定，active movement 时增长，keyup/blur 后再次稳定；
+12. Snapshot id/ref version/Episode id/Evaluation id 在纯相机交互前后相同。
+
+## Phases
+
+### Phase 0 — Plan gate
+
+- 冻结 plan 与当前代码/context manifest；
+- 发起两路 independent plan cross-review；
+- 任一路 P0/P1 或 reviewer disagreement 都进入 `changes_requested`；修订后必须 fresh review。
+
+### Phase 1 — RED / pure model
+
+- 先创建 Z-up math、entry/bounds、input lifecycle、scheduler 与 authority regressions；
+- 确认旧实现缺少相应 module/behavior 的 RED；
+- 实现最小纯函数与 CameraRig state seam。
+
+### Phase 2 — ThreeViewport wiring
+
+- 将 CameraRig 接到现有 single-rAF scheduler；
+- 接入 mode/reset/focus/selection/pointer/input lifecycle；
+- 保持 Spark/asset/selection/disposal boundary。
+
+### Phase 3 — Visible UI
+
+- 增加 visible mode switch、进入世界、reset、Fly speed/controls、boundary warning 与 focus ring；
+- Explore 自动清 collision layer；Overview/Inspect 保留显式 debug layers；
+- reduced motion 与 responsive layout。
+
+### Phase 4 — Gates and Chromium
+
+- focused → full → typecheck → build → diff → EXharness；
+- 启动 bounded local Studio/Gateway，执行真实 cache Chromium acceptance；
+- 停止本轮额外 server，保留用户原有进程不受影响。
+
+### Phase 5 — Implementation cross-review
+
+- 冻结 product files aggregate、branch、HEAD/base 与 status；
+- 两路 independent reviewer 只读复核测试、authority、input/rAF lifecycle 与 Chromium evidence；
+- P0/P1=0 且共同 approved 后只打开 closeout gate；不自行 closeout/commit/push/merge。
+
+## Exit criteria
+
+完成但不关单的条件：
+
+- 所有产品行为与测试矩阵闭合；
+- 无 Kernel/Repository/Runtime/Agent authority diff；
+- final independent implementation cross-review `approved`，P0/P1=0；
+- EXharness 为 `doing / review_approved`；
+- 工作树保留可审计未提交 diff，等待 Human 后续 closeout/commit authority。
 ```
 
 ## Review Focus

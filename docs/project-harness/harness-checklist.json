@@ -643,6 +643,49 @@
         "ttl_minutes": 120,
         "released_at": "2026-08-14T07:55:36Z"
       }
+    },
+    {
+      "id": "DH-014",
+      "title": "Observer Modes 与 Enter World 交互",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-14",
+      "dependencies": [
+        "DH-013"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "实现 Overview、Inspect、Explore 三种可见 Observer；Marble 可从 registered authored entry pose 进入；Z-up Fly、Inspect focus、Overview fit bounds、输入生命周期与按需 rAF 满足计划；相机不改变 Snapshot/Ref/Episode/Evaluation authority；focused/full/typecheck/build/diff/EXharness/Chromium 与 independent implementation cross-review 全部通过",
+      "verification": "488 tests passed; typecheck, build, diff-check, EXharness validate/doctor, and Chromium acceptance passed; Sol Max and DeepSeek V4 Pro Max approved product aggregate bf66aa8d6e9ac20ad0b465d9267109487c1cdf01264c4c0e1c9e327174f6664e; no packages/world or apps/agent-gateway authority diff.",
+      "handoff": "先完成 independent plan cross-review；P0/P1=0 且 approved 后方可实现。实现后必须再次 independent implementation cross-review；未经新授权不得 commit/push/merge/tag/deploy。",
+      "plan_path": "docs/project-harness/tasks/DH-014/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-14",
+        "branch": "agent/codex/DH-014"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-014",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "sol-max+deepseek-v4-pro",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-14",
+        "summary": "Round 4 closeout review: Sol Max P0/P1/P2=0; fresh DeepSeek V4 Pro Max replacement P0/P1=0; product aggregate bf66aa8d6e9ac20ad0b465d9267109487c1cdf01264c4c0e1c9e327174f6664e."
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "codex-dh014-observer-20260814",
+        "acquired_at": "2026-08-14T13:02:00Z",
+        "expires_at": "2026-08-14T15:02:00Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-14T16:10:35Z"
+      }
     }
   ]
 }

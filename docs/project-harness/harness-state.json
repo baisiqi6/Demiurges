@@ -1,21 +1,21 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "generated_at": "2026-08-14T07:57:04Z",
+  "generated_at": "2026-08-14T16:10:43Z",
   "source": {
     "checklist_path": "docs/project-harness/harness-checklist.json",
-    "checklist_sha256": "4076f9687d55e81bc038de194faccdf2f91f9e127241b8097661cb300a43b8d1"
+    "checklist_sha256": "e296e63a5aa060029f2e29545171cf6d70855c3a16c95a8882552f2ff50d9f99"
   },
   "current_status": "",
   "current_item": null,
   "checklist_summary": {
     "todo": 0,
     "doing": 0,
-    "done": 15,
+    "done": 16,
     "blocked": 0
   },
   "workflow_summary": {
-    "closed": 15
+    "closed": 16
   },
   "paths": {
     "scope": "docs/project-harness/scope.md",
@@ -54,114 +54,112 @@
   "open_risks": [],
   "recent_events": [
     {
-      "actor": "claude-k3-dh012-final",
-      "artifacts": [],
+      "actor": "codex",
+      "artifacts": [
+        "docs/project-harness/current/review-packet.md"
+      ],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-13T09:31:00Z",
-      "id": "evt-20260813T093100Z-35f70938",
-      "idempotency_key": "REVIEW:DH-012:approved:claude-k3-dh012-final",
+      "created_at": "2026-08-14T13:49:56Z",
+      "id": "evt-20260814T134956Z-b510fb3b",
+      "idempotency_key": "REVIEW:DH-014:requested:codex",
       "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
-      "status": "approved",
-      "summary": "closeout packet 复核：P0/P1=0；DH012_MAY_CLOSE_AND_MERGE=yes。",
-      "target": "codex",
-      "task": "DH-012",
+      "status": "requested",
+      "summary": "Review requested for DH-014",
+      "target": "sol-max+deepseek-v4-pro",
+      "task": "DH-014",
       "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260813T093100Z-35f70938 task=DH-012 actor=claude-k3-dh012-final target=codex status=approved"
-    },
-    {
-      "actor": "codex-operator",
-      "artifacts": [],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-13T09:31:01Z",
-      "id": "evt-20260813T093101Z-d41b26d5",
-      "idempotency_key": "CLOSE:DH-012:done:codex-operator",
-      "metadata": {
-        "force_reason": null
-      },
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "done",
-      "summary": "codex-operator closed DH-012",
-      "target": null,
-      "task": "DH-012",
-      "type": "CLOSE",
-      "visible_header": "[CLOSE] id=evt-20260813T093101Z-d41b26d5 task=DH-012 actor=codex-operator status=done"
-    },
-    {
-      "actor": "operator",
-      "artifacts": [
-        "docs/project-harness/tasks/DH-013/plan.md"
-      ],
-      "branch": "agent/codex/DH-013",
-      "causation_id": null,
-      "created_at": "2026-08-14T02:46:18Z",
-      "id": "evt-20260814T024618Z-2c5a663c",
-      "idempotency_key": "ASSIGN:DH-013:assigned:operator",
-      "metadata": {
-        "force_reason": null,
-        "session": "codex-dh013-plan-20260813"
-      },
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "assigned",
-      "summary": "operator assigned DH-013 to codex",
-      "target": "codex",
-      "task": "DH-013",
-      "type": "ASSIGN",
-      "visible_header": "[ASSIGN] id=evt-20260814T024618Z-2c5a663c task=DH-013 actor=operator target=codex status=assigned branch=agent/codex/DH-013 artifacts=docs/project-harness/tasks/DH-013/plan.md"
+      "visible_header": "[REVIEW] id=evt-20260814T134956Z-b510fb3b task=DH-014 actor=codex target=sol-max+deepseek-v4-pro status=requested artifacts=docs/project-harness/current/review-packet.md"
     },
     {
       "actor": "codex",
-      "artifacts": [],
-      "branch": "agent/codex/DH-013",
+      "artifacts": [
+        "docs/project-harness/current/review-packet.md"
+      ],
+      "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-14T02:46:18Z",
-      "id": "evt-20260814T024618Z-98699b32",
-      "idempotency_key": "ACCEPT:DH-013:running:codex",
-      "metadata": {
-        "force_reason": null,
-        "session": "codex-dh013-plan-20260813"
-      },
+      "created_at": "2026-08-14T14:20:56Z",
+      "id": "evt-20260814T142056Z-aee9d89a",
+      "idempotency_key": "REVIEW:DH-014:requested:codex",
+      "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
-      "status": "running",
-      "summary": "codex accepted DH-013",
-      "target": "codex",
-      "task": "DH-013",
-      "type": "ACCEPT",
-      "visible_header": "[ACCEPT] id=evt-20260814T024618Z-98699b32 task=DH-013 actor=codex target=codex status=running branch=agent/codex/DH-013"
+      "status": "requested",
+      "summary": "Review requested for DH-014",
+      "target": "sol-max+deepseek-v4-pro-round2",
+      "task": "DH-014",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260814T142056Z-aee9d89a task=DH-014 actor=codex target=sol-max+deepseek-v4-pro-round2 status=requested artifacts=docs/project-harness/current/review-packet.md"
     },
     {
-      "actor": "sol-max+deepseek-v4-pro-max",
+      "actor": "codex",
+      "artifacts": [
+        "docs/project-harness/current/review-packet.md"
+      ],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-14T14:47:02Z",
+      "id": "evt-20260814T144702Z-50df0c71",
+      "idempotency_key": "REVIEW:DH-014:requested:codex",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "requested",
+      "summary": "Review requested for DH-014",
+      "target": "sol-max+deepseek-v4-pro-round3",
+      "task": "DH-014",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260814T144702Z-50df0c71 task=DH-014 actor=codex target=sol-max+deepseek-v4-pro-round3 status=requested artifacts=docs/project-harness/current/review-packet.md"
+    },
+    {
+      "actor": "codex",
+      "artifacts": [
+        "docs/project-harness/current/review-packet.md"
+      ],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-14T15:10:15Z",
+      "id": "evt-20260814T151015Z-a9faad24",
+      "idempotency_key": "REVIEW:DH-014:requested:codex",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "requested",
+      "summary": "Review requested for DH-014",
+      "target": "sol-max+deepseek-v4-pro-round4",
+      "task": "DH-014",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260814T151015Z-a9faad24 task=DH-014 actor=codex target=sol-max+deepseek-v4-pro-round4 status=requested artifacts=docs/project-harness/current/review-packet.md"
+    },
+    {
+      "actor": "sol-max+deepseek-v4-pro",
       "artifacts": [],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-14T07:36:45Z",
-      "id": "evt-20260814T073645Z-9ef214de",
-      "idempotency_key": "REVIEW:DH-013:approved:sol-max+deepseek-v4-pro-max",
+      "created_at": "2026-08-14T16:07:13Z",
+      "id": "evt-20260814T160713Z-b7909e13",
+      "idempotency_key": "REVIEW:DH-014:approved:sol-max+deepseek-v4-pro",
       "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "approved",
-      "summary": "Final Round 3 frozen aggregate 372630cfee4b50b5550d57425b97a7baec73e34e95e0b7d8bacd84bf3f7706f0；Sol 与 fresh DeepSeek V4 Pro Max 共同批准，P0/P1=0，可请求 closeout。",
+      "summary": "Round 4 final cross-review: Sol Max P0/P1/P2=0; fresh DeepSeek V4 Pro Max replacement P0/P1=0; product aggregate bf66aa8d6e9ac20ad0b465d9267109487c1cdf01264c4c0e1c9e327174f6664e.",
       "target": "codex",
-      "task": "DH-013",
+      "task": "DH-014",
       "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260814T073645Z-9ef214de task=DH-013 actor=sol-max+deepseek-v4-pro-max target=codex status=approved"
+      "visible_header": "[REVIEW] id=evt-20260814T160713Z-b7909e13 task=DH-014 actor=sol-max+deepseek-v4-pro target=codex status=approved"
     },
     {
       "actor": "codex",
@@ -170,49 +168,49 @@
       ],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-14T07:55:24Z",
-      "id": "evt-20260814T075524Z-8390bec7",
-      "idempotency_key": "RESULT:DH-013:closeout_requested:codex",
+      "created_at": "2026-08-14T16:10:06Z",
+      "id": "evt-20260814T161006Z-efe8012e",
+      "idempotency_key": "RESULT:DH-014:closeout_requested:codex",
       "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "closeout_requested",
-      "summary": "Closeout requested for DH-013",
-      "target": "sol-max+deepseek-v4-pro-max",
-      "task": "DH-013",
+      "summary": "Closeout requested for DH-014",
+      "target": "sol-max+deepseek-v4-pro",
+      "task": "DH-014",
       "type": "RESULT",
-      "visible_header": "[RESULT] id=evt-20260814T075524Z-8390bec7 task=DH-013 actor=codex target=sol-max+deepseek-v4-pro-max status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
+      "visible_header": "[RESULT] id=evt-20260814T161006Z-efe8012e task=DH-014 actor=codex target=sol-max+deepseek-v4-pro status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
     },
     {
-      "actor": "sol-max+deepseek-v4-pro-max",
+      "actor": "sol-max+deepseek-v4-pro",
       "artifacts": [],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-14T07:55:35Z",
-      "id": "evt-20260814T075535Z-5f85e074",
-      "idempotency_key": "REVIEW:DH-013:approved:sol-max+deepseek-v4-pro-max",
+      "created_at": "2026-08-14T16:10:17Z",
+      "id": "evt-20260814T161017Z-8e5def7f",
+      "idempotency_key": "REVIEW:DH-014:approved:sol-max+deepseek-v4-pro",
       "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "approved",
-      "summary": "Final Round 3: frozen product aggregate 372630cfee4b50b5550d57425b97a7baec73e34e95e0b7d8bacd84bf3f7706f0；Sol 与 fresh DeepSeek V4 Pro Max 均 approved，P0/P1=0；464 tests、typecheck、build、diff、EXharness、真实 cache 与 Chromium closure 全通过。",
+      "summary": "Round 4 closeout review: Sol Max P0/P1/P2=0; fresh DeepSeek V4 Pro Max replacement P0/P1=0; product aggregate bf66aa8d6e9ac20ad0b465d9267109487c1cdf01264c4c0e1c9e327174f6664e.",
       "target": "codex",
-      "task": "DH-013",
+      "task": "DH-014",
       "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260814T075535Z-5f85e074 task=DH-013 actor=sol-max+deepseek-v4-pro-max target=codex status=approved"
+      "visible_header": "[REVIEW] id=evt-20260814T161017Z-8e5def7f task=DH-014 actor=sol-max+deepseek-v4-pro target=codex status=approved"
     },
     {
       "actor": "codex",
       "artifacts": [],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-14T07:55:36Z",
-      "id": "evt-20260814T075536Z-c2f362f9",
-      "idempotency_key": "CLOSE:DH-013:done:codex",
+      "created_at": "2026-08-14T16:10:35Z",
+      "id": "evt-20260814T161035Z-b95c14b6",
+      "idempotency_key": "CLOSE:DH-014:done:codex",
       "metadata": {
         "force_reason": null
       },
@@ -221,11 +219,11 @@
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "done",
-      "summary": "codex closed DH-013",
+      "summary": "codex closed DH-014",
       "target": null,
-      "task": "DH-013",
+      "task": "DH-014",
       "type": "CLOSE",
-      "visible_header": "[CLOSE] id=evt-20260814T075536Z-c2f362f9 task=DH-013 actor=codex status=done"
+      "visible_header": "[CLOSE] id=evt-20260814T161035Z-b95c14b6 task=DH-014 actor=codex status=done"
     }
   ]
 }

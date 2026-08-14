@@ -8,6 +8,8 @@ import type {
 export interface PresentationLayers {
   readonly mesh: boolean;
   readonly splat: boolean;
+  readonly grid: boolean;
+  readonly bounds: boolean;
   readonly collision: boolean;
   readonly alignment: boolean;
 }
@@ -74,6 +76,8 @@ export function defaultPresentationLayers(
     splat: snapshot?.entities.some(
       (entity) => entity.representations.observation !== null,
     ) ?? false,
+    grid: false,
+    bounds: false,
     collision: false,
     alignment: false,
   };

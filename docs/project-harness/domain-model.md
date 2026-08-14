@@ -72,8 +72,12 @@ Episode 记录时间如何经过，以及期间发生了什么。
 - Observation 是对状态或执行的捕获或查询结果。
 - Belief 是模型依据 Observation 形成的估计。
 - Presentation 是面向人的可见呈现。
+- Overview、Inspect 与 Explore 的用户相机 pose 属于 Presentation state，不是 Observation，也不进入 Snapshot。
+- Embodied Observer 绑定世界内主体或传感器；它的 action 属于 WorldProgram/ExplicitInputs，它产出的 Observation 必须声明主体或 sensor identity、Frame、Units、time 与 provenance。
 
 三者都不能静默替代 authoritative Snapshot state。
+
+Observer 与 Embodiment 的完整边界见 `observer-embodiment.md`。
 
 ## Reproducibility
 

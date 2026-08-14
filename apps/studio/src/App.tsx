@@ -76,6 +76,8 @@ export default function App() {
   const [presentationLayers, setPresentationLayers] = createSignal<PresentationLayers>({
     mesh: true,
     splat: false,
+    grid: false,
+    bounds: false,
     collision: false,
     alignment: false,
   });
@@ -113,7 +115,12 @@ export default function App() {
   });
   const importedAsset = createMemo(() => {
     const visual = importedVisual();
-    return visual ? resolveImportedVisualAsset(visual) : undefined;
+    if (!visual) return undefined;
+    try {
+      return resolveImportedVisualAsset(visual);
+    } catch {
+      return undefined;
+    }
   });
   const registeredVisual = createMemo(() => {
     const visual = selectedEntity()?.representations.visual;
@@ -121,7 +128,17 @@ export default function App() {
   });
   const registeredAsset = createMemo(() => {
     const visual = registeredVisual();
-    return visual ? resolveRegisteredPresentationAsset(visual) : undefined;
+    if (!visual) return undefined;
+    try {
+      return resolveRegisteredPresentationAsset(visual);
+    } catch {
+      return undefined;
+    }
+  });
+  const selectedPresentationError = createMemo(() => {
+    if (registeredVisual() && !registeredAsset()) return "REGISTERED PRESENTATION INTEGRITY FAILED";
+    if (importedVisual() && !importedAsset()) return "IMPORTED PRESENTATION INTEGRITY FAILED";
+    return undefined;
   });
   const registeredAssetStatus = createMemo(() => {
     const assetId = registeredAsset()?.asset.assetId;
@@ -366,6 +383,8 @@ export default function App() {
             <For each={([
               ["mesh", "Mesh"],
               ["splat", "3DGS"],
+              ["grid", "Grid"],
+              ["bounds", "Bounds"],
               ["collision", "Collision"],
               ["alignment", "Alignment"],
             ] as const)}>
@@ -484,7 +503,7 @@ export default function App() {
           <div class="dock-heading">
             <div>
               <span class="eyebrow">Episode evidence</span>
-              <h2>{episode()?.id ?? "等待 world_run"}</h2>
+              <h2 data-testid="episode-id">{episode()?.id ?? "等待 world_run"}</h2>
             </div>
             <span class="sample-count">{episode()?.samples.length ?? 0} samples</span>
           </div>
@@ -508,6 +527,11 @@ export default function App() {
                 {importedVisual()?.assetId ?? registeredVisual()?.assetId ?? selectedEntity()?.representations.visual.kind ?? "—"}
               </dd>
             </div>
+            <Show when={selectedPresentationError()}>
+              {(message) => (
+                <div><dt>integrity</dt><dd role="alert" data-testid="selected-presentation-error">{message()}</dd></div>
+              )}
+            </Show>
             <Show when={importedVisual()}>
               {(visual) => (
                 <>
@@ -629,7 +653,7 @@ export default function App() {
           <div class="dock-heading">
             <div>
               <span class="eyebrow">Deterministic evaluation</span>
-              <h2 data-testid="evaluation-status">
+              <h2 data-testid="evaluation-status" data-evaluation-id={evaluation()?.id ?? ""}>
                 {evaluation() ? (evaluation()?.passed ? "PASS" : "FAIL") : "等待 evidence"}
               </h2>
             </div>

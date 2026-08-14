@@ -33,7 +33,7 @@ describe("Studio trusted presentation projection", () => {
     expect(preferredSelection(undefined, BALL_REF)).toBeUndefined();
   });
 
-  test("四个 Presentation layer 独立，Snapshot 无 Observation 时只夹紧 splat", () => {
+  test("六个 Presentation layer 独立，Snapshot 无 Observation 时只夹紧 splat", () => {
     const vessel = createBallVesselSnapshot();
     const diagnostic = createFixtureSnapshot(2, "fixture:diagnostic-wedge-v1").entities.find(
       (entity) => entity.ref === "entity:cube",
@@ -41,16 +41,27 @@ describe("Studio trusted presentation projection", () => {
     const ball = vessel.entities.find((entity) => entity.ref === BALL_REF);
     const container = vessel.entities.find((entity) => entity.ref === "entity:vessel");
 
-    const requested = { mesh: false, splat: true, collision: true, alignment: true };
+    const requested = {
+      mesh: false,
+      splat: true,
+      grid: true,
+      bounds: true,
+      collision: true,
+      alignment: true,
+    };
     expect(presentationLayersFor(vessel, requested)).toEqual({
       mesh: false,
       splat: false,
+      grid: true,
+      bounds: true,
       collision: true,
       alignment: true,
     });
     expect(defaultPresentationLayers(vessel)).toEqual({
       mesh: true,
       splat: false,
+      grid: false,
+      bounds: false,
       collision: false,
       alignment: false,
     });

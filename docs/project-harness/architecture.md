@@ -42,6 +42,8 @@ Presentation                         │
 
 把 Snapshot 或 Episode 证据映射为人可见的视图。第一个实现是 Three.js。在 Product MVP 中，Spark 作为 3DGS 的 Presentation 实现，消费带有 provenance 与 alignment 的 appearance/observation artifact；它不定义 Kernel，也不拥有 Entity pose、collision 或 MuJoCo state。Presentation state 永远不能被静默提升为 authoritative world state。
 
+Presentation 进一步区分 `Overview Observer`、`Inspect Observer` 与 `Explore Observer`：它们分别承担世界外部概览、围绕 Entity 检查和从世界内部自由观察，但都只拥有用户相机与交互状态。未来的 `Embodied Observer` 绑定角色、机器人、车辆或传感器，其 action 必须通过 WorldProgram/ExplicitInputs 进入 Evolution Runtime，其 Observation 必须成为带 provenance、Frame 与 Units 的 evidence；不得把它实现成第四种自由相机。详细契约见 `observer-embodiment.md`。
+
 ### Evaluation
 
 依据已声明的 Success Contract 评测不可变 Episode。每次评测创建新的 EvaluationRecord，而不是修改 Episode。
