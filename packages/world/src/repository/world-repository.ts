@@ -22,20 +22,7 @@ import {
   requireAdoptPolicyById,
   RUNTIME_MVP_ADOPT_POLICY_REGISTRY,
 } from "../host/runtime-mvp-adopt-policy";
-
-function verticalHalfExtent(entity: Entity, pose: Pose): number {
-  const collision = entity.representations.collision;
-  if (collision.kind === "sphere") return collision.radius;
-  if (collision.kind !== "box") {
-    throw new Error(`${entity.ref} 不能作为 authored pose edit target`);
-  }
-  const { x, y, z, w } = pose.rotation;
-  const [hx, hy, hz] = collision.halfExtents;
-  const r20 = 2 * (x * z - w * y);
-  const r21 = 2 * (y * z + w * x);
-  const r22 = 1 - 2 * (x * x + y * y);
-  return Math.abs(r20) * hx + Math.abs(r21) * hy + Math.abs(r22) * hz;
-}
+import { requireAuthoredPoseAboveFloor } from "./pose-constraints";
 
 class WorldRepositoryState {
   readonly #snapshots = new Map<Snapshot["id"], Snapshot>();
@@ -244,11 +231,7 @@ class WorldRepositoryState {
       throw new Error("authored pose edit target 必须是 dynamic Entity");
     }
     const floor = findEntity(parent, "entity:floor");
-    const targetBottom = pose.position[2] - verticalHalfExtent(target, pose);
-    const floorTop = floor.state.pose.position[2] + verticalHalfExtent(floor, floor.state.pose);
-    if (!Number.isFinite(targetBottom) || targetBottom < floorTop - 1e-9) {
-      throw new Error(`${targetRef} authored pose 穿透 floor`);
-    }
+    requireAuthoredPoseAboveFloor(target, floor, pose);
     this.#editSequence += 1;
     return this.#insert(deepFreeze({
       schemaVersion: 1,

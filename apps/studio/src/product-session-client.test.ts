@@ -5,13 +5,17 @@ import {
   BALL_VESSEL_FIXTURE_ID,
   DIAGNOSTIC_RIGID_FIXTURE_ID,
   TWO_JOINT_REACH_FIXTURE_ID,
+  MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
+  PRIMITIVE_BOX_FIXTURE_ID,
   RuntimeMvpHost,
   WorldToolSurface,
   createInitialSnapshot,
+  decodeProductSessionAuthoringTransition,
   isDeepFrozen,
 } from "@demiurges/world";
 import {
   ProductSessionClient,
+  ProductSessionAuthoringError,
   ProductSessionTurnError,
   readProductSessionEvents,
 } from "./product-session-client";
@@ -30,6 +34,195 @@ function chunkedResponse(chunks: readonly string[]): Response {
 }
 
 describe("Studio Product Session client", () => {
+  test("human authoring client 验证 root/child transition，并在 no-op 时不发请求", async () => {
+    const sessionId = "session:local-authoring";
+    const surface = new WorldToolSurface(new RuntimeMvpHost());
+    const empty = { sessionId, world: null, lastRun: null, lastSequence: 0, running: false } as const;
+    let calls = 0;
+    const client = new ProductSessionClient(async (input, init) => {
+      calls += 1;
+      const url = String(input);
+      if (url.endsWith("/world/write")) {
+        surface.write({ fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID });
+      } else if (url.endsWith("/world/edit")) {
+        surface.edit(JSON.parse(String(init?.body)));
+      }
+      return Response.json({
+        sessionId,
+        world: surface.read(),
+        lastRun: null,
+        lastSequence: 0,
+        running: false,
+      });
+    });
+    const written = await client.writeWorld(sessionId, {
+      fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
+    }, empty);
+    expect(written.world?.ref.version).toBe(1);
+
+    const noOp = await client.editWorld(sessionId, {
+      expected: { ...written.world!.ref },
+      targetRef: "entity:generated-object",
+      change: { kind: "pose", frameRef: "frame:world", pose: {
+        position: { x: 0, y: 0, z: 1.2 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      } },
+    }, written);
+    expect(noOp).toEqual(written);
+    expect(calls).toBe(1);
+
+    const edited = await client.editWorld(sessionId, {
+      expected: { ...written.world!.ref },
+      targetRef: "entity:generated-object",
+      change: { kind: "pose", frameRef: "frame:world", pose: {
+        position: { x: 0.2, y: 0, z: 1.2 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      } },
+    }, written);
+    expect(edited.world?.ref.version).toBe(2);
+    expect(calls).toBe(2);
+  });
+
+  test("semantic no-op 也必须通过 settled transition authority", async () => {
+    const sessionId = "session:local-running-no-op";
+    const surface = new WorldToolSurface(new RuntimeMvpHost());
+    surface.write({ fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID });
+    const world = surface.read();
+    const prior = {
+      sessionId,
+      world,
+      lastRun: null,
+      lastSequence: 0,
+      running: true,
+    } as const;
+    let calls = 0;
+    const client = new ProductSessionClient(async () => {
+      calls += 1;
+      return Response.json(prior);
+    });
+
+    await expect(client.editWorld(sessionId, {
+      expected: { ...world.ref },
+      targetRef: "entity:generated-object",
+      change: { kind: "pose", frameRef: "frame:world", pose: {
+        position: { x: 0, y: 0, z: 1.2 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      } },
+    }, prior)).rejects.toThrow("prior 必须 settled");
+    expect(calls).toBe(0);
+  });
+
+  test("forged authoring transition fail closed 后以无旧 expectedWorld 的 GET resync", async () => {
+    const sessionId = "session:local-forged-authoring";
+    const surface = new WorldToolSurface(new RuntimeMvpHost());
+    surface.write({ fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID });
+    const prior = { sessionId, world: surface.read(), lastRun: null, lastSequence: 0, running: false } as const;
+    const forged = structuredClone(prior) as any;
+    forged.world.ref.version = 2;
+    forged.world.snapshot.id = "snapshot:edit-forged";
+    forged.world.ref.snapshotId = forged.world.snapshot.id;
+    forged.world.snapshot.parentId = prior.world.snapshot.id;
+    forged.world.snapshot.source = "edit";
+    forged.world.snapshot.entities[0].label = "forged environment";
+    let calls = 0;
+    const client = new ProductSessionClient(async () => {
+      calls += 1;
+      return Response.json(calls === 1 ? forged : prior);
+    });
+
+    await expect(client.editWorld(sessionId, {
+      expected: { ...prior.world.ref },
+      targetRef: "entity:generated-object",
+      change: { kind: "pose", frameRef: "frame:world", pose: {
+        position: { x: 0.2, y: 0, z: 1.2 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      } },
+    }, prior)).rejects.toBeInstanceOf(ProductSessionAuthoringError);
+    expect(calls).toBe(2);
+  });
+
+  test("authoring transition 拒绝仍在 running 的 prior projection", async () => {
+    const sessionId = "session:local-running-prior";
+    const surface = new WorldToolSurface(new RuntimeMvpHost());
+    surface.write({ fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID });
+    const prior = {
+      sessionId,
+      world: null,
+      lastRun: null,
+      lastSequence: 0,
+      running: true,
+    } as const;
+    const returned = {
+      sessionId,
+      world: surface.read(),
+      lastRun: null,
+      lastSequence: 0,
+      running: false,
+    } as const;
+
+    await expect(decodeProductSessionAuthoringTransition(
+      returned,
+      sessionId,
+      prior,
+      { kind: "write", input: { fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID } },
+    )).rejects.toThrow("prior 必须 settled");
+  });
+
+  test("authoring transition 的 unchanged/updated 都拒绝 non-composite authority", async () => {
+    const sessionId = "session:local-non-composite-authoring";
+    const surface = new WorldToolSurface(new RuntimeMvpHost());
+    surface.write({ fixtureId: PRIMITIVE_BOX_FIXTURE_ID });
+    const primitive = surface.read();
+    const prior = {
+      sessionId,
+      world: primitive,
+      lastRun: null,
+      lastSequence: 0,
+      running: false,
+    } as const;
+
+    await expect(decodeProductSessionAuthoringTransition(
+      prior,
+      sessionId,
+      prior,
+      { kind: "edit", outcome: "unchanged" },
+    )).rejects.toThrow("exact composite world authority");
+
+    const cube = primitive.snapshot.entities.find((entity) => entity.ref === "entity:cube");
+    if (!cube) throw new Error("primitive fixture 缺少 cube");
+    const pose = cube.state.pose;
+    surface.edit({
+      expected: { ...primitive.ref },
+      targetRef: "entity:cube",
+      change: {
+        kind: "pose",
+        frameRef: "frame:world",
+        pose: {
+          position: { x: pose.position[0], y: pose.position[1], z: pose.position[2] },
+          rotation: { ...pose.rotation },
+        },
+      },
+    });
+    const returned = {
+      ...prior,
+      world: surface.read(),
+    } as const;
+    await expect(decodeProductSessionAuthoringTransition(
+      returned,
+      sessionId,
+      prior,
+      {
+        kind: "edit",
+        outcome: "updated",
+        input: {
+          expected: primitive.ref,
+          targetRef: "entity:generated-object",
+          change: { kind: "pose", frameRef: "frame:world", pose },
+        },
+      },
+    )).rejects.toThrow("exact composite world authority");
+  });
+
   test("NDJSON 可跨任意 chunk 边界解析，并冻结有序产品事件", async () => {
     const snapshot = createInitialSnapshot();
     const lines = [

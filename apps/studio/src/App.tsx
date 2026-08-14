@@ -1,4 +1,7 @@
 import {
+  GENERATED_OBJECT_REF,
+  MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
+  MARBLE_HUNYUAN_REGISTRY,
   deepFreeze,
   type Entity,
   type ProductSessionEvent,
@@ -8,6 +11,7 @@ import {
 } from "@demiurges/world";
 import {
   createMemo,
+  createEffect,
   createSignal,
   For,
   onCleanup,
@@ -28,14 +32,24 @@ import {
   preferredSelection,
   presentationLayersFor,
   registeredIntegrityLabel,
+  registeredAuthoringReady,
   runContractSummary,
   type PresentationLayers,
   type RegisteredAssetLoadState,
 } from "./presentation-model";
 import {
+  ProductSessionAuthoringError,
   ProductSessionClient,
   ProductSessionTurnError,
 } from "./product-session-client";
+import {
+  createPoseDraft,
+  poseDraftWorldEditInput,
+  updatePoseDraft,
+  type PoseDraft,
+  type PoseDraftMode,
+} from "./scene-composer";
+import type { ObserverMode } from "./presentation-three/observer-camera";
 
 type RuntimeStatus = "connecting" | "ready" | "running" | "completed" | "error";
 type ViewMode = "repository" | "episode";
@@ -86,7 +100,11 @@ export default function App() {
     readonly RegisteredAssetLoadState[]
   >([]);
   const [runtimeStatus, setRuntimeStatus] = createSignal<RuntimeStatus>("connecting");
+  const [busyLabel, setBusyLabel] = createSignal("Agent 正在改变并推演世界");
   const [errorMessage, setErrorMessage] = createSignal<string>();
+  const [poseDraft, setPoseDraft] = createSignal<PoseDraft>();
+  const [poseDraftMode, setPoseDraftMode] = createSignal<PoseDraftMode>("translate");
+  const [observerMode, setObserverMode] = createSignal<ObserverMode>("overview");
   let turnAbort: AbortController | undefined;
 
   const episode = createMemo(() => lastRun()?.episode);
@@ -146,6 +164,14 @@ export default function App() {
       ? registeredAssetStates().find((state) => state.assetId === assetId)?.status
       : undefined;
   });
+  const generatedVisualStatus = createMemo(() => {
+    const assetId = MARBLE_HUNYUAN_REGISTRY.assets[2]!.assetId;
+    return registeredAssetStates().find((state) => state.assetId === assetId)?.status;
+  });
+  const generatedVisualReady = createMemo(() => registeredAuthoringReady(
+    registeredAssetStates(),
+    MARBLE_HUNYUAN_REGISTRY.assets[2]!.assetId,
+  ));
   const vesselSemantic = createMemo(() => {
     const semantic = selectedEntity()?.representations.semantic;
     return semantic?.kind === "vessel" ? semantic : undefined;
@@ -192,6 +218,11 @@ export default function App() {
     nextWorld: WorldReadResult | undefined,
     resetSelection = false,
   ) => {
+    if (poseDraft() && (
+      !nextWorld ||
+      poseDraft()!.baseRef.snapshotId !== nextWorld.ref.snapshotId ||
+      poseDraft()!.baseRef.version !== nextWorld.ref.version
+    )) setPoseDraft(undefined);
     setWorld(nextWorld);
     reconcilePresentation(nextWorld, resetSelection);
   };
@@ -217,6 +248,7 @@ export default function App() {
     setTimelineIndex(0);
     setViewMode("repository");
     setRegisteredAssetStates([]);
+    setPoseDraft(undefined);
     try {
       useProjection(await client.createSession(), true);
       setRuntimeStatus("ready");
@@ -274,6 +306,8 @@ export default function App() {
     const current = projection();
     if (!current || prompt().trim().length === 0) return;
     setRuntimeStatus("running");
+    setBusyLabel("Agent 正在改变并推演世界");
+    setPoseDraft(undefined);
     setErrorMessage(undefined);
     setEvents([]);
     setResponseText("");
@@ -311,14 +345,99 @@ export default function App() {
   };
 
   const selectTimelineFrame = (index: number) => {
+    setPoseDraft(undefined);
     setTimelineIndex(index);
     setViewMode("episode");
   };
 
   const selectEntity = (ref: Entity["ref"]) => {
+    if (ref !== GENERATED_OBJECT_REF) setPoseDraft(undefined);
     setSelectedRef(ref);
     setPresentationLayers(presentationLayersFor(currentSnapshot(), presentationLayers()));
     setAlignmentEvidence(undefined);
+  };
+
+  const createRegisteredComposition = async () => {
+    const current = projection();
+    if (!current || current.world || runtimeStatus() === "running") return;
+    setRuntimeStatus("running");
+    setBusyLabel("正在创建已登记组合");
+    setErrorMessage(undefined);
+    try {
+      const next = await client.writeWorld(current.sessionId, {
+        fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
+      }, current);
+      useProjection(next, true);
+      setSelectedRef(GENERATED_OBJECT_REF);
+      setViewMode("repository");
+      setRuntimeStatus("completed");
+    } catch (error) {
+      if (error instanceof ProductSessionAuthoringError) useProjection(error.projection);
+      setRuntimeStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : "创建已登记组合失败");
+    }
+  };
+
+  const beginPoseDraft = (mode: PoseDraftMode) => {
+    const entity = currentSnapshot()?.entities.find((candidate) => candidate.ref === GENERATED_OBJECT_REF);
+    const ref = currentRef();
+    if (!entity || !ref || !generatedVisualReady() || observerMode() !== "inspect" || viewMode() !== "repository") return;
+    setSelectedRef(GENERATED_OBJECT_REF);
+    setPoseDraftMode(mode);
+    const current = poseDraft();
+    setPoseDraft(current
+      ? updatePoseDraft(
+          current,
+          current.pose.position,
+          2 * Math.atan2(current.pose.rotation.z, current.pose.rotation.w),
+          mode,
+        )
+      : createPoseDraft(ref, entity, mode));
+  };
+
+  createEffect(() => {
+    const status = generatedVisualStatus();
+    if (poseDraft() && status !== "loaded") setPoseDraft(undefined);
+  });
+
+  const updateDraftFromViewport = (
+    position: readonly [number, number, number],
+    yawRadians: number,
+  ) => {
+    if (runtimeStatus() === "running") return;
+    const current = poseDraft();
+    if (!current) return;
+    try {
+      setPoseDraft(updatePoseDraft(current, position, yawRadians, poseDraftMode()));
+      setErrorMessage(undefined);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "变换超出可提交范围");
+    }
+  };
+
+  const commitPoseDraft = async () => {
+    const current = projection();
+    const draft = poseDraft();
+    if (!current || !draft || runtimeStatus() === "running") return;
+    setRuntimeStatus("running");
+    setBusyLabel("正在提交确定性 world_edit");
+    setErrorMessage(undefined);
+    try {
+      const next = await client.editWorld(
+        current.sessionId,
+        poseDraftWorldEditInput(draft),
+        current,
+      );
+      setPoseDraft(undefined);
+      useProjection(next);
+      setViewMode("repository");
+      setRuntimeStatus("completed");
+    } catch (error) {
+      setPoseDraft(undefined);
+      if (error instanceof ProductSessionAuthoringError) useProjection(error.projection);
+      setRuntimeStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : "提交 world_edit 失败");
+    }
   };
 
   onMount(() => void createSession());
@@ -338,7 +457,7 @@ export default function App() {
           <span class="status-dot" aria-hidden="true" />
           <span data-testid="runtime-status">
             {runtimeStatus() === "running"
-              ? "Agent 正在改变并推演世界"
+              ? busyLabel()
               : `Gateway ${projection()?.sessionId ?? "连接中"}`}
           </span>
         </div>
@@ -370,6 +489,12 @@ export default function App() {
             onSelect={selectEntity}
             onAlignmentEvidence={setAlignmentEvidence}
             onRegisteredAssetStates={setRegisteredAssetStates}
+            poseDraft={poseDraft()}
+            poseDraftMode={poseDraftMode()}
+            poseDraftInputEnabled={runtimeStatus() !== "running"}
+            onPoseDraftChange={updateDraftFromViewport}
+            onPoseDraftCancel={() => setPoseDraft(undefined)}
+            onObserverModeChange={setObserverMode}
           />
           <Show when={!currentSnapshot()}>
             <div class="viewport-empty" data-testid="viewport-empty">
@@ -426,6 +551,73 @@ export default function App() {
               <div><dt>frame</dt><dd>frame:world</dd></div>
               <div><dt>units</dt><dd>units:si</dd></div>
             </dl>
+          </section>
+
+          <section class="inspector-section scene-composer" data-testid="scene-composer">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Registered scene composer</span>
+                <h2>Marble × Hunyuan 3D</h2>
+              </div>
+              <span class="step-number">00</span>
+            </div>
+            <div class="asset-role-grid">
+              <article data-testid="composer-environment-card">
+                <strong>Marble environment</strong>
+                <span>{MARBLE_HUNYUAN_REGISTRY.assets[0]?.assetId}</span>
+                <small>Observation · frame:world · units:si</small>
+                <em>CALIBRATION AUTHORED / UNVERIFIED</em>
+              </article>
+              <article data-testid="composer-object-card">
+                <strong>Hunyuan generated object</strong>
+                <span>{MARBLE_HUNYUAN_REGISTRY.assets[2]?.assetId}</span>
+                <small>Visual · frame:world · units:si</small>
+                <em>PROXY WITNESS PASS</em>
+              </article>
+            </div>
+            <Show when={!currentSnapshot()} fallback={
+              <div class="composer-toolbar" role="group" aria-label="Generated object transform">
+                <button
+                  class="button ghost"
+                  aria-pressed={poseDraftMode() === "translate" && !!poseDraft()}
+                  disabled={!generatedVisualReady() || observerMode() !== "inspect" || viewMode() !== "repository" || runtimeStatus() === "running"}
+                  onClick={() => beginPoseDraft("translate")}
+                >移动</button>
+                <button
+                  class="button ghost"
+                  aria-pressed={poseDraftMode() === "rotate-z" && !!poseDraft()}
+                  disabled={!generatedVisualReady() || observerMode() !== "inspect" || viewMode() !== "repository" || runtimeStatus() === "running"}
+                  onClick={() => beginPoseDraft("rotate-z")}
+                >绕 Z 旋转</button>
+                <button class="button ghost" disabled={!poseDraft()} onClick={() => setPoseDraft(undefined)}>取消变换</button>
+                <button class="button primary" data-testid="composer-commit" disabled={!poseDraft() || runtimeStatus() === "running"} onClick={() => void commitPoseDraft()}>提交变换</button>
+              </div>
+            }>
+              <button
+                class="button primary"
+                data-testid="create-registered-composition"
+                disabled={!projection() || runtimeStatus() === "running"}
+                onClick={() => void createRegisteredComposition()}
+              >创建已登记组合</button>
+            </Show>
+            <Show when={poseDraft()}>
+              {(draft) => (
+                <dl class="draft-readout" data-testid="pose-draft-readout">
+                  <div><dt>Draft</dt><dd>Presentation only</dd></div>
+                  <div><dt>base</dt><dd>{draft().baseRef.snapshotId} · v{draft().baseRef.version}</dd></div>
+                  <div><dt>position</dt><dd>{draft().pose.position.map((value) => formatNumber(value)).join(" ")}</dd></div>
+                  <div><dt>authority</dt><dd>{currentSnapshot()?.id}（未改变）</dd></div>
+                </dl>
+              )}
+            </Show>
+            <Show when={currentSnapshot() && observerMode() !== "inspect"}>
+              <p class="muted">切换到 Inspect 后可移动或绕 world-Z 旋转 generated object。</p>
+            </Show>
+            <Show when={currentSnapshot() && !generatedVisualReady()}>
+              <p class="muted" role="status" data-testid="composer-visual-required">
+                Hunyuan visual {registeredIntegrityLabel(generatedVisualStatus())}；可查看 Collision proxy，但验证通过前不开放 gizmo。
+              </p>
+            </Show>
           </section>
 
           <section class="inspector-section agent-task">

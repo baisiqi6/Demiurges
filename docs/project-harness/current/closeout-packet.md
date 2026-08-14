@@ -2,24 +2,24 @@
 
 ## Subject
 
-- Checklist item: `DH-014`
-- Reviewer: `sol-max+deepseek-v4-pro`
+- Checklist item: `DH-015`
+- Reviewer: `sol-max+zcode-glm-5.3`
 - Updated at: `2026-08-14`
-- Canonical plan path: `docs/project-harness/tasks/DH-014/plan.md`
+- Canonical plan path: `docs/project-harness/tasks/DH-015/plan.md`
 
 ## Item Snapshot
 
-- Title: Observer Modes 与 Enter World 交互
+- Title: Registered Asset Scene Composer
 - Status: doing
 - Workflow status: closeout_requested
 - Priority: p0
 - Owner: codex
-- Session: codex-dh014-observer-20260814
-- Dependencies: DH-013
+- Session: codex-dh015-plan-20260814
+- Dependencies: DH-013, DH-014
 
 ## Acceptance
 
-实现 Overview、Inspect、Explore 三种可见 Observer；Marble 可从 registered authored entry pose 进入；Z-up Fly、Inspect focus、Overview fit bounds、输入生命周期与按需 rAF 满足计划；相机不改变 Snapshot/Ref/Episode/Evaluation authority；focused/full/typecheck/build/diff/EXharness/Chromium 与 independent implementation cross-review 全部通过
+基于已验证本地 ArtifactRef 组合 Marble environment 与 Hunyuan object；变换交互仅产生 Presentation draft，显式提交后才通过 world_edit 与 expected Ref 创建 child Snapshot；支持 run、Evaluation 与 explicit adopt；任意缩放、新 provider 调用、通用 Adapter SDK 与持久化均不在本节点。
 
 ## Verification
 
@@ -27,7 +27,7 @@
 
 ## Handoff
 
-先完成 independent plan cross-review；P0/P1=0 且 approved 后方可实现。实现后必须再次 independent implementation cross-review；未经新授权不得 commit/push/merge/tag/deploy。
+先完成 canonical plan 与 independent cross-review；approved 后才进入实现。
 
 ## Review Inputs
 
@@ -40,313 +40,334 @@
 ## Canonical Plan Content
 
 ```md
-# DH-014 计划：Observer Modes 与 Enter World 交互
+# DH-015 — Registered Asset Scene Composer
 
-## 状态与 Authority
+## Item
 
-- Status：`planning`；
-- Mode：`high-risk` Presentation interaction slice；
-- Branch：`agent/codex/DH-014`；
-- Worktree：`/Users/Admin/projects/WorkTrees/Demiurges-DH-014`；
-- Base / main：`c655c544bb88010f42e0dd9e570f7f04923d9b6e`；
-- Human 已授权创建 DH-014、设计、独立交叉审查、通过后实现、验证与 implementation cross-review；
-- 未授权 commit、push、merge `main`、tag、deploy、新 provider generation 或重新调用 Marble / Hunyuan 生成；
-- Plan gate：只有 independent cross-review 的 P0/P1 均为 0 且结论为 `approved`，才进入产品实现；
-- Closeout gate：实现完成后仍需 independent implementation cross-review 批准，本轮不自行 closeout。
-
-## 已接管的稳定设计输入
-
-main worktree 中原有的四份 doc-only changes 已逐字复制到本 worktree；main 原改动保持不变。接管时 SHA-256：
-
-| 文件 | SHA-256 |
-|---|---|
-| `docs/project-harness/observer-embodiment.md` | `c290ebcd70e8c3776cf808275c49528a2e6bb191c5b8944c0f2a80511cc55a4b` |
-| `docs/project-harness/README.md` | `2be98ae14e49cd2cfc32b162f56cd3e4e8c60c8bf8fd540ff7cbb1bbbcc517c6` |
-| `docs/project-harness/architecture.md` | `fef6f9d56d30bd1e2b0d36340603a58b7fc6b8f630234f73bd4f6e9f23c57dcb` |
-| `docs/project-harness/domain-model.md` | `9102a3d16806873dca31a118340ddac030c2101e28bd5a27349e4fd5ce8e0acf` |
-
-这些文档是 DH-014 的设计输入，不因被复制而获得独立 commit authority。后续若 reviewer 要求修改正文，必须留下 plan review 证据，不能静默改写最初输入。
+- Checklist item：`DH-015`
+- Owner：`codex`
+- Session：`codex-dh015-plan-20260814`
+- Branch：`agent/codex/DH-015`
+- Base：`1805d73055a79a7e0506afafebaffd7b308706f9`
+- Updated at：`2026-08-14`
+- 当前 authority：只允许计划、验收设计与 independent cross-review；计划 approved 前不得实现产品代码。
+- 未授权：commit、push、merge、PR、tag、deploy、新 provider generation、真实付费调用或清理历史 worktree/stash。
 
 ## Goal
 
-在不扩大 Kernel 或 Agent authority 的前提下，把现有单一 Orbit viewport 收敛为三个显式、可见、可恢复的 Presentation Observer：
+把 DH-013 的 Marble environment 与 Hunyuan generated object 从“固定 canary 场景”提升为第一个可由用户直接创作、由 Agent 继续推演的真实资产世界：用户能够建立已登记组合，在 `Inspect Observer` 中移动或绕 world-Z 旋转 generated object，明确预览并提交一次 pose edit；之后既有 Agent 仍只用四个 world tools 运行 MuJoCo 并检查 deterministic Evaluation。
+
+本切片证明的是：
 
 ```text
-Overview Observer
-  └── 世界外部概览 / fit registered world bounds / debug layers
-
-Inspect Observer
-  └── Orbit / Entity selection / trusted bounds focus
-
-Explore Observer
-  └── registered entry pose / Z-up Fly / bounded input ownership
+verified registered artifacts
+        ↓ exact registered fixture
+authoritative Snapshot v1
+        ↓ Presentation-local PoseDraft
+explicit world_edit + expected Ref
+        ↓
+authoritative child Snapshot v2
+        ↓ existing Agent world_run
+Episode + Evaluation
 ```
 
-用户相机始终是 Presentation-local state。任何模式切换、键鼠移动、reset、focus 或转场都不得修改 `Snapshot`、`Ref`、`Episode`、`EvaluationRecord`、`AdoptPolicy` 或四工具 contract。
+`PoseDraft` 永远不是 Snapshot、Observation、Episode 或 alignment truth；只有显式提交后的 `world_edit` 才改变 world authority。
 
-## 当前实现事实
+## 起点事实与被违反的 invariant
 
-- `ThreeViewport.tsx` 当前持有 `Scene`、Z-up `PerspectiveCamera`、`OrbitControls`、`SparkRenderer`、Entity render records、selection raycast 与单一按需 `scheduleRender()`；
-- 当前没有永久 animation loop：Orbit change、Spark `onDirty`、resize、asset completion 与 reactive state change 才触发 render；
-- 当前固定 camera pose `[4.4,-5.4,3.4]` 位于 Marble registered bounds 外，无法表达“进入世界”；
-- `registered-presentation.ts` 已是 Studio 内将 registered representation 解析为 asset/calibration/witness/same-origin URL 的受信 Presentation registry seam；
-- Marble environment 的 registered SPZ calibration target bounds 已存在；provider 未提供 navigation surface 或 validated camera pose；
-- `App.tsx` 已有可见 Presentation layer 开关与 Agent `textarea`，因此输入隔离必须覆盖真实相邻交互；
-- 项目是 SolidJS + Three.js，不引入 React/shadcn/Motion/GSAP。
+1. 当前 Marble/Hunyuan 世界已经具备 exact asset/calibration/witness、collision proxy、MuJoCo Runtime、Episode 与 Evaluation，但初始组合只能由 Agent 或固定 fixture 创建。
+2. Studio 没有 deterministic human mutation seam；把 gizmo 结果编码进 prompt 会把精确 authoring 降级为概率行为。
+3. 唯一可写 `RuntimeMvpHost` 位于 Gateway `ProductSession`；Studio 不得建立第二个 Host，也不得从 Three.js node 反推 Snapshot。
+4. 当前真实 registry 只有一个 environment 与一个 generated object。第一版可以展示 exact role cards，但不得宣称已经具备任意资产组合、通用 asset graph 或 provider Adapter SDK。
+5. Hunyuan visual ↔ box proxy witness 只覆盖现有 calibration；arbitrary scale 会使 witness 失效，因此 scale 必须 fail closed / 不可见，而不是靠 UI warning 放行。
+6. 当前 `requireMarbleHunyuanCompositeSnapshot()` 把 registered artifact identity 与 authored entity state 锁在同一个 exact comparison 中：所有非 `runtime-terminal` Snapshot 都要求 generated-object pose 等于 fixture 初始值。这会让合法 `world_edit` 在 Repository、Product codec 与 MuJoCo base admission 三处失败。DH-015 必须最小地拆开这两个概念，而不能绕过 validator 或在 UI 伪造成功。
+7. 当前 `decodeProductSessionProjectionTrusted(expectedWorld)` 是 same-world decoder，不是 state-transition decoder；它不能证明 `null → root` 或 `parent → child`。DH-015 必须在 `@demiurges/world` 提供 operation-aware transition admission，Studio 不得复制 lineage 规则。
 
-## Non-goals
+## 最小语义设计
 
-- 不修改 `packages/world` Kernel、Repository、Runtime、Episode、Evaluation、AdoptPolicy、codec 或四工具语义；
-- 不实现 `Embodied Observer`、角色/机器人/车辆/sensor runtime；
-- 不实现 Walk、导航网格、重力相机、角色碰撞、跳跃、蹲伏、minimap、VR/AR、gamepad、移动端双摇杆；
-- 不建立 plugin SDK、provider adapter framework、controller inheritance tree 或通用 camera ecosystem；
-- 不从 Lyaup 复制源码、控制器、prompt、测试、UI 文案或假设 Y-up 的运动数学；
-- 不新增 provider 请求，不下载或生成新资产；只复用 DH-013 ignored local cache。
+### 1. Registered composition 不是新 Kernel record
 
-## 最小设计
+第一版不增加 `Scene`、`Project`、`AssetInstance` 或 `CompositionGraph`。世界 authority 继续只有 Snapshot/Ref：
 
-### 1. Presentation-local data
+- 空 Product Session 通过现有 `world_write({fixtureId:"fixture:marble-hunyuan-composite-v1"})` 建立 root Snapshot；
+- environment/object cards 只是对既有 frozen registry 的 Product Presentation，不拥有新的资产事实；
+- 当前 exact pair 之外的组合不可达，等待 DH-017 产生第二批真实 registered artifacts 后再判断是否需要更一般的 composition contract。
 
-新增最小纯数据面，文件建议为 `apps/studio/src/presentation-three/observer-camera.ts`：
+### 2. Closed human authoring seam
 
-```ts
-type ObserverMode = "overview" | "inspect" | "explore";
-
-type CameraPose = {
-  position: readonly [number, number, number];
-  target: readonly [number, number, number];
-};
-
-type ObserverWorldContext = {
-  worldBounds: Bounds3;
-  worldBoundsTruth: "registered" | "derived-from-loaded-digest" | "authored-fallback";
-  overviewReset: CameraPose;
-  inspectReset: CameraPose;
-  exploreReset: CameraPose;
-  entryTruth: "authored-unverified" | "authored-fallback";
-  entryProvenance: string;
-};
-```
-
-该模块只负责：finite/dense 数据校验、world/entity bounds、Z-up movement、fit bounds、fallback pose、boundary proximity、editable target/input admission 与 continuous-frame predicate。它不持有 DOM、Three Scene、Snapshot ref 或 Repository。truth literal 全链路只使用上述两个 exact 值，不再引入 `registered-authored-unverified` 之类的第三种别名。
-
-### 2. Presentation registry 中的 Marble entry pose
-
-只扩展 Studio `registered-presentation.ts`，不修改 world registry / Snapshot schema：
-
-- key：`scenario:marble-hunyuan-composite-v1`；
-- registered world bounds：从 Marble registered observation 的 calibration `targetBounds` 解析，不复制第二份 bounds literal；
-- entry pose：本切片 authored 的 finite Z-up pose，必须位于 registered bounds 内；初始候选为 `position=[0,-1.2,1.15]`、`target=[0,0.2,1.05]`；
-- truth level：`authored-unverified`；
-- provenance：绑定 `asset:marble-world-500k-spz-v1`、`calibration:marble-spz-v1` 与 DH-014 operator-authored method；
-- 该记录只被 Presentation resolver 消费，不进入 Snapshot、Product Session projection 或 Agent tool evidence。
-
-只有 `resolveRegisteredPresentationAsset()` 完整校验 scenario 中的 registered representation、manifest、asset、calibration、witness 后，Observer resolver 才返回 `entryTruth="authored-unverified"`。同 scenario 的 manifest/binding 漂移、resolver throw、non-finite/degenerate bounds 或 entry pose 不在 registered bounds 内，均不得部分采用 registry 数据：改用 finite deterministic fit-bounds fallback，标记 `entryTruth="authored-fallback"`、`worldBoundsTruth="authored-fallback"`，并让原本的 asset error 继续可见。fallback 不能被命名或显示为 registered/provider-verified。
-
-若 implementation probe 证明候选 entry pose 位于 splat 空洞或朝向错误，应只在 plan 中记录可见证据后调整该 authored literal；不得声称 provider-verified。
-
-### 3. 一个组合式 CameraRig
-
-新增 `camera-rig.ts`，允许一个小型 class 或等价 closure；禁止 controller subclass：
+Gateway 只增加两个显式、闭合的 Product Session authoring 路径：
 
 ```text
-CameraRig
-├── camera + OrbitControls
-├── active ObserverMode
-├── reset pose per mode
-├── pressed keys + pointer ownership
-├── overview/inspect/explore direct strategy functions
-└── update(deltaSeconds) -> { cameraChanged, needsNextFrame }
+POST /api/sessions/:sessionId/world/write
+POST /api/sessions/:sessionId/world/edit
 ```
 
-职责：
+约束：
 
-- `setMode`：先清按键/拖拽/pointer state，再切换 controller；
-- `reset`：使用当前 mode 的独立 reset pose；
-- `focusSelection`：只接受由受信 representation resolver 得到的 target/bounds；
-- `update`：仅 Explore active movement 或短转场改变 camera；
-- `dispose`：移除所有监听、清 pressed state、dispose OrbitControls；
-- 不持有 `Snapshot`，只接收已经解析的 Presentation context 与 selection target。
+- request body 的 JSON/media/budget 直接复用既有 bounded reader 与 `WORLD_TOOL_CONTRACT` budget；write 继续使用 `requireWorldWriteInput`。human edit 不先调用完整 `requireWorldEditInput`，而是把 raw plain JSON value交给下述 package-owned single admission pipeline；该 pipeline 与 generic parser 共用 structural decoder/types，不维护第二套 wire schema，generic Agent `requireWorldEditInput` 的既有 public semantics 不变。human write 在 shared schema parse 后还必须要求 `fixtureId === "fixture:marble-hunyuan-composite-v1"`；其他已登记 fixture 仍只由 Agent 四工具使用，human route 稳定 `422 FIXTURE_NOT_COMPOSABLE` 且零 mutation；
+- human edit 在取得共享 reservation 后、调用 mutation surface 前，必须从 package root `@demiurges/world` 导入并调用 single pure composite authoring admission pipeline。package root 同时导出其 closed outcome/canonical result types；Gateway 不允许 deep import，Gateway/Studio 不复制这些规则。pipeline 先用与 generic parser 共用的 package-internal structural decoder检查 exact fields、plain JSON、expected ref shape、target/change/frame 与 numeric primitive types；structural failure 为 `400 INVALID_REQUEST`。随后才完成 composite domain classification：exact current fixture、numeric envelope、dense/finite、pure world-Z yaw、unit quaternion、完整半球、`-0`、q/-q canonicalization、registered collision proxy floor safety与 semantic no-op；这些 domain failure 为 `422 FIXTURE_NOT_COMPOSABLE` 或 `422 POSE_NOT_COMPOSABLE`；
+- pipeline 只有三种 closed outcome：`accepted({ canonicalWireInput, parsedInput })`、`unchanged`、stable public rejection。`canonicalWireInput` 是 exact `WorldEditInput` wire object：position 为 `{x,y,z}` object、rotation 为 `{x,y,z,w}`，所有值已 canonical；它必须能被 `requireWorldEditInput` 再解析为与 `parsedInput` byte-equivalent 的 tuple-based `WorldEditInput`。Gateway 只把 `canonicalWireInput` 传给现有 `WorldToolSurface.edit`，不把 tuple parsed result误当 wire input，也不增加 `editParsed`/第五个 tool。empty Session 返回 `409 WORLD_REQUIRED`；非 composite world/target/change 返回 `422 FIXTURE_NOT_COMPOSABLE`；invalid yaw/hemisphere/envelope/floor pose（包括 structurally valid 的 `-0` 与 out-of-envelope number）返回 `422 POSE_NOT_COMPOSABLE`；所有 rejection 与 `unchanged` 均不得调用 surface、递增 Repository edit sequence、推进 Ref、改变 Snapshot/lastRun/sequence 或产生 partial evidence；
+- transport parse/error table 固定为：non-JSON/invalid shared schema/extra field `400 INVALID_REQUEST`，unsupported media type `415 UNSUPPORTED_MEDIA_TYPE`，body over budget `413 REQUEST_TOO_LARGE`，session busy `409 SESSION_BUSY`，以及上述 domain codes；全部共用 stable redaction mapper，不输出 raw parser/Host error；
+- route 是固定两项枚举，不接受 caller tool name、动态 mount、OMP message、slash/control syntax 或任意 method dispatch；
+- `read` 继续由现有 Product Session GET projection承担；`run` 继续只走既有 Agent `world_run`；`adopt` 继续是未暴露给 Agent 的 Harness control authority。本切片不新增 direct human run、adopt transport/UI 或 runtime cancellation transaction；
+- 两种 authoring command 与 Agent turn 共用同一个 `ProductSession.#running` reservation。body 解析完成后必须同步取得 reservation，再调用同一个 `WorldToolSurface`；并发 turn/command 返回稳定 `409`，不能产生第二次写入；
+- write/edit 都是同步 mutation；request abort 只在 admission 前生效。任何 error 都只输出稳定 public code，不回显 input、path、provider URL、credential-like string、stack 或内部 Host error；
+- success response 只返回受信 `ProductSessionProjection`，不创建第二套 evidence envelope，也不伪造 Agent event；
+- `@demiurges/world` 在 `product-session-codec.ts` 内新增并从 package `index.ts` 显式导出一个小型 operation-aware transition decoder，输入为 `prior projection + parsed exact operation/outcome + returned projection`；其中 operation 是 closed discriminated record，并携带 `requireWorldWriteInput` / composite preflight 的 canonical result，不接受 caller 自述 tool name。它复用现有 projection/fixture validators，并分别证明：write 是 `null → registered root v1`，root Snapshot ID 必须精确等于 canonical fixture ID `snapshot:marble-hunyuan-composite-base`；updated edit 的 `input.expected` 必须等于 prior Ref，prior/returned 都是 exact composite，且为 `parent → direct child`、Ref version 精确 `+1`、target/change 与 canonical input 一致、child pose 精确等于 canonicalized input、除允许的 generated-object pose 外 authority exact；unchanged edit 则要求 returned projection 与 prior byte-equivalent、valid lastRun 保留、lastSequence 不变、settled `running:false`；Studio 只能调用这个 decoder，不得自行拼装 lineage checks；
+- stale edit 返回稳定 `409 STALE_REF`，response 不携带被当成 child 的 projection；Studio 随后 bounded GET，并用不带旧 expectedWorld 的 trusted projection decoder重新建立当前 verified authority。网络错误也只能做同样的 bounded authoritative resync；
+- successful write/edit 更新 `#world` 并清空 stale `#lastRun`；`stale_ref` 不推进 Ref、不清空合法 `lastRun`；Agent run 只设置 `#lastRun`，不得推进 current Ref；
+- create 只在 empty Session 可接纳；世界已存在时重复 create 返回稳定 `409 WORLD_ALREADY_EXISTS` 且零 mutation，Studio 通过 GET 恢复。Studio 对 canonical semantic no-op 不发送 edit；即使 direct POST 绕过 Studio，Gateway preflight 也必须返回 `200` unchanged trusted projection，不创建 child、不清空 `lastRun`、不推进任何 sequence；
+- human command 不伪造 Agent `ProductSessionEvent`、tool trace 或 sequence；world Ref/version 与 returned projection 是 command 的 authority evidence。
 
-第一版 mouse look 使用 pointer capture + drag，不主动请求 Pointer Lock。仍注册防御性的 `pointerlockchange`：只要 lock owner 从本 viewport canvas 消失就 `clearInput()`；Chromium 通过用户手势临时请求/退出 lock 验证该 cleanup。Explore 必须 `controls.enabled=false`；回到 Overview/Inspect 时先把 `controls.target` 同步到 CameraRig 当前 target，再 enable/update。所有 canvas listener 只有 CameraRig 一个 owner，按 register 的逆序 dispose。
+### 3. Composite registered identity 与 authored state
 
-### 4. 三种行为
+`requireMarbleHunyuanCompositeSnapshot()` 继续关闭 artifact/representation/physics truth，但按 Snapshot source 精确区分 state：
 
-#### Overview
+- `source: write`：environment、floor、generated object 的 state 必须与 canonical fixture 完全一致；
+- `source: edit`：只允许 `entity:generated-object` 的 pose 改变；position 必须是 finite dense world-frame vector且满足现有 tool numeric envelope；该 envelope 由 `world-tool-contract.ts` 导出的只读常量/helper 单一定义，fixture validator 与 input parser 共用，禁止复制数值范围；rotation 必须是 normalized pure world-Z yaw quaternion，`x=y=0`、`-0 → 0`，并满足完整半球规则 `w > 0 || (w === 0 && z >= 0)`；linear/angular velocity 必须保持零；
+- environment、floor、所有 EntityRef、representations、physics、calibration、witness 与非目标 state 在 edit 中保持 exact；scale 没有任何 authority 表达；
+- `source: runtime-terminal`：继续使用现有 Episode/runtime closure，不套用 authored-state restriction；
+- 其他 registered scenarios 与通用 pose edit 行为不因本切片放宽；不能把 composite 特例升级为任意 registered asset editor。
 
-- 以 registered world bounds 或 deterministic fallback bounds 计算 fit pose。calibration `targetBounds` 是 entity-local：将 8 个角点经 entity pose 变换到 world-local 后再 union；不得把 asset-local bounds 直接当 world bounds；
-- viewport 显示 `Overview · 世界外部概览`；
-- Orbit 可用于外部检查，但 reset 始终回到 fit-bounds pose；
-- grid、bounds、alignment、collision 仍由显式 UI 开关控制。
+Repository insertion、Product projection codec、MuJoCo run base admission 与 explicit adopt 都调用同一个 fixture identity/state validator；不得在任一 seam 加 bypass。
 
-fit 使用 bounds center + bounding-sphere radius，并以当前 aspect 同时计算 vertical/horizontal FOV 所需距离，加入固定 margin。任一轴退化时使用最小 extent epsilon；全体 bounds invalid/missing 时使用固定 finite fallback bounds。resize、representation resolution 或 world bounds 改变后重算 Overview reset。`camera.near/far`、fog near/far、Orbit `minDistance/maxDistance` 从 radius 与 fit distance 派生，保证完整 bounds 位于 frustum/control envelope；不得继续依赖现有 `far=40`、fog `8/15`、`maxDistance=16` 常量。所有投影值必须 finite、`near>0`、`far>near`。
+### 4. Presentation-local `PoseDraft`
 
-#### Inspect
-
-- 保留 `OrbitControls`；
-- selection 仅属于 Inspect：pointerup 相对 pointerdown 位移不超过 4 CSS px 才 raycast，且只返回既有 `EntityRef`；Overview 与 Explore 不触发 selection，Explore drag-look 起点也不触发 `onSelect`；
-- `F` 或双击聚焦选中 Entity；
-- target/bounds 解析优先级：registered calibration `targetBounds`（8 角经 entity pose 转 world）→ digest-verified GLB 成功 parse 后从 loaded Object3D 计算 world `Box3` → primitive visual/collision bounds → stable entity-pose fallback。普通 `imported-rigid-mesh` registry 本身没有 bounds，绝不虚构 “registered imported bounds”；
-- loaded GLB bounds 只有在既有 digest/same-origin import contract 成功且 Box3 finite/non-empty 后才标记 `derived-from-loaded-digest`；asset 未完成、缺失、解析失败或 Box3 异常时立即使用 collision/primitive/fallback，并显示对应 provenance；
-- 无 representation 时不得产生 NaN，fallback 仍必须 finite。
-
-registered resolver throw 属于可见 representation error；Observer 只把 focus/reset 降级为 finite fallback，不吞掉或改写原 asset error。
-
-#### Explore
-
-- 只有用户点击可见 `进入世界` 或显式切换 Explore 才进入；
-- Marble 使用 registered authored entry pose；其他场景使用可标识的 authored fallback；
-- `W/S` 沿当前水平 forward，`A/D` 沿水平 right，`Q/E` 沿 world Z，全部基于 `worldUp=[0,0,1]`；
-- 同时按键向量归一化，避免斜向超速；`Shift` 使用固定倍率；delta time clamp，防止后台恢复后跃迁；
-- wheel 只在 viewport 拥有输入时调整有限范围 fly speed；
-- mouse drag 可控制 yaw/pitch；pointer lock 作为可选增强，不是唯一入口；`Esc` 释放输入并清键；
-- 接近或越过 registered bounds 时显示 `当前世界边界 / 未知区域`；这只是 Presentation warning，不阻止 Fly；
-- Explore 的 effective collision visibility 固定为 false，但保留 App 中用户的 collision toggle preference；离开 Explore 后恢复该 preference，不用相机模式改写用户设置；
-- viewport 内始终显示 entry truth/provenance：registered Marble 为 `ENTRY POSE · AUTHORED / UNVERIFIED`，fallback 为 `ENTRY POSE · AUTHORED FALLBACK`，并提供稳定 `data-testid`/dataset 供 Chromium 断言；
-- 显示可见操作提示：`W/A/S/D` 平移、`Q/E` 升降、`Shift` 加速、滚轮调速、拖拽视线、`Esc` 释放；Inspect 显示 `F / 双击聚焦`。
-
-### 5. 输入 ownership 与 lifecycle
-
-- canvas/container 具有 `tabindex=0` 和可见 focus ring；
-- 键盘只在 viewport focus 或 pointer capture/lock 属于当前 viewport 时进入 CameraRig；
-- keyboard event 只有 target 为本 viewport container/canvas，或当前 pointer capture/lock owner 为本 viewport 时才接管；mode/reset/layer 等按钮获得焦点时不取得 Fly keyboard ownership；模式按钮点击后可显式把 focus 交给 viewport；
-- 若 event target 是 `input`、`textarea`、`select`、`button`、`a`、`contenteditable` 或其后代，立即拒绝；
-- `window.blur`、`document.visibilitychange(hidden)`、mode change、pointer-lock exit、`pointercancel`、`lostpointercapture`、canvas/container blur 与 unmount 全部调用同一 `clearInput()`；
-- pointer/mouse listener 只在 active component 生命周期内注册；
-- Agent textarea 聚焦时全局按键不能被 CameraRig 接收。
-
-### 6. 按需 render scheduler
-
-沿用 `ThreeViewport` 当前单一 rAF seam，不另建 timer/loop：
+新增一个小型纯数据模块，概念形状为：
 
 ```text
-scheduleRender(reason)
-  -> at most one queued rAF
-  -> CameraRig.update(delta)
-  -> renderer.render
-  -> only when movement/transition remains active, queue next rAF
+PoseDraft
+├── baseRef: exact RefRecord
+├── targetRef: entity:generated-object
+├── pose: finite world-frame Pose
+└── mode: translate | rotate-z
 ```
 
-连续帧只允许：
+规则：
 
-- Explore 有 active movement；
-- mode/reset/focus transition 未结束；
-- Episode playback 通过现有 reactive sample 触发；
-- Spark `onDirty` 请求帧。
+- draft 从当前 authoritative entity pose 建立，保存 immutable copy；
+- translate 使用 Z-up world axes；rotate 只允许 world-Z yaw，输出 normalized unit quaternion，并固定 `-0 → 0` 与完整半球规则 `w > 0 || (w === 0 && z >= 0)`；semantic equality 把 `q` 与 `-q` 视为同一旋转，包括 `w=0` 的 ±180° 边界；
+- 不含 scale；来自 gizmo 的 scale mutation、sparse/non-finite vector、非单位 quaternion 或超出既有 tool numeric envelope 的 pose 不得成为可提交 draft；
+- drag/change 只改变独立的 Presentation draft wrapper 和 draft readout；authoritative render root 仍由 Snapshot/Episode state 驱动，`evidenceFor`、inspector、bounds、alignment PASS 与 registered witness 只能读取 authoritative root/state，Snapshot/Ref/Episode/Evaluation bytes 保持不变；
+- 用户必须点击“提交变换”才调用 `world_edit`。drag end 本身不提交；“取消变换”恢复 authoritative pose；
+- selected entity change、observer mode 离开 Inspect、view 切到 Episode、session/ref/snapshot change、asset integrity failure、window blur、document hidden、Escape、stale response、unmount 都清除 draft 与 gizmo ownership；toolbar 获得焦点或 canvas 因点击 commit/cancel 失焦不等同于外部 blur，不能提前丢弃待提交 draft；
+- commit 期间禁用 Agent turn、第二次 command 与 gizmo输入；成功后以 returned projection 重建 Presentation；失败后 resync authoritative projection，不保留无法证明 fresh 的 draft。
 
-无按键、无转场且 Spark 不 dirty 时，完成当前帧后不得再排队。增加 instrumentation/test seam，证明 idle 不自调度。
+### 5. Three.js gizmo ownership
 
-idle 的 exact 判据是：Episode playback inactive、无 active movement、无转场、Spark 未 dirty。进入 idle 后允许消费至多一个已排队帧，随后 rAF counter 必须稳定；movement 时 counter 增长，keyup/blur/mode clear 后再次稳定。EpisodePlayer 保持既有 clock owner，sample reactive update 只向 viewport 的同一个 scheduler 请求单帧，不建立第二个 viewport loop。
+- 使用现有 Three.js `TransformControls`，不增加 dependency；仅在 `Inspect Observer + repository view + entity:generated-object` 时挂载；
+- toolbar 提供可见的 `移动`、`绕 Z 旋转`、`取消变换`、`提交变换`，不能只靠快捷键；
+- gizmo drag 期间禁用 OrbitControls、清空 CameraRig input 并阻止 selection raycast；正常 `dragging-changed(false)` 恢复 controller，`lostpointercapture`/window blur/visibility hidden 则取消 draft 并清理 ownership，两类 lifecycle 不混用；
+- `TransformControls` 必须 `setSpace("world")`，目标 wrapper 的 up 为 `(0,0,1)`；translate 仅 X/Y/Z，rotate 仅 Z，scale mode/handle/keypath 均不可达；
+- `TransformControls` helper 不拥有 `EntityRef`，不参与 entity raycast、bounds、alignment、collision 或 cleanup registry；
+- gizmo `change` 事件只触发按需 render。没有 drag、camera transition、Episode playback 或 Spark dirty 时恢复 idle，禁止永久 rAF；
+- `prefers-reduced-motion` 不给 gizmo 增加平滑惯性或补间。
 
-### 7. reduced motion
+### 6. 当前真实资产的诚实 UI
 
-- 使用 `matchMedia("(prefers-reduced-motion: reduce)")`；
-- reduce 下 mode/reset/focus 直接设置最终 pose，或转场时间为 0；
-- 功能、键盘操作和 reset 不得因 reduced motion 被禁用。
+- Scene Composer 显示两个 exact role card：Marble environment 与 Hunyuan generated object；显示 ArtifactRef、role、Frame/Units、calibration truth 与 import/load status；
+- 第一版只有一个合法 pair，因此不显示虚假的 dropdown 或“任意组合”文案；按钮使用“创建已登记组合”；
+- 缺失 cache、3DGS/GLB load error 或 registry integrity failure 必须显式显示；不得静默联网、重新调用 provider、用 diagnostic wedge 冒充真实资产或把 failed Presentation 提升为 world authority；
+- Presentation bytes 缺失不自动删除合法 Snapshot；但 gizmo 不得把不存在的 visual 当作验证成功，用户仍可通过明确的 collision/debug layer 诊断 proxy。
 
-## 预计修改面
+## In Scope
 
-允许修改：
+- exact Marble/Hunyuan registered role cards 与“创建已登记组合”入口；
+- Gateway-owned closed human `write/edit` authoring seam；
+- package-owned operation-aware transition admission、Studio bounded request 与 conflict resync；
+- composite fixture 的最小 authored-state contract：write exact、edit 仅 generated-object translation/world-Z yaw、runtime-terminal 维持既有 closure；
+- `entity:generated-object` 的 translate 与 world-Z rotate PoseDraft；
+- Inspect-only TransformControls、draft/authority 双 readout、显式 cancel/commit；
+- 使用既有 Agent `world_run` 执行 Marble/Hunyuan Program，并显示既有 Episode/Evaluation；
+- authority、concurrency、lifecycle、input isolation、idle rAF、fallback 与真实 Chromium 验收；
+- 保持 Agent 的四工具 restricted surface 与现有 OMP canary 回归。
 
-- `apps/studio/src/presentation-three/observer-camera.ts`（新，纯数学/策略）；
-- `apps/studio/src/presentation-three/observer-camera.test.ts`（新）；
-- `apps/studio/src/presentation-three/camera-rig.ts`（新，DOM/Three adapter）；
-- `apps/studio/src/presentation-three/camera-rig.test.ts`（新，状态机/调度 seam）；
-- `apps/studio/src/presentation-three/registered-presentation.ts/.test.ts`；
-- `apps/studio/src/presentation-three/ThreeViewport.tsx`；
-- `apps/studio/src/App.tsx`、`styles.css`；
-- 必要的 Studio Presentation tests；
-- DH-014 task docs 与既有四份设计输入。
+## Out Of Scope
 
-默认禁止修改 `packages/world/**` 与 `apps/agent-gateway/**`。若实现发现必须修改，视为 plan boundary 失败：停止并回到 reviewer/Human，而不是顺手扩展。
+- DH-016：Repository persistence、World Project、刷新恢复、项目导入导出、undo/redo history；
+- DH-017：新的 Marble/Hunyuan prompt、job、poll、下载、余额查询、付费调用或 provider adapter framework；
+- DH-018：Agent 自动选择/generate assets、长期 repair loop、额外 Agent tools；
+- arbitrary asset pairing、多个 environment/object、asset upload、asset marketplace、plugin SDK；
+- scale、mesh editing、material editing、collision proxy editing、physics parameter editing、re-calibration；
+- Walk、navigation mesh、角色碰撞、Embodied Observer、robot/vehicle/sensor action；
+- 修改 Kernel record 语义、Episode/Evaluation/AdoptPolicy contract、Repository persistence 或现有 provider artifact bytes；
+- 把 direct human command 写成 Agent event，或把 adopt 放入 model-facing surface；
+- direct human run endpoint、可取消 MuJoCo transaction 或新的 runtime operation protocol；
+- commit、push、merge、tag、deploy。
 
-## 测试与验收矩阵
+## Acceptance Mapping
 
-### Pure/unit
+| Checklist acceptance | 计划中的可执行闭环 |
+|---|---|
+| 已验证 ArtifactRef 组合 Marble + Hunyuan | exact registry role cards → existing registered fixture world_write；无任意组合宣称 |
+| draft 不改变 authority | pure PoseDraft + viewport-only transform；Snapshot/Ref/Episode/Evaluation byte identity regression |
+| 显式 world_edit + expected Ref | commit button → closed Gateway edit command → same WorldToolSurface → CAS child Snapshot |
+| run / Evaluation | 提交 v2 后由既有 Agent 四工具路径执行 registered Program；run 不推进 Ref，返回 existing deterministic Evaluation |
+| explicit adopt 保持 | edited v2 → Agent run → PASS/FAIL → Harness explicit adopt 回归；stale/wrong Evaluation 不推进 Ref；本切片不把 adopt 放入 Agent 或 human authoring route |
+| 不做 scale/provider/SDK/persistence | UI 无 scale，route 无 provider，Out Of Scope tests/structural diff gate，DH-016～018 独立节点 |
 
-1. Z-up movement：W/S/A/D 在水平相机 basis，Q/E 仅改变 Z；斜向归一化、Shift、delta clamp、finite pose；
-2. mode/reset/transition：三 mode 各有 reset；切换可中断；reduced motion 直接结束；
-3. focus：registered/imported/primitive bounds 产生 finite target 与 fit distance；missing 3DGS 使用 fallback；
-4. input admission：viewport focus/capture 才接管；input/textarea/select/contenteditable 拒绝；
-5. stuck key：blur、hidden、mode change、pointer-lock exit、unmount 后 pressed set 为空且不再请求帧；
-6. registered entry：scenario exact 命中，pose 位于 registered bounds，provenance/truth level exact；foreign scenario 只能 authored fallback；
-7. Overview fit：Marble world bounds、primitive、imported mesh 与 missing asset 都 finite、可复现；
-8. authority：相机操作前后同一 frozen `Snapshot/Ref/Episode/Evaluation` object/serialized bytes 不变；CameraRig 没有 authority import/callback；
-9. scheduler：movement/transition 才返回 `needsNextFrame=true`；idle、blur、mode clear 后为 false；
-10. fallback：primitive、imported mesh、3DGS absent/not-imported/error、Marble loaded 均有确定 reset/context。
+## Boundary Review
 
-补充 mandatory cases：registry manifest/binding drift 与 resolver throw；entry pose 越界；degenerate/invalid bounds；resize/aspect 后重新 fit；near/far/fog/control envelope；近垂直凝视时水平 forward 退化使用最后一次有效 yaw；Explore/Orbit controls handoff；click-vs-drag selection；`pointercancel`/`lostpointercapture`；listener 逆序 dispose。`camera-rig.test.ts` 使用注入的 fake controls、event owner、rAF clock，不引入 jsdom/happy-dom，也不直接实例化真实 DOM `OrbitControls`。
+- `scope.md`：仍以 `read/write/edit/run` 完成世界操作，不把视频/3DGS 当 world state。
+- `architecture.md`：唯一 Host 继续位于 Gateway；Three.js 只拥有 Presentation；human 与 Agent 共用 WorldTool contract；adopt 独立。
+- `domain-model.md`：draft 不是 Observation/Belief/Snapshot；edit 只创建静态 child Snapshot，run 才创建 Episode。
+- `observer-embodiment.md`：gizmo 只属于 Inspect authoring，不扩展 Explore 为 Walk，也不实现 Embodied Observer。
+- DH-016：不保存项目或恢复 Repository。
+- DH-017：不发起 provider operation，不新增 artifact。
+- DH-018：不改 OMP tool allowlist，不给 Agent 添加 generation/authoring旁路。
 
-### Existing regression
+## Implementation Steps
 
-- existing selection、Orbit、Spark load/dispose、alignment、layer toggles、Episode playback 与 Product Session tests 全部保持；
-- `bun test`、typecheck、build、diff-check、EXharness validate/doctor 全通过；
-- product authority files在实现前后用固定 path SHA aggregate 证明未修改。
+### Phase 1 — Contract RED 与 frozen manifest
 
-### Chromium acceptance
+1. 冻结本计划、允许文件、base HEAD 与 product digest。
+2. 先写 composite closure RED：write canonical、edit 仅 target pose、Repository/codec/runtime 三 seam、representation/physics/witness regressions、explicit adopt。
+3. 写 RED：closed authoring route、same-Host mutation、write/edit semantics、stale/no-op、concurrent turn/command、body budget、stable redaction、operation-aware projection transition。
+4. 写 pure PoseDraft RED：Z-up translate、world-Z yaw、q/-q equality、canonical sign/-0、no scale、cancel/lifecycle、authority byte identity。
+5. 写 viewport/controller RED：Inspect-only、draft wrapper ownership、visible controls、idle rAF、input/editor isolation。
 
-使用 DH-013 的真实 local provider cache；不联网 provider，不 generation。至少证明：
+### Phase 2 — Gateway human world commands
 
-1. Marble 场景点击 `进入世界` 后 camera 位于 registered entry bounds 内，画面不再是 AABB 外部黑色外壳；
-2. `Overview / Inspect / Explore` 三个可见控件可切换，当前模式、操作提示、entry truth/provenance 与 bounds provenance 始终显示；
-3. Explore 的 W/S/A/D/Q/E、Shift、wheel speed、mouse look、Esc/reset 正确且 pose finite；
-4. Agent textarea 聚焦输入同样按键时 camera pose 不变；
-5. Inspect 单击选择，`F` 与双击 frame 同一 Entity；
-6. Overview reset 查看完整 registered bounds，可显式打开 grid/bounds/alignment/collision；
-7. Explore 初始与切回时 dense collision wireframe不可见；
-8. blur、切 tab、mode change、pointer-lock exit 后无 stuck movement；
-9. 3DGS missing/error fallback 不产生 blank viewport，三模式仍可恢复；
-10. console 无 page error，camera dataset/pose 无 NaN/Infinity；
-11. 通过 `data-testid`/container dataset 暴露 camera pose、active mode、rAF counter、entry/bounds provenance 与 boundary warning；idle（playback inactive + 无输入 + 无转场 + Spark clean）消费至多一个 pending frame 后至少 1 秒计数稳定，active movement 时增长，keyup/blur 后再次稳定；
-12. Snapshot id/ref version/Episode id/Evaluation id 在纯相机交互前后相同。
+1. 在 `ProductSession` 内增加单一 reservation helper，供 Agent turn 与 human command 共享；不能维护两个 busy flag。
+2. 在 world package 实现 structural decoder + pure composite authoring single pipeline；ProductSession 只在 `accepted` 后把 `canonicalWireInput` 交给 `WorldToolSurface.edit`，并断言其再解析结果等于 pipeline `parsedInput`；`unchanged` 直接返回 unchanged projection，rejection fail closed；generic Agent parser public semantics 不变，不新增 `editParsed` 或 direct run。
+3. 在 API 中增加 exact route parser、bounded JSON body reader与 stable public error mapping。
+4. 在 world package 增加 operation-aware transition decoder；Studio client 增加 write/edit 两个显式方法，success 只接受该 decoder，failure 做 bounded authoritative resync。
+5. 保留 empty-session scripted Agent 的既有四步回归；另增加 pre-authored-world deterministic Agent fixture，只通过同一四工具 surface 执行 `world_read → world_run`（fresh runId），证明 human-authored v2 可被 Agent 继续推演且不会再次 `world_write` 或偷偷 direct run。
 
-## Phases
+### Phase 3 — PoseDraft 与 Scene Composer state
 
-### Phase 0 — Plan gate
+1. 新增小型 pure `scene-composer` module，负责 draft identity、translate/yaw conversion、validity 与 reset reasons。
+2. App 增加 registered role cards、composer command state、authoritative/draft readout、create/cancel/commit action；run 继续通过现有 Agent 交互完成。
+3. 所有 projection/selection/view lifecycle 统一清理 draft；Ref CAS/stale 逻辑不散落到按钮 handler。
 
-- 冻结 plan 与当前代码/context manifest；
-- 发起两路 independent plan cross-review；
-- 任一路 P0/P1 或 reviewer disagreement 都进入 `changes_requested`；修订后必须 fresh review。
+### Phase 4 — Inspect gizmo Presentation
 
-### Phase 1 — RED / pure model
+1. 在 ThreeViewport 组合 `TransformControls`，只挂载 generated object 的独立 draft wrapper；authoritative render root 与 evidence source 不转移，scale axis 永不可达。
+2. 建立 drag ownership、Orbit/CameraRig/selection 协调、按需 render 与完整 cleanup。
+3. 确保 draft transform 不进入 alignment evidence、bounds authority、Episode sample 或 Entity inspector authoritative fields。
 
-- 先创建 Z-up math、entry/bounds、input lifecycle、scheduler 与 authority regressions；
-- 确认旧实现缺少相应 module/behavior 的 RED；
-- 实现最小纯函数与 CameraRig state seam。
+### Phase 5 — Visible vertical slice 与 hardening
 
-### Phase 2 — ThreeViewport wiring
+1. 完成 asset missing/error、primitive/imported/3DGS fallback 与 second Session 回归。
+2. 从 registered composite write → draft → cancel → draft → commit → Agent run，证明 ref/version 与 lastRun lifecycle。
+3. 运行 focused/full gates 与真实 Chromium；冻结 product digest，发起 independent implementation cross-review。
 
-- 将 CameraRig 接到现有 single-rAF scheduler；
-- 接入 mode/reset/focus/selection/pointer/input lifecycle；
-- 保持 Spark/asset/selection/disposal boundary。
+## Expected Product Files
 
-### Phase 3 — Visible UI
+计划允许修改的产品面优先限制为：
 
-- 增加 visible mode switch、进入世界、reset、Fly speed/controls、boundary warning 与 focus ring；
-- Explore 自动清 collision layer；Overview/Inspect 保留显式 debug layers；
-- reduced motion 与 responsive layout。
+- `packages/world/src/artifacts/marble-hunyuan-composite-fixture.ts` 与测试：实现上述 source-aware closure 与 pure composite authoring preflight/canonicalization；
+- `packages/world/src/world-tools/world-tool-contract.ts` 与测试：机械分离 package-internal structural decoder 与 generic semantic validator，并导出/复用既有 pose numeric envelope/helper；`requireWorldEditInput` 的 Agent-facing semantics 与返回 type 不变，不增加新 tool、public wire schema 或 `editParsed`；
+- `packages/world/src/product-session-codec.ts` 与测试：增加 operation-aware transition admission，不把 approximate comparison 引入 evidence codec；
+- `packages/world/src/index.ts`：显式 re-export operation-aware decoder，以及 pure composite authoring preflight 与 closed outcome/canonical result types；不得导出 Composer/UI state、Gateway route type 或第五个 tool；
+- `packages/world/src/repository/pose-constraints.ts` 与 `world-repository.ts`：只把现有 collision-proxy/floor predicate 与 `1e-9` tolerance 机械提取为 pure single source，供 Repository 与 composite preflight 共用；不得改变既有 Repository acceptance/Ref/identity 语义；
+- `apps/agent-gateway/src/product-session.ts` 与测试；
+- `apps/agent-gateway/src/product-session-api.ts` 与测试；
+- `apps/studio/src/product-session-client.ts` 与测试；
+- `apps/studio/src/scene-composer.ts` 与测试（新，pure data/state）；
+- `apps/studio/src/presentation-three/ThreeViewport.tsx`；必要时一个小型 `scene-gizmo.ts` adapter 与测试；
+- `apps/studio/src/App.tsx`、`presentation-model.ts` 与对应测试；
+- `apps/studio/src/styles.css`。
 
-### Phase 4 — Gates and Chromium
+默认不修改：
 
-- focused → full → typecheck → build → diff → EXharness；
-- 启动 bounded local Studio/Gateway，执行真实 cache Chromium acceptance；
-- 停止本轮额外 server，保留用户原有进程不受影响。
+- `packages/world/src/kernel/**`；
+- Repository、Episode、Evaluation、AdoptPolicy 语义；Repository 只允许上述 floor predicate 无语义机械提取与 regression，runtime 只允许证明新 fixture contract 被正确调用的 regression，除非 RED 证明调用 seam 本身缺失；
+- provider registry/manifest/calibration/witness bytes；
+- OMP restricted tool allowlist/prompt；
+- DH-013 provider importer/cache lifecycle。
 
-### Phase 5 — Implementation cross-review
+若实现发现必须修改默认不修改的 authority 文件，立即停在 plan amendment + fresh review gate，不先补兼容分支。尤其不得通过放宽 generic Snapshot、跳过 fixture validator、修改 Evaluation tolerance 或把 Presentation transform写回 authority 来“修好”切片。
 
-- 冻结 product files aggregate、branch、HEAD/base 与 status；
-- 两路 independent reviewer 只读复核测试、authority、input/rAF lifecycle 与 Chromium evidence；
-- P0/P1=0 且共同 approved 后只打开 closeout gate；不自行 closeout/commit/push/merge。
+## Verification
 
-## Exit criteria
+### Focused executable tests
 
-完成但不关单的条件：
+- `ProductSession` direct write/edit 与 Agent turn 共用 Host、busy reservation 和 lastRun lifecycle；不存在 direct run route；
+- concurrent `turn ↔ command` 双方向 TOCTOU，只有一个操作被接纳，另一个稳定 409，零 partial side effect；
+- malformed media type/content length/chunked UTF-8/over-budget/extra field/non-finite/stale Ref fail closed；human write 的非 composite fixture 稳定拒绝；Agent `world_run` 的 duplicate runId 既有回归保持；error 不回显 marker；
+- human edit admission 表驱动覆盖 empty Session，以及 Agent-authored primitive、diagnostic/imported rigid、ball-vessel、articulated worlds 与 composite wrong target/change：全部在调用 surface 前稳定拒绝，Ref/Snapshot/lastRun/mutation count byte-identical；
+- direct human edit 的 non-Z unit quaternion、negative-hemisphere 180°、non-canonical `-0`、out-of-envelope 与 collision-proxy floor penetration 全部得到 `POSE_NOT_COMPOSABLE`，surface call count、Repository edit sequence、Ref/Snapshot/lastRun/sequence bytes 不变；下一次合法 edit 仍生成首个预期 child ID，无跳号；
+- error-classification table：missing/extra/wrong-type/non-plain/invalid expected/target/change/frame 为 `400 INVALID_REQUEST`；structurally valid numeric `-0`、out-of-envelope、non-unit/non-Z/non-canonical hemisphere/floor penetration 为 `422 POSE_NOT_COMPOSABLE`；不得按 raw error message 推断 code；
+- accepted pipeline 的 `canonicalWireInput` 经现有 `requireWorldEditInput`/`WorldToolSurface.edit` 再解析成功，结果与 `parsedInput` byte-equivalent并只产生一个 child；tuple parsed result若误传 surface 必须在测试中暴露，不能成为实现路径；Agent 直接 `world_edit` 的既有 accept/reject矩阵不变；
+- package-root import test 证明 Gateway 只能从 `@demiurges/world` 获得 preflight、closed outcome/canonical result 与 decoder；不存在 deep import、第五个 model-facing tool 或 Composer/UI type export；
+- write-source translated/yawed object fail closed；edit-source只允许 generated-object translation/pure world-Z yaw，velocity 为零；environment/floor/representation/physics/witness drift fail closed；Repository/codec/runtime 三 seam均覆盖；
+- successful edit 只推进一次 Ref；N 次 gizmo change 不产生 N 个 Snapshot；Studio canonical equal/q/-q no-op 不发 request；绕过 Studio 的 direct semantic no-op 返回 unchanged trusted projection，surface 未调用、Repository sequence/Ref/Snapshot/lastRun/lastSequence 不变；stale edit 保留 current authority并 resync；
+- operation-aware decoder 接受且仅接受 null→canonical registered root v1、exact composite parent→direct child Ref+1 或 byte-equivalent unchanged；root 内容相同但 Snapshot ID 非 canonical、`input.expected !== prior.ref`、non-composite prior/returned、foreign root、跳版本、错 parent、child pose 与 parsed input 不一致、unchanged 中 lastRun/sequence/world 漂移、额外 state/representation drift、forged running fail closed；
+- empty-session scripted Agent 保持既有 write→read→edit→run；pre-authored-world fixture 只执行 read→run，产生 Episode/Evaluation 但 Ref 不变；edited v2 的 PASS/FAIL、fresh explicit adopt、stale/wrong Evaluation no-advance、四工具 allowlist 与 Product codec regression 保持；
+- PoseDraft translate/yaw/Z-up/unit quaternion/完整半球 canonical sign/q-equivalence/no-scale、cancel、mode/view/session/ref/selection/unmount reset；尤其覆盖 `w=0,z=±1` 两个 byte representation，证明 canonical bytes、request count、Ref 与 lastRun 不变；
+- draft 期间 Snapshot/Ref/Episode/Evaluation 与 registered witness bytes byte-identical；
+- editable target、Agent textarea、external blur/visibility/Escape/lost pointer capture 不泄漏 camera/gizmo input；toolbar focus transfer 不误清除待提交 draft；
+- TransformControls drag 期间 Orbit/selection 禁用，结束恢复；idle rAF 回到 0；
+- registered cache present/missing/error、Marble 3DGS、Hunyuan GLB、primitive/imported fallback 均无 NaN/blank viewport。
 
-- 所有产品行为与测试矩阵闭合；
-- 无 Kernel/Repository/Runtime/Agent authority diff；
-- final independent implementation cross-review `approved`，P0/P1=0；
-- EXharness 为 `doing / review_approved`；
-- 工作树保留可审计未提交 diff，等待 Human 后续 closeout/commit authority。
+### Mandatory repository gates
+
+```bash
+bun test <focused files>
+bun test
+bun run typecheck
+bun run build
+git diff --check
+.artifacts/harness/harnessctl validate
+.artifacts/harness/harnessctl doctor
+```
+
+并要求：
+
+- `git diff -- packages/world/src/kernel packages/world/src/evaluation packages/world/src/host/runtime-mvp-adopt-policy.ts packages/world/src/runtime-mujoco` 为空，或仅有本计划明确要求的 regression / 事先经 plan amendment 批准的最小 seam 变更；
+- `git diff -- packages/world/src/repository` 只能包含 floor predicate/`1e-9` tolerance 的无语义 pure helper 提取、Repository 调用替换与对应 regression；Ref、Snapshot identity、CAS、edit sequence 与 transaction 语义不得变化；
+- `git diff -- packages/world/src/artifacts` 只能包含 composite fixture source-aware state closure 与对应 tests；其他 fixture、registry、manifest、calibration、witness 不得变化；
+- provider artifact hashes/cache hit 保持，不产生 query/download/generation；
+- model-facing active/enabled tools 仍精确等于四个 world tools，mounted tools 为空。
+
+### Real Chromium acceptance
+
+真实 Chromium 使用 DH-013 已验证本地 cache，不调用 provider，证明：
+
+1. 空 Session 显示 exact Marble environment / Hunyuan object cards，且诚实声明当前只有一个 registered pair；
+2. 点击“创建已登记组合”得到 Snapshot v1，3DGS/GLB 按既有状态加载；
+3. 三种 Observer mode 仍可切换；gizmo 只在 Inspect + generated object 可见；
+4. translation 与 world-Z rotate 的 draft 在画面和 draft readout 可见，但 ref/version、authoritative inspector 与 alignment truth 不变；
+5. cancel 恢复 authoritative pose；canonical no-op 不发请求；第二次有意义的 draft 点击 commit 后只得到一个 child Snapshot / Ref v2；
+6. stale Ref、并发 Agent turn、asset error 都有可恢复状态，不出现 silent partial commit；
+7. 通过现有 Agent 输入发起 run，从 v2 生成可回放 Episode 与 deterministic Evaluation，current Ref 仍为 v2；随后 Harness explicit adopt 的受控测试按 PASS/FAIL contract 行为；
+8. Agent textarea/input/contenteditable 聚焦不移动相机或 gizmo；mode change、Escape、blur、visibility、pointer loss 无 stuck state；
+9. Explore 默认 collision wireframe 规则、Marble entry pose、Inspect focus、Overview bounds 均保持；
+10. 无 NaN pose、page error、credential/provider URL 泄漏或不可恢复空白 viewport；drag/transition/playback/Spark settle 后 idle rAF delta 为 0。
+
+## Independent Review Gates
+
+### Plan review
+
+- reviewer 必须独立核验 scope/architecture/domain/observer、DH-013/DH-014 contracts、current source 与本计划；
+- 至少覆盖 P0/P1：唯一 Host、command/turn atomicity、tool-contract single source、draft authority、TransformControls input/rAF lifecycle、scale/proxy alignment、stale/resync、provider non-call；
+- combined decision 只有在 P0=0、P1=0 时才可 `approved`；计划批准不授权实现。
+
+### Implementation review
+
+- frozen ordered product manifest + aggregate；
+- executable counterexamples 与真实 Chromium；
+- reviewer 只读，不修改产品，不获得 commit/push/merge/deploy authority；
+- P0/P1 为 0 且 approved 后才可请求 closeout。
+
+## Exit Criteria
+
+DH-015 只有同时满足以下条件才能请求 implementation closeout：
+
+1. 用户能够以 exact registered pair 创建 world、预览/取消/提交 generated object pose，并通过现有 Agent 运行 Program；
+2. draft 从未改变任何 world authority，commit 只通过同一 Gateway Host 与 existing world_edit；
+3. direct write/edit 与 Agent turn atomic、bounded、redacted、可恢复；本切片没有 direct run；
+4. scale/provider/persistence/generic SDK/Embodied 均未进入；
+5. focused/full/typecheck/build/diff/EXharness/Chromium 全部通过；
+6. independent implementation cross-review `approved` 且 P0/P1=0；
+7. 没有新的明确 authority 时，停在未提交 worktree，不 commit、push、merge、tag 或 deploy。
+
+## Handoff
+
+- 当前只完成计划；下一步是 independent plan cross-review。
+- reviewer changes requested 时，先修改本 canonical plan，再生成 fresh digest/request；不得在旧计划上开始实现。
+- plan approved 后仍需 Human 明确授权 implementation。
 ```
 
 ## Recent Progress Context
@@ -1033,19 +1054,19 @@ Independent review：
 ## Current Review Content
 
 ```md
-# DH-010 Final Review Verdict
+# DH-015 Final Review Verdict
 
-当前 frozen product digest：`85534951b9146283ffbceddec652a0440d0d38a7543ad4828a86eb42b5df1c57`。
+当前 frozen 25-file product aggregate：`03297cbad3fec2f0ff5a054081e50468029a33c0e4584ba15f348fcdb841f36b`。
 
-- CC Switch / Kimi K3 Max：`approved / may_closeout=yes`；
-- GPT-5.6 Sol Max：`approved / may_closeout=yes`；
-- 两路均完成 full gates、mandatory authority/lifecycle probes 与终点冻结复核；
-- combined decision：`P0=0 / P1=0 / approved`；
-- product digest、HEAD 与 Git status 在审查前后未漂移。
+- GPT-5.6 Sol Max：`approved / may_closeout=yes / P0=0 / P1=0 / P2=0`；
+- ZCode GLM-5.3：`approved / may_closeout=yes / P0=0 / P1=0`；actual model verified，`Max` variant `UNVERIFIED`，direct CLI不是managed receipt；
+- 两路均完成Round 6 mandatory input-ownership与authority closure，起终aggregate无漂移；
+- final gates：`509 pass / 0 fail / 3634 expect()`，typecheck、build、diff-check、EXharness validate/doctor通过；
+- combined decision：`approved / may_closeout=yes / P0=0 / P1=0`。
 
-Canonical evidence：`docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-cross-review-evidence.md`。
+Canonical evidence：`docs/project-harness/tasks/DH-015/implementation-review-round6.md`。
 
-本文件记录 reviewer 已批准 closeout；不自行授予 commit、push、merge 或 deploy authority。
+本文件记录 reviewer 已批准 closeout；commit、push与fast-forward merge依据Human standing authority执行，不由reviewer verdict自行授予。
 ```
 
 ## Closeout Questions

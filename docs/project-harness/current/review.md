@@ -1,13 +1,13 @@
-# DH-010 Final Review Verdict
+# DH-015 Final Review Verdict
 
-当前 frozen product digest：`85534951b9146283ffbceddec652a0440d0d38a7543ad4828a86eb42b5df1c57`。
+当前 frozen 25-file product aggregate：`03297cbad3fec2f0ff5a054081e50468029a33c0e4584ba15f348fcdb841f36b`。
 
-- CC Switch / Kimi K3 Max：`approved / may_closeout=yes`；
-- GPT-5.6 Sol Max：`approved / may_closeout=yes`；
-- 两路均完成 full gates、mandatory authority/lifecycle probes 与终点冻结复核；
-- combined decision：`P0=0 / P1=0 / approved`；
-- product digest、HEAD 与 Git status 在审查前后未漂移。
+- GPT-5.6 Sol Max：`approved / may_closeout=yes / P0=0 / P1=0 / P2=0`；
+- ZCode GLM-5.3：`approved / may_closeout=yes / P0=0 / P1=0`；actual model verified，`Max` variant `UNVERIFIED`，direct CLI不是managed receipt；
+- 两路均完成Round 6 mandatory input-ownership与authority closure，起终aggregate无漂移；
+- final gates：`509 pass / 0 fail / 3634 expect()`，typecheck、build、diff-check、EXharness validate/doctor通过；
+- combined decision：`approved / may_closeout=yes / P0=0 / P1=0`。
 
-Canonical evidence：`docs/project-harness/tasks/DH-010/phase6-vessel-physics-stale-ref-cross-review-evidence.md`。
+Canonical evidence：`docs/project-harness/tasks/DH-015/implementation-review-round6.md`。
 
-本文件记录 reviewer 已批准 closeout；不自行授予 commit、push、merge 或 deploy authority。
+本文件记录 reviewer 已批准 closeout；commit、push与fast-forward merge依据Human standing authority执行，不由reviewer verdict自行授予。

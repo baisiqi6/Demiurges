@@ -2,6 +2,7 @@ import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { SparkRenderer, SplatFileType, SplatMesh } from "@sparkjsdev/spark";
 
 import {
@@ -37,6 +38,11 @@ import {
 } from "./registered-presentation";
 import { CameraRig } from "./camera-rig";
 import {
+  releaseTransformDrag,
+  shouldOwnDraftInput,
+  shouldReleaseDraftOnEscape,
+} from "./draft-input-lifecycle";
+import {
   FALLBACK_WORLD_BOUNDS,
   boundaryWarning,
   boundsFromCenterHalfExtents,
@@ -51,6 +57,7 @@ import {
   type CameraPose,
   type ObserverMode,
 } from "./observer-camera";
+import type { PoseDraft, PoseDraftMode } from "../scene-composer";
 
 const DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET_URL = new URL(
   "../../../../packages/world/assets/diagnostic-wedge-3dgs-v1.ply",
@@ -67,6 +74,15 @@ interface ThreeViewportProps {
   readonly onSelect?: (ref: Entity["ref"]) => void;
   readonly onAlignmentEvidence?: (evidence: AlignmentEvidence | undefined) => void;
   readonly onRegisteredAssetStates?: (states: readonly RegisteredAssetLoadState[]) => void;
+  readonly poseDraft?: PoseDraft;
+  readonly poseDraftMode?: PoseDraftMode;
+  readonly poseDraftInputEnabled?: boolean;
+  readonly onPoseDraftChange?: (
+    position: readonly [number, number, number],
+    yawRadians: number,
+  ) => void;
+  readonly onPoseDraftCancel?: () => void;
+  readonly onObserverModeChange?: (mode: ObserverMode) => void;
 }
 
 interface EntityObject {
@@ -176,6 +192,12 @@ export function ThreeViewport(props: ThreeViewportProps) {
   let renderer: THREE.WebGLRenderer | undefined;
   let spark: SparkRenderer | undefined;
   let controls: OrbitControls | undefined;
+  let gizmo: TransformControls | undefined;
+  let gizmoHelper: THREE.Object3D | undefined;
+  let draftWrapper: THREE.Group | undefined;
+  let gizmoDragging = false;
+  let syncingDraft = false;
+  let lostPointerCancelTimer: ReturnType<typeof setTimeout> | undefined;
   let gridHelper: THREE.GridHelper | undefined;
   let worldBoundsHelper: THREE.Box3Helper | undefined;
   let cameraRig: CameraRig | undefined;
@@ -937,7 +959,9 @@ export function ThreeViewport(props: ThreeViewportProps) {
 
   const changeObserverMode = (mode: ObserverMode) => {
     clearInput();
+    if (mode !== "inspect" && props.poseDraft) props.onPoseDraftCancel?.();
     setObserverMode(mode);
+    props.onObserverModeChange?.(mode);
     cameraRig?.setMode(mode);
     for (const record of objects.values()) applyPresentationLayers(record, effectiveLayers());
     if (mode === "explore") renderer?.domElement.focus({ preventScroll: true });
@@ -975,14 +999,35 @@ export function ThreeViewport(props: ThreeViewportProps) {
     scheduleRender();
   };
 
+  const releaseGizmoInput = () => {
+    if (lostPointerCancelTimer !== undefined) {
+      clearTimeout(lostPointerCancelTimer);
+      lostPointerCancelTimer = undefined;
+    }
+    releaseTransformDrag(gizmo);
+    gizmoDragging = false;
+    if (controls) controls.enabled = observerMode() !== "explore";
+  };
+
+  const cancelDraftOwnership = () => {
+    releaseGizmoInput();
+    clearInput();
+    if (props.poseDraft) props.onPoseDraftCancel?.();
+  };
+
   const onKeyDown = (event: KeyboardEvent) => {
-    if (!ownsKeyboard(event)) return;
-    if (event.code === "Escape") {
+    const viewportOwnsKeyboard = ownsKeyboard(event);
+    if (shouldReleaseDraftOnEscape({
+      code: event.code,
+      hasDraft: props.poseDraft !== undefined,
+      viewportOwnsKeyboard,
+    })) {
       event.preventDefault();
-      clearInput();
-      renderer?.domElement.blur();
+      cancelDraftOwnership();
+      if (viewportOwnsKeyboard) renderer?.domElement.blur();
       return;
     }
+    if (!viewportOwnsKeyboard) return;
     if (event.code === "KeyF" && observerMode() === "inspect") {
       event.preventDefault();
       focusEntity(props.selectedRef);
@@ -1023,7 +1068,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
 
   const onPointerUp = (event: PointerEvent) => {
     const start = pointerStart;
-    if (observerMode() === "inspect" && start && start.id === event.pointerId &&
+    if (!gizmoDragging && observerMode() === "inspect" && start && start.id === event.pointerId &&
         Math.hypot(event.clientX - start.x, event.clientY - start.y) <= 4) {
       const ref = entityAtPointer(event);
       if (ref) props.onSelect?.(ref);
@@ -1055,7 +1100,119 @@ export function ThreeViewport(props: ThreeViewportProps) {
   };
 
   const onVisibilityChange = () => {
-    if (document.visibilityState === "hidden") clearInput();
+    if (document.visibilityState === "hidden") cancelDraftOwnership();
+  };
+
+  const onWindowBlur = () => cancelDraftOwnership();
+
+  const onGizmoObjectChange = () => {
+    if (syncingDraft || !draftWrapper || props.poseDraftInputEnabled === false) return;
+    const quaternion = draftWrapper.quaternion;
+    const yaw = Math.atan2(
+      2 * (quaternion.w * quaternion.z + quaternion.x * quaternion.y),
+      1 - 2 * (quaternion.y * quaternion.y + quaternion.z * quaternion.z),
+    );
+    props.onPoseDraftChange?.(
+      [draftWrapper.position.x, draftWrapper.position.y, draftWrapper.position.z],
+      yaw,
+    );
+    scheduleRender();
+  };
+
+  const onGizmoDraggingChanged = (event: { value?: unknown }) => {
+    gizmoDragging = event.value === true;
+    if (!gizmoDragging && lostPointerCancelTimer !== undefined) {
+      clearTimeout(lostPointerCancelTimer);
+      lostPointerCancelTimer = undefined;
+    }
+    if (controls) controls.enabled = !gizmoDragging && observerMode() !== "explore";
+    cameraRig?.clearInput();
+    scheduleRender();
+  };
+
+  const onLostPointerCapture = () => {
+    clearInput();
+    if (!props.poseDraft || !gizmoDragging) return;
+    if (lostPointerCancelTimer !== undefined) clearTimeout(lostPointerCancelTimer);
+    lostPointerCancelTimer = setTimeout(() => {
+      lostPointerCancelTimer = undefined;
+      if (gizmoDragging) cancelDraftOwnership();
+    }, 32);
+  };
+
+  const ensureDraftGizmo = () => {
+    if (!scene || !camera || !renderer || gizmo) return;
+    draftWrapper = new THREE.Group();
+    draftWrapper.name = "presentation:pose-draft";
+    draftWrapper.up.set(0, 0, 1);
+    draftWrapper.userData.presentationDraft = true;
+    const entity = props.snapshot?.entities.find((candidate) => candidate.ref === "entity:generated-object");
+    const collision = entity?.representations.collision;
+    if (!entity || collision?.kind !== "box") return;
+    const proxy = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        collision.halfExtents[0] * 2,
+        collision.halfExtents[1] * 2,
+        collision.halfExtents[2] * 2,
+      ),
+      new THREE.MeshBasicMaterial({
+        color: "#d66b3c",
+        wireframe: true,
+        transparent: true,
+        opacity: 0.72,
+        depthTest: false,
+      }),
+    );
+    proxy.userData.presentationDraft = true;
+    draftWrapper.add(proxy);
+    scene.add(draftWrapper);
+    gizmo = new TransformControls(camera, renderer.domElement);
+    gizmo.setSpace("world");
+    gizmoHelper = gizmo.getHelper();
+    gizmoHelper.userData.presentationDraft = true;
+    scene.add(gizmoHelper);
+    gizmo.addEventListener("objectChange", onGizmoObjectChange);
+    gizmo.addEventListener("dragging-changed", onGizmoDraggingChanged as never);
+  };
+
+  const syncDraftGizmo = () => {
+    const draft = props.poseDraft;
+    const ownsDraftInput = shouldOwnDraftInput({
+      hasDraft: draft !== undefined,
+      observerMode: observerMode(),
+      hasSample: props.sample !== undefined,
+      busy: props.poseDraftInputEnabled === false,
+    });
+    if (!draft || !ownsDraftInput) {
+      releaseGizmoInput();
+      if (gizmo) {
+        gizmo.enabled = false;
+        gizmo.detach();
+      }
+      if (draftWrapper) draftWrapper.visible = false;
+      return;
+    }
+    ensureDraftGizmo();
+    if (!gizmo || !draftWrapper) return;
+    gizmo.enabled = true;
+    syncingDraft = true;
+    draftWrapper.visible = true;
+    draftWrapper.position.set(...draft.pose.position);
+    draftWrapper.quaternion.set(
+      draft.pose.rotation.x,
+      draft.pose.rotation.y,
+      draft.pose.rotation.z,
+      draft.pose.rotation.w,
+    );
+    gizmo.attach(draftWrapper);
+    const mode = props.poseDraftMode ?? draft.mode;
+    gizmo.setMode(mode === "translate" ? "translate" : "rotate");
+    gizmo.setSpace("world");
+    gizmo.showX = mode === "translate";
+    gizmo.showY = mode === "translate";
+    gizmo.showZ = true;
+    syncingDraft = false;
+    scheduleRender();
   };
 
   const onControlsChange = () => {
@@ -1130,14 +1287,14 @@ export function ThreeViewport(props: ThreeViewportProps) {
 
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", clearInput);
+    window.addEventListener("blur", onWindowBlur);
     document.addEventListener("visibilitychange", onVisibilityChange);
     document.addEventListener("pointerlockchange", onPointerLockChange);
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
-    renderer.domElement.addEventListener("pointercancel", clearInput);
-    renderer.domElement.addEventListener("lostpointercapture", clearInput);
+    renderer.domElement.addEventListener("pointercancel", cancelDraftOwnership);
+    renderer.domElement.addEventListener("lostpointercapture", onLostPointerCapture);
     renderer.domElement.addEventListener("dblclick", onDoubleClick);
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
     renderer.domElement.addEventListener("blur", clearInput);
@@ -1241,6 +1398,7 @@ export function ThreeViewport(props: ThreeViewportProps) {
       delete container.dataset.alignmentStatus;
     }
     refreshObserverContext(snapshot);
+    syncDraftGizmo();
     scheduleRender();
   });
 
@@ -1249,10 +1407,11 @@ export function ThreeViewport(props: ThreeViewportProps) {
     cameraRig?.dispose();
     if (renderFrame !== undefined) cancelAnimationFrame(renderFrame);
     if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
+    if (lostPointerCancelTimer !== undefined) clearTimeout(lostPointerCancelTimer);
     resizeObserver?.disconnect();
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
-    window.removeEventListener("blur", clearInput);
+    window.removeEventListener("blur", onWindowBlur);
     document.removeEventListener("visibilitychange", onVisibilityChange);
     document.removeEventListener("pointerlockchange", onPointerLockChange);
     controls?.removeEventListener("change", onControlsChange);
@@ -1260,11 +1419,23 @@ export function ThreeViewport(props: ThreeViewportProps) {
     renderer?.domElement.removeEventListener("pointerdown", onPointerDown);
     renderer?.domElement.removeEventListener("pointermove", onPointerMove);
     renderer?.domElement.removeEventListener("pointerup", onPointerUp);
-    renderer?.domElement.removeEventListener("pointercancel", clearInput);
-    renderer?.domElement.removeEventListener("lostpointercapture", clearInput);
+    renderer?.domElement.removeEventListener("pointercancel", cancelDraftOwnership);
+    renderer?.domElement.removeEventListener("lostpointercapture", onLostPointerCapture);
     renderer?.domElement.removeEventListener("dblclick", onDoubleClick);
     renderer?.domElement.removeEventListener("wheel", onWheel);
     renderer?.domElement.removeEventListener("blur", clearInput);
+    if (gizmo) {
+      gizmo.removeEventListener("objectChange", onGizmoObjectChange);
+      gizmo.removeEventListener("dragging-changed", onGizmoDraggingChanged as never);
+      releaseTransformDrag(gizmo);
+      gizmo.detach();
+      gizmo.dispose();
+    }
+    if (gizmoHelper) scene?.remove(gizmoHelper);
+    if (draftWrapper) {
+      scene?.remove(draftWrapper);
+      disposeObject(draftWrapper);
+    }
     for (const ref of [...objects.keys()]) removeObject(ref);
     if (gridHelper) {
       scene?.remove(gridHelper);

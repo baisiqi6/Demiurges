@@ -18,10 +18,19 @@ import {
   preferredSelection,
   presentationLayersFor,
   registeredIntegrityLabel,
+  registeredAuthoringReady,
   runContractSummary,
 } from "./presentation-model";
 
 describe("Studio trusted presentation projection", () => {
+  test("registered authoring requires the generated visual itself to pass load integrity", () => {
+    const assetId = "asset:hunyuan-rounded-cube-v1";
+    expect(registeredAuthoringReady([], assetId)).toBe(false);
+    expect(registeredAuthoringReady([{ assetId, status: "not-imported" }], assetId)).toBe(false);
+    expect(registeredAuthoringReady([{ assetId, status: "error" }], assetId)).toBe(false);
+    expect(registeredAuthoringReady([{ assetId, status: "loaded" }], assetId)).toBe(true);
+  });
+
   test("默认选择来自 Snapshot role，并保留仍存在的用户选择", () => {
     const falling = createInitialSnapshot();
     const vessel = createBallVesselSnapshot();

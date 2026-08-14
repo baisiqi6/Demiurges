@@ -19,6 +19,8 @@ import {
   type WorldRunResult,
   type WorldFixtureId,
   TWO_JOINT_REACH_FIXTURE_ID,
+  admitMarbleHunyuanCompositeEdit,
+  requireWorldWriteInput,
 } from "@demiurges/world";
 
 import {
@@ -30,6 +32,28 @@ import {
 } from "./omp-world-agent";
 
 const MAX_RESPONSE_TEXT_LENGTH = 8_000;
+
+export type ProductSessionAuthoringFailureCode =
+  | "INVALID_REQUEST"
+  | "WORLD_REQUIRED"
+  | "WORLD_ALREADY_EXISTS"
+  | "STALE_REF"
+  | "FIXTURE_NOT_COMPOSABLE"
+  | "POSE_NOT_COMPOSABLE";
+
+export class ProductSessionAuthoringFailure extends Error {
+  readonly code: ProductSessionAuthoringFailureCode;
+
+  constructor(code: ProductSessionAuthoringFailureCode) {
+    super("Product Session authoring command rejected");
+    this.name = "ProductSessionAuthoringFailure";
+    this.code = code;
+  }
+}
+
+function rejectAuthoring(code: ProductSessionAuthoringFailureCode): never {
+  throw new ProductSessionAuthoringFailure(code);
+}
 
 export type ProductSessionEventSink = (
   event: ProductSessionEvent,
@@ -229,13 +253,51 @@ export class ProductSession {
     sink: ProductSessionEventSink,
     signal?: AbortSignal,
   ): Promise<ProductSessionProjection> | undefined {
-    if (this.#running) {
-      return undefined;
-    }
-    this.#running = true;
+    if (!this.#tryReserve()) return undefined;
     const turnId = `turn:${this.#sessionId.slice("session:".length)}:${++this.#turnSequence}`;
 
     return this.#runReservedTurn(turnId, prompt, sink, signal);
+  }
+
+  tryWriteWorld(input: unknown): ProductSessionProjection | undefined {
+    if (!this.#tryReserve()) return undefined;
+    try {
+      if (this.#world !== null) rejectAuthoring("WORLD_ALREADY_EXISTS");
+      const parsed = requireWorldWriteInput(input);
+      if (parsed.fixtureId !== MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID) {
+        rejectAuthoring("FIXTURE_NOT_COMPOSABLE");
+      }
+      this.#surface.write(parsed);
+      this.#world = this.#surface.read();
+      this.#lastRun = null;
+    } finally {
+      this.#running = false;
+    }
+    return this.readProjection();
+  }
+
+  tryEditWorld(input: unknown): ProductSessionProjection | undefined {
+    if (!this.#tryReserve()) return undefined;
+    try {
+      if (this.#world === null) rejectAuthoring("WORLD_REQUIRED");
+      const admission = admitMarbleHunyuanCompositeEdit(this.#world, input);
+      if (admission.status === "rejected") rejectAuthoring(admission.code);
+      if (admission.status === "accepted") {
+        const result = this.#surface.edit(admission.canonicalWireInput);
+        if (result.update.status !== "updated") rejectAuthoring("STALE_REF");
+        this.#world = this.#surface.read();
+        this.#lastRun = null;
+      }
+    } finally {
+      this.#running = false;
+    }
+    return this.readProjection();
+  }
+
+  #tryReserve(): boolean {
+    if (this.#running) return false;
+    this.#running = true;
+    return true;
   }
 
   async #runReservedTurn(

@@ -253,6 +253,31 @@ h2 { margin-top: 4px; font-size: 15px; line-height: 1.25; letter-spacing: -0.015
   transition: transform 120ms ease, background-color 120ms ease, border-color 120ms ease;
 }
 .inspector-section > .button { width: 100%; margin-top: 12px; }
+.scene-composer { background: color-mix(in oklch, var(--paper) 94%, var(--accent) 6%); }
+.asset-role-grid { display: grid; gap: 8px; margin-top: 14px; }
+.asset-role-grid article {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in oklch, var(--paper) 86%, transparent);
+}
+.asset-role-grid strong { font-size: 11px; }
+.asset-role-grid span, .asset-role-grid small, .asset-role-grid em {
+  overflow-wrap: anywhere;
+  font: 600 9px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.asset-role-grid span, .asset-role-grid small { color: var(--muted); }
+.asset-role-grid em { color: var(--accent-dark); font-style: normal; }
+.composer-toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 12px; }
+.composer-toolbar .button { min-height: 34px; padding: 7px 8px; }
+.composer-toolbar .button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-dark); background: color-mix(in oklch, var(--accent) 10%, var(--paper)); }
+.draft-readout { display: grid; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.draft-readout div { display: flex; justify-content: space-between; gap: 10px; }
+.draft-readout dt { color: var(--muted); font-size: 10px; }
+.draft-readout dd { margin: 0; text-align: right; font: 600 9px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.scene-composer .muted { margin-top: 10px; font-size: 10px; line-height: 1.45; }
 .button:hover:not(:disabled) { transform: translateY(-1px); }
 .button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid color-mix(in oklch, var(--accent) 70%, transparent); outline-offset: 2px; }
 .button:disabled { cursor: not-allowed; opacity: 0.42; }

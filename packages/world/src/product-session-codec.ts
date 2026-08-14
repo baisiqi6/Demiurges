@@ -25,7 +25,10 @@ import {
 import {
   ENVIRONMENT_REF,
   GENERATED_OBJECT_REF,
+  MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
+  MARBLE_HUNYUAN_COMPOSITE_SNAPSHOT_ID,
   MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID,
+  requireMarbleHunyuanCompositeSnapshot,
 } from "./artifacts/marble-hunyuan-composite-fixture";
 import {
   requireDiagnosticRigidCollision,
@@ -50,7 +53,12 @@ import {
   ARTICULATED_CANONICAL_MODEL_CAUSAL_DIGEST,
   runArticulatedReach,
 } from "./runtime-mujoco/run-articulated-reach";
-import { requireWorldProgramEvidence, requireWorldRunInput } from "./world-tools/world-tool-contract";
+import {
+  requireWorldProgramEvidence,
+  requireWorldRunInput,
+  type WorldEditInput,
+  type WorldWriteInput,
+} from "./world-tools/world-tool-contract";
 import type {
   WorldEditResult,
   WorldReadResult,
@@ -1328,4 +1336,88 @@ export async function decodeProductSessionProjectionTrusted(
     await requireTrustedArticulatedReplay(decoded.lastRun, expectedWorld, "projection.lastRun");
   }
   return decoded;
+}
+
+export type ProductSessionAuthoringOperation =
+  | Readonly<{ kind: "write"; input: WorldWriteInput }>
+  | Readonly<{ kind: "edit"; outcome: "updated"; input: WorldEditInput }>
+  | Readonly<{ kind: "edit"; outcome: "unchanged" }>;
+
+function requireCompositeAuthoringWorld(
+  world: ProductSessionProjection["world"],
+  label: string,
+): asserts world is NonNullable<ProductSessionProjection["world"]> {
+  if (!world ||
+      world.ref.name !== CURRENT_WORLD_REF ||
+      world.ref.snapshotId !== world.snapshot.id) {
+    throw new Error(`${label} 缺少 exact composite world authority`);
+  }
+  try {
+    requireMarbleHunyuanCompositeSnapshot(world.snapshot);
+  } catch {
+    throw new Error(`${label} 不是 exact composite world authority`);
+  }
+}
+
+export async function decodeProductSessionAuthoringTransition(
+  value: unknown,
+  expectedSessionId: string,
+  prior: ProductSessionProjection,
+  operation: ProductSessionAuthoringOperation,
+): Promise<ProductSessionProjection> {
+  const trustedPrior = await decodeProductSessionProjectionTrusted(prior, expectedSessionId);
+  if (trustedPrior.running) throw new Error("authoring transition 的 prior 必须 settled");
+  const returned = value === prior
+    ? trustedPrior
+    : await decodeProductSessionProjectionTrusted(value, expectedSessionId);
+  if (returned.running) throw new Error("authoring transition 必须返回 settled projection");
+  if (operation.kind === "write") {
+    if (operation.input.fixtureId !== MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID ||
+        trustedPrior.world !== null || trustedPrior.lastRun !== null || returned.world === null ||
+        returned.world.ref.name !== CURRENT_WORLD_REF ||
+        returned.world.ref.snapshotId !== MARBLE_HUNYUAN_COMPOSITE_SNAPSHOT_ID ||
+        returned.world.ref.version !== 1 ||
+        returned.world.snapshot.id !== MARBLE_HUNYUAN_COMPOSITE_SNAPSHOT_ID ||
+        returned.world.snapshot.parentId !== null ||
+        returned.world.snapshot.source !== "write" ||
+        returned.world.snapshot.scenarioId !== MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID ||
+        returned.lastRun !== null ||
+        returned.lastSequence !== trustedPrior.lastSequence) {
+      throw new Error("world/write projection transition 非法");
+    }
+    return returned;
+  }
+  requireCompositeAuthoringWorld(trustedPrior.world, "authoring transition prior");
+  requireCompositeAuthoringWorld(returned.world, "authoring transition returned");
+  if (operation.outcome === "unchanged") {
+    if (!samePlainData(returned, trustedPrior)) {
+      throw new Error("world/edit unchanged projection 改变了 authority");
+    }
+    return returned;
+  }
+  if (!trustedPrior.world || !returned.world ||
+      !samePlainData(operation.input.expected, trustedPrior.world.ref) ||
+      operation.input.targetRef !== GENERATED_OBJECT_REF ||
+      operation.input.change.kind !== "pose" ||
+      returned.world.ref.name !== trustedPrior.world.ref.name ||
+      returned.world.ref.version !== trustedPrior.world.ref.version + 1 ||
+      returned.world.ref.snapshotId !== returned.world.snapshot.id ||
+      returned.world.snapshot.parentId !== trustedPrior.world.snapshot.id ||
+      returned.world.snapshot.source !== "edit" ||
+      returned.world.snapshot.scenarioId !== trustedPrior.world.snapshot.scenarioId ||
+      returned.lastRun !== null ||
+      returned.lastSequence !== trustedPrior.lastSequence) {
+    throw new Error("world/edit projection lineage 非法");
+  }
+  const expectedEntities = trustedPrior.world.snapshot.entities.map((entity) =>
+    entity.ref === GENERATED_OBJECT_REF
+      ? { ...entity, state: { ...entity.state, pose: operation.input.change.kind === "pose"
+        ? operation.input.change.pose
+        : entity.state.pose } }
+      : entity,
+  );
+  if (!samePlainData(returned.world.snapshot.entities, expectedEntities)) {
+    throw new Error("world/edit projection 改变了未授权的 world authority");
+  }
+  return returned;
 }

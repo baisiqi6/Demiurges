@@ -35,6 +35,13 @@ export function registeredIntegrityLabel(
   return "AWAITING ASSET";
 }
 
+export function registeredAuthoringReady(
+  states: readonly RegisteredAssetLoadState[],
+  assetId: string,
+): boolean {
+  return states.some((state) => state.assetId === assetId && state.status === "loaded");
+}
+
 export interface EvaluationMetricRow {
   readonly key: string;
   readonly label: string;

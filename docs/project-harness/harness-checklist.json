@@ -686,6 +686,101 @@
         "ttl_minutes": 120,
         "released_at": "2026-08-14T16:10:35Z"
       }
+    },
+    {
+      "id": "DH-015",
+      "title": "Registered Asset Scene Composer",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-14",
+      "dependencies": [
+        "DH-013",
+        "DH-014"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "基于已验证本地 ArtifactRef 组合 Marble environment 与 Hunyuan object；变换交互仅产生 Presentation draft，显式提交后才通过 world_edit 与 expected Ref 创建 child Snapshot；支持 run、Evaluation 与 explicit adopt；任意缩放、新 provider 调用、通用 Adapter SDK 与持久化均不在本节点。",
+      "verification": "Round 6 Sol Max + ZCode GLM-5.3 approved P0/P1=0; 509 tests, typecheck, build, diff-check, EXharness validate/doctor pass; real Three.js busy-release probe pass.",
+      "handoff": "先完成 canonical plan 与 independent cross-review；approved 后才进入实现。",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-14",
+        "branch": "agent/codex/DH-015"
+      },
+      "artifacts": {
+        "plan": "docs/project-harness/tasks/DH-015/plan.md",
+        "branch": "agent/codex/DH-015",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "sol-max+zcode-glm-5.3",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-14",
+        "summary": "Closeout-phase approval confirms Round 6 frozen aggregate 03297c...f36b, P0/P1=0, may_closeout=yes."
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "codex-dh015-plan-20260814",
+        "acquired_at": "2026-08-14T16:43:23Z",
+        "expires_at": "2026-08-14T18:43:23Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-14T20:22:04Z"
+      }
+    },
+    {
+      "id": "DH-016",
+      "title": "World Project 持久化与导入导出",
+      "status": "todo",
+      "priority": "p1",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-14",
+      "dependencies": [
+        "DH-015"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "以版本化 World Project manifest 持久化并恢复受信 Snapshot lineage、current Ref 与已验证 ArtifactRef；保存与加载必须原子化，损坏或缺失 artifact fail closed；不得持久化 credential、signed URL 或 Presentation transient state；提供受控导入导出。",
+      "verification": "",
+      "handoff": "等待 DH-015 完成后独立规划，不在 Scene Composer 中顺手实现。"
+    },
+    {
+      "id": "DH-017",
+      "title": "Provider Generation Job 与 Verified Artifact 导入",
+      "status": "todo",
+      "priority": "p1",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-14",
+      "dependencies": [
+        "DH-016"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "以两个 provider-specific control-plane implementation 完成 Marble 与 Hunyuan prompt、job、poll、download、validation、receipt 与 verified Artifact registration；credential 仅在 server-side，生成需显式用户确认且 bounded、idempotent；Artifact 不自动成为 Snapshot，不建立通用 provider SDK。",
+      "verification": "",
+      "handoff": "等待 World Project 边界稳定后再接真实生成，不预建通用 Adapter framework。"
+    },
+    {
+      "id": "DH-018",
+      "title": "Agent Worldmaking Orchestration",
+      "status": "todo",
+      "priority": "p1",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-14",
+      "dependencies": [
+        "DH-017"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "restricted Agent 使用且仅使用 read、write、edit、run 消费 registered ArtifactRef，完成自然语言 world composition、run、evidence inspection 与 repair loop；provider generation 保持 Harness control-plane，不暴露 credential 或第五个 world tool；成功由 deterministic Evaluation 证明。",
+      "verification": "",
+      "handoff": "等待 verified Artifact 与可持久化 world authoring 成为真实调用方后再规划。"
     }
   ]
 }

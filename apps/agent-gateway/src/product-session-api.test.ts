@@ -53,6 +53,255 @@ function controlledBody(
 }
 
 describe("Product Session HTTP API", () => {
+  test("human write/edit route 创建 exact composite child，no-op 保持 authority", async () => {
+    const api = createProductSessionApi(createScriptedAgentClientFactory());
+    const createdResponse = await api.fetch(
+      new Request("http://local.test/api/sessions", { method: "POST" }),
+    );
+    const created = await createdResponse.json() as { sessionId: string };
+    const post = (path: string, body: unknown) => api.fetch(new Request(
+      `http://local.test/api/sessions/${created.sessionId}/${path}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    ));
+
+    const writtenResponse = await post("world/write", {
+      fixtureId: "fixture:marble-hunyuan-composite-v1",
+    });
+    expect(writtenResponse.status).toBe(200);
+    const written = await writtenResponse.json() as any;
+    expect(written.world.ref).toEqual({
+      name: "world:current",
+      snapshotId: "snapshot:marble-hunyuan-composite-base",
+      version: 1,
+    });
+    expect(written.lastSequence).toBe(0);
+
+    const noOpResponse = await post("world/edit", {
+      expected: written.world.ref,
+      targetRef: "entity:generated-object",
+      change: {
+        kind: "pose",
+        frameRef: "frame:world",
+        pose: {
+          position: { x: 0, y: 0, z: 1.2 },
+          rotation: { x: 0, y: 0, z: 0, w: 1 },
+        },
+      },
+    });
+    expect(noOpResponse.status).toBe(200);
+    expect(await noOpResponse.json()).toEqual(written);
+
+    const editedResponse = await post("world/edit", {
+      expected: written.world.ref,
+      targetRef: "entity:generated-object",
+      change: {
+        kind: "pose",
+        frameRef: "frame:world",
+        pose: {
+          position: { x: 0.25, y: -0.1, z: 1.2 },
+          rotation: { x: 0, y: 0, z: 0, w: 1 },
+        },
+      },
+    });
+    expect(editedResponse.status).toBe(200);
+    const edited = await editedResponse.json() as any;
+    expect(edited.world.ref.version).toBe(2);
+    expect(edited.world.snapshot).toMatchObject({
+      parentId: "snapshot:marble-hunyuan-composite-base",
+      source: "edit",
+    });
+    expect(edited.world.snapshot.entities[2].state.pose.position).toEqual([0.25, -0.1, 1.2]);
+    expect(edited.lastSequence).toBe(0);
+    expect(edited.lastRun).toBeNull();
+  });
+
+  test("human authoring route 使用稳定 public status/code 并且不留 mutation gap", async () => {
+    const api = createProductSessionApi(createScriptedAgentClientFactory());
+    const created = await (await api.fetch(
+      new Request("http://local.test/api/sessions", { method: "POST" }),
+    )).json() as { sessionId: string };
+    const request = (path: string, body: unknown, contentType = "application/json") => api.fetch(new Request(
+      `http://local.test/api/sessions/${created.sessionId}/${path}`,
+      { method: "POST", headers: { "content-type": contentType }, body: JSON.stringify(body) },
+    ));
+    const unsupported = await request("world/write", {}, "text/plain");
+    expect([unsupported.status, await unsupported.json()]).toEqual([415, { error: "UNSUPPORTED_MEDIA_TYPE" }]);
+
+    const wrongFixture = await request("world/write", { fixtureId: "fixture:primitive-box" });
+    expect([wrongFixture.status, await wrongFixture.json()]).toEqual([422, { error: "FIXTURE_NOT_COMPOSABLE" }]);
+    const written = await (await request("world/write", {
+      fixtureId: "fixture:marble-hunyuan-composite-v1",
+    })).json() as any;
+    const invalid = await request("world/edit", {
+      expected: written.world.ref,
+      targetRef: "entity:generated-object",
+      change: { kind: "pose", frameRef: "frame:world", pose: {
+        position: { x: 5, y: 0, z: 1.2 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      } },
+    });
+    expect([invalid.status, await invalid.json()]).toEqual([422, { error: "POSE_NOT_COMPOSABLE" }]);
+    const negativeZero = await api.fetch(new Request(
+      `http://local.test/api/sessions/${created.sessionId}/world/edit`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: `{"expected":{"name":"world:current","snapshotId":"snapshot:marble-hunyuan-composite-base","version":1},"targetRef":"entity:generated-object","change":{"kind":"pose","frameRef":"frame:world","pose":{"position":{"x":-0,"y":0,"z":1.2},"rotation":{"x":0,"y":0,"z":0,"w":1}}}}`,
+      },
+    ));
+    expect([negativeZero.status, await negativeZero.json()]).toEqual([422, { error: "POSE_NOT_COMPOSABLE" }]);
+
+    const malformedJointState = await request("world/edit", {
+      expected: written.world.ref,
+      targetRef: "entity:generated-object",
+      change: { kind: "joint-state", joints: [null, null] },
+    });
+    expect([malformedJointState.status, await malformedJointState.json()]).toEqual([
+      400,
+      { error: "INVALID_REQUEST" },
+    ]);
+    const exactJoints = [
+      { jointRef: "joint:arm-shoulder", positionRadians: 0, velocityRadiansPerSecond: 0 },
+      { jointRef: "joint:arm-elbow", positionRadians: 0, velocityRadiansPerSecond: 0 },
+    ];
+    for (const joints of [
+      [{ ...exactJoints[0], extra: true }, exactJoints[1]],
+      [{ ...exactJoints[0], jointRef: 1 }, exactJoints[1]],
+      [{ ...exactJoints[0], positionRadians: "0" }, exactJoints[1]],
+    ]) {
+      const response = await request("world/edit", {
+        expected: written.world.ref,
+        targetRef: "entity:generated-object",
+        change: { kind: "joint-state", joints },
+      });
+      expect([response.status, await response.json()]).toEqual([
+        400,
+        { error: "INVALID_REQUEST" },
+      ]);
+    }
+    const unsupportedJointState = await request("world/edit", {
+      expected: written.world.ref,
+      targetRef: "entity:generated-object",
+      change: { kind: "joint-state", joints: exactJoints },
+    });
+    expect([unsupportedJointState.status, await unsupportedJointState.json()]).toEqual([
+      422,
+      { error: "FIXTURE_NOT_COMPOSABLE" },
+    ]);
+
+    const oversized = await api.fetch(new Request(
+      `http://local.test/api/sessions/${created.sessionId}/world/edit`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ padding: "界".repeat(6_000) }),
+      },
+    ));
+    expect([oversized.status, await oversized.json()]).toEqual([413, { error: "REQUEST_TOO_LARGE" }]);
+    const valid = await request("world/edit", {
+      expected: written.world.ref,
+      targetRef: "entity:generated-object",
+      change: { kind: "pose", frameRef: "frame:world", pose: {
+        position: { x: 0.2, y: 0, z: 1.2 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      } },
+    });
+    const projection = await valid.json() as any;
+    expect(projection.world.snapshot.id).toBe("snapshot:edit-1");
+  });
+
+  test("pre-admission abort 拒绝 human write/edit 且 authority 零变化", async () => {
+    const api = createProductSessionApi(createScriptedAgentClientFactory());
+    const createSession = async () => (await (await api.fetch(
+      new Request("http://local.test/api/sessions", { method: "POST" }),
+    )).json()) as { sessionId: string };
+    const abortedPost = async (sessionId: string, path: string, body: unknown) => {
+      const abort = new AbortController();
+      abort.abort();
+      return api.fetch(new Request(
+        `http://local.test/api/sessions/${sessionId}/${path}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+          signal: abort.signal,
+        },
+      ));
+    };
+
+    const empty = await createSession();
+    const write = await abortedPost(empty.sessionId, "world/write", {
+      fixtureId: "fixture:marble-hunyuan-composite-v1",
+    });
+    expect([write.status, await write.json()]).toEqual([400, { error: "INVALID_REQUEST" }]);
+    const emptyProjection = await (await api.fetch(new Request(
+      `http://local.test/api/sessions/${empty.sessionId}`,
+    ))).json() as any;
+    expect(emptyProjection).toMatchObject({ world: null, lastRun: null, running: false });
+
+    const authored = await createSession();
+    const written = await (await api.fetch(new Request(
+      `http://local.test/api/sessions/${authored.sessionId}/world/write`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fixtureId: "fixture:marble-hunyuan-composite-v1" }),
+      },
+    ))).json() as any;
+    const edit = await abortedPost(authored.sessionId, "world/edit", {
+      expected: written.world.ref,
+      targetRef: "entity:generated-object",
+      change: { kind: "pose", frameRef: "frame:world", pose: {
+        position: { x: 0.2, y: 0, z: 1.2 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      } },
+    });
+    expect([edit.status, await edit.json()]).toEqual([400, { error: "INVALID_REQUEST" }]);
+    const unchanged = await (await api.fetch(new Request(
+      `http://local.test/api/sessions/${authored.sessionId}`,
+    ))).json() as any;
+    expect(unchanged.world.ref).toEqual(written.world.ref);
+    expect(unchanged.world.snapshot).toEqual(written.world.snapshot);
+    expect(unchanged).toMatchObject({ lastRun: null, lastSequence: 0, running: false });
+
+    const streaming = await createSession();
+    let releaseBody!: () => void;
+    const bodyRelease = new Promise<void>((resolve) => { releaseBody = resolve; });
+    let bodyStarted!: () => void;
+    const started = new Promise<void>((resolve) => { bodyStarted = resolve; });
+    const abort = new AbortController();
+    const pending = api.fetch(new Request(
+      `http://local.test/api/sessions/${streaming.sessionId}/world/write`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: controlledBody(
+          JSON.stringify({ fixtureId: "fixture:marble-hunyuan-composite-v1" }),
+          bodyStarted,
+          bodyRelease,
+        ),
+        duplex: "half",
+        signal: abort.signal,
+      } as RequestInit & { duplex: "half" },
+    ));
+    await started;
+    abort.abort();
+    releaseBody();
+    const streamedAbort = await pending;
+    expect([streamedAbort.status, await streamedAbort.json()]).toEqual([
+      400,
+      { error: "INVALID_REQUEST" },
+    ]);
+    const streamedProjection = await (await api.fetch(new Request(
+      `http://local.test/api/sessions/${streaming.sessionId}`,
+    ))).json() as any;
+    expect(streamedProjection).toMatchObject({ world: null, lastRun: null, running: false });
+  });
+
   test("Gateway absolute deadline 会 abort ProductSession/Agent 并恢复 settled authority", async () => {
     let receivedSignal: AbortSignal | undefined;
     const waitingFactory: OmpAgentClientFactory = (tools) => ({
@@ -336,6 +585,58 @@ describe("Product Session HTTP API", () => {
     expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
     expect(results.find((result) => result.status === 200)?.lines).toBe(6);
     expect(results.find((result) => result.status === 409)?.lines).toBe(1);
+  });
+
+  test("Agent turn 与 human command 共用同一个 execution reservation", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let entered!: () => void;
+    const ready = new Promise<void>((resolve) => { entered = resolve; });
+    const waitingFactory: OmpAgentClientFactory = (tools) => ({
+      async start() {},
+      async stop() {},
+      async getState() {
+        const names = tools.map((tool) => tool.name);
+        return { sessionId: "session:human-command-reservation", toolNames: names, enabledToolNames: names, mountedToolNames: [] };
+      },
+      async promptAndWait() {
+        entered();
+        await gate;
+        throw new Error("synthetic release");
+      },
+      async getLastAssistantText() { return null; },
+    });
+    const api = createProductSessionApi(waitingFactory, 2_000);
+    const created = await (await api.fetch(
+      new Request("http://local.test/api/sessions", { method: "POST" }),
+    )).json() as { sessionId: string };
+    const turnResponse = await api.fetch(turnRequest(
+      created.sessionId,
+      JSON.stringify({ prompt: "hold reservation" }),
+    ));
+    await ready;
+    const blocked = await api.fetch(new Request(
+      `http://local.test/api/sessions/${created.sessionId}/world/write`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fixtureId: "fixture:marble-hunyuan-composite-v1" }),
+      },
+    ));
+    expect([blocked.status, await blocked.json()]).toEqual([409, { error: "SESSION_BUSY" }]);
+    release();
+    await turnResponse.text();
+
+    const accepted = await api.fetch(new Request(
+      `http://local.test/api/sessions/${created.sessionId}/world/write`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fixtureId: "fixture:marble-hunyuan-composite-v1" }),
+      },
+    ));
+    expect(accepted.status).toBe(200);
+    expect((await accepted.json() as any).world.ref.version).toBe(1);
   });
 
   test("HTTP admission 按真实 UTF-8 bytes 限额并精确解析 JSON media type", async () => {

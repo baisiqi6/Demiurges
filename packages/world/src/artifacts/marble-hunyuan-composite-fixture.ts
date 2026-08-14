@@ -13,6 +13,8 @@ import {
   requireMarbleHunyuanRegistryIntegrity,
 } from "./marble-hunyuan-registry";
 import { requireSnapshotRepresentationIntegrity } from "./ball-vessel-fixture";
+import { requireCanonicalCompositePose } from "../world-tools/composite-pose";
+import { requireAuthoredPoseAboveFloor } from "../repository/pose-constraints";
 
 export { FLOOR_PROXY, GENERATED_OBJECT_PROXY } from "./marble-hunyuan-registry";
 
@@ -212,15 +214,19 @@ export function requireMarbleHunyuanCompositeSnapshot(snapshot: Snapshot): void 
   const [environment, floor, generated] = snapshot.entities;
   const [canonicalEnvironment, canonicalFloor, canonicalGenerated] = canonical.entities;
 
+  if (snapshot.source === "write") {
+    if (!samePlainData(snapshot, canonical)) {
+      throw new Error("composite write Snapshot 必须与 canonical fixture 完全一致");
+    }
+    return;
+  }
+
   for (const [entity, expected, label] of [
     [environment, canonicalEnvironment, "environment"],
     [floor, canonicalFloor, "floor"],
   ] as const) {
     if (
-      entity!.label !== expected!.label ||
-      !samePlainData(entity!.state, expected!.state) ||
-      !samePlainData(entity!.representations, expected!.representations) ||
-      !samePlainData(entity!.physics, expected!.physics)
+      !samePlainData(entity, expected)
     ) {
       throw new Error(`composite ${label} 与 fixture registry 漂移`);
     }
@@ -228,13 +234,20 @@ export function requireMarbleHunyuanCompositeSnapshot(snapshot: Snapshot): void 
 
   if (
     generated!.label !== canonicalGenerated!.label ||
+    generated!.frameRef !== canonicalGenerated!.frameRef ||
+    generated!.unitSystemRef !== canonicalGenerated!.unitSystemRef ||
     !samePlainData(generated!.representations, canonicalGenerated!.representations) ||
     !samePlainData(generated!.physics, canonicalGenerated!.physics)
   ) {
     throw new Error("composite generated-object representation/physics 与 fixture registry 漂移");
   }
-  if (snapshot.source !== "runtime-terminal" &&
-      !samePlainData(generated!.state, canonicalGenerated!.state)) {
-    throw new Error("authored composite generated-object 初始 state 必须与 fixture registry 一致");
+  if (snapshot.source === "edit") {
+    requireCanonicalCompositePose(generated!.state.pose);
+    requireAuthoredPoseAboveFloor(generated!, floor!, generated!.state.pose);
+    if (!samePlainData(generated!.state.linearVelocity, canonicalGenerated!.state.linearVelocity) ||
+        !samePlainData(generated!.state.angularVelocity, canonicalGenerated!.state.angularVelocity) ||
+        Object.hasOwn(generated!.state, "articulated")) {
+      throw new Error("composite edit 只允许 generated-object pose 改变");
+    }
   }
 }

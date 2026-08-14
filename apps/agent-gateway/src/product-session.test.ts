@@ -122,6 +122,39 @@ describe("Gateway-owned ProductSession", () => {
     );
   });
 
+  test("human composite no-op 保留 lastRun，只有 accepted edit 才清除 evidence", async () => {
+    const session = new ProductSession(
+      "session:test-human-composite-last-run",
+      createScriptedAgentClientFactory(MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID),
+    );
+    const completed = await session.runTurn("运行 composite", () => undefined);
+    expect(completed.lastRun?.evaluation.passed).toBe(true);
+    const current = completed.world!;
+    const noOp = session.tryEditWorld({
+      expected: { ...current.ref },
+      targetRef: GENERATED_OBJECT_REF,
+      change: { kind: "pose", frameRef: "frame:world", pose: {
+        position: { x: 0, y: 0, z: 1.2 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      } },
+    });
+    expect(noOp?.world?.ref).toEqual(current.ref);
+    expect(noOp?.lastRun).toEqual(completed.lastRun);
+    expect(noOp?.lastSequence).toBe(completed.lastSequence);
+
+    const edited = session.tryEditWorld({
+      expected: { ...current.ref },
+      targetRef: GENERATED_OBJECT_REF,
+      change: { kind: "pose", frameRef: "frame:world", pose: {
+        position: { x: 0.2, y: 0, z: 1.2 },
+        rotation: { x: 0, y: 0, z: 0, w: 1 },
+      } },
+    });
+    expect(edited?.world?.ref.version).toBe(current.ref.version + 1);
+    expect(edited?.lastRun).toBeNull();
+    expect(edited?.lastSequence).toBe(completed.lastSequence);
+  });
+
   test("同一 Host 将自然语言 turn 展开为有序四工具 evidence，run 不推进 ref", async () => {
     const session = new ProductSession(
       "session:test-1",

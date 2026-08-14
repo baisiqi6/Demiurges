@@ -1,12 +1,15 @@
 import type { ProductSessionEvent } from "@demiurges/world";
 
 import type { OmpAgentClientFactory } from "./omp-world-agent";
-import { ProductSession } from "./product-session";
+import {
+  ProductSession,
+  ProductSessionAuthoringFailure,
+} from "./product-session";
 
 const MAX_SESSIONS = 32;
 const MAX_TURN_BODY_BYTES = 16_384;
 const DEFAULT_GATEWAY_TURN_TIMEOUT_MS = 120_000;
-const PUBLIC_REQUEST_ERRORS = new Set([
+const PUBLIC_REQUEST_ERROR_CODES = [
   "invalid_content_type",
   "invalid_content_length",
   "turn_body_too_large",
@@ -14,7 +17,22 @@ const PUBLIC_REQUEST_ERRORS = new Set([
   "invalid_json",
   "invalid_turn_fields",
   "invalid_prompt",
-]);
+] as const;
+type PublicRequestErrorCode = (typeof PUBLIC_REQUEST_ERROR_CODES)[number];
+
+class PublicRequestError extends Error {
+  readonly code: PublicRequestErrorCode;
+
+  constructor(code: PublicRequestErrorCode) {
+    super("public request rejected");
+    this.name = "PublicRequestError";
+    this.code = code;
+  }
+}
+
+function rejectRequest(code: PublicRequestErrorCode): never {
+  throw new PublicRequestError(code);
+}
 
 function jsonResponse(value: unknown, status = 200): Response {
   return Response.json(value, {
@@ -32,9 +50,9 @@ function mediaType(value: string | null): string {
 }
 
 function parseSessionPath(pathname: string):
-  | { sessionId: string; operation: "read" | "turn" }
+  | { sessionId: string; operation: "read" | "turn" | "world_write" | "world_edit" }
   | undefined {
-  const match = pathname.match(/^\/api\/sessions\/([^/]+)(?:\/(turns))?$/);
+  const match = pathname.match(/^\/api\/sessions\/([^/]+)(?:\/(turns|world\/(write|edit)))?$/);
   if (!match) return undefined;
   let sessionId: string;
   try {
@@ -44,20 +62,26 @@ function parseSessionPath(pathname: string):
   }
   return {
     sessionId,
-    operation: match[2] === "turns" ? "turn" : "read",
+    operation: match[2] === "turns"
+      ? "turn"
+      : match[3] === "write"
+        ? "world_write"
+        : match[3] === "edit"
+          ? "world_edit"
+          : "read",
   };
 }
 
-async function readPrompt(request: Request): Promise<string> {
+async function readJsonBody(request: Request): Promise<unknown> {
   if (mediaType(request.headers.get("content-type")) !== "application/json") {
-    throw new Error("invalid_content_type");
+    rejectRequest("invalid_content_type");
   }
   const lengthHeader = request.headers.get("content-length");
   if (lengthHeader !== null && !/^\d+$/.test(lengthHeader)) {
-    throw new Error("invalid_content_length");
+    rejectRequest("invalid_content_length");
   }
   if (lengthHeader !== null && Number(lengthHeader) > MAX_TURN_BODY_BYTES) {
-    throw new Error("turn_body_too_large");
+    rejectRequest("turn_body_too_large");
   }
 
   const chunks: Uint8Array[] = [];
@@ -70,7 +94,7 @@ async function readPrompt(request: Request): Promise<string> {
       totalBytes += value.byteLength;
       if (totalBytes > MAX_TURN_BODY_BYTES) {
         await reader.cancel().catch(() => undefined);
-        throw new Error("turn_body_too_large");
+        rejectRequest("turn_body_too_large");
       }
       chunks.push(value);
     }
@@ -85,14 +109,17 @@ async function readPrompt(request: Request): Promise<string> {
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
-    throw new Error("invalid_utf8");
+    rejectRequest("invalid_utf8");
   }
-  let value: unknown;
   try {
-    value = JSON.parse(text);
+    return JSON.parse(text);
   } catch {
-    throw new Error("invalid_json");
+    rejectRequest("invalid_json");
   }
+}
+
+async function readPrompt(request: Request): Promise<string> {
+  const value = await readJsonBody(request);
   if (
     typeof value !== "object" ||
     value === null ||
@@ -101,13 +128,41 @@ async function readPrompt(request: Request): Promise<string> {
     Reflect.ownKeys(value).length !== 1 ||
     !Object.prototype.hasOwnProperty.call(value, "prompt")
   ) {
-    throw new Error("invalid_turn_fields");
+    rejectRequest("invalid_turn_fields");
   }
   const prompt = (value as { prompt: unknown }).prompt;
   if (typeof prompt !== "string") {
-    throw new Error("invalid_prompt");
+    rejectRequest("invalid_prompt");
   }
   return prompt;
+}
+
+const AUTHORING_ERROR_STATUS = Object.freeze({
+  INVALID_REQUEST: 400,
+  REQUEST_TOO_LARGE: 413,
+  UNSUPPORTED_MEDIA_TYPE: 415,
+  SESSION_BUSY: 409,
+  WORLD_REQUIRED: 409,
+  WORLD_ALREADY_EXISTS: 409,
+  STALE_REF: 409,
+  FIXTURE_NOT_COMPOSABLE: 422,
+  POSE_NOT_COMPOSABLE: 422,
+} as const);
+
+function authoringRequestError(error: unknown): { status: number; code: string } {
+  if (error instanceof PublicRequestError && error.code === "invalid_content_type") {
+    return { status: AUTHORING_ERROR_STATUS.UNSUPPORTED_MEDIA_TYPE, code: "UNSUPPORTED_MEDIA_TYPE" };
+  }
+  if (error instanceof PublicRequestError && error.code === "turn_body_too_large") {
+    return { status: AUTHORING_ERROR_STATUS.REQUEST_TOO_LARGE, code: "REQUEST_TOO_LARGE" };
+  }
+  if (error instanceof ProductSessionAuthoringFailure) {
+    return {
+      status: AUTHORING_ERROR_STATUS[error.code],
+      code: error.code,
+    };
+  }
+  return { status: AUTHORING_ERROR_STATUS.INVALID_REQUEST, code: "INVALID_REQUEST" };
 }
 
 class ProductSessionRegistry {
@@ -224,13 +279,33 @@ export function createProductSessionApi(
             errorResponse(409, "session_turn_in_progress")
           );
         } catch (error) {
-          const code = error instanceof Error && PUBLIC_REQUEST_ERRORS.has(error.message)
-            ? error.message
+          const code = error instanceof PublicRequestError
+            ? error.code
             : "invalid_turn_request";
           return errorResponse(
             400,
             code,
           );
+        }
+      }
+      if ((route.operation === "world_write" || route.operation === "world_edit") && request.method === "POST") {
+        try {
+          if (request.signal.aborted) {
+            return errorResponse(AUTHORING_ERROR_STATUS.INVALID_REQUEST, "INVALID_REQUEST");
+          }
+          const body = await readJsonBody(request);
+          if (request.signal.aborted) {
+            return errorResponse(AUTHORING_ERROR_STATUS.INVALID_REQUEST, "INVALID_REQUEST");
+          }
+          const projection = route.operation === "world_write"
+            ? session.tryWriteWorld(body)
+            : session.tryEditWorld(body);
+          return projection
+            ? jsonResponse(projection)
+            : errorResponse(AUTHORING_ERROR_STATUS.SESSION_BUSY, "SESSION_BUSY");
+        } catch (error) {
+          const mapped = authoringRequestError(error);
+          return errorResponse(mapped.status, mapped.code);
         }
       }
       return errorResponse(405, "method_not_allowed");

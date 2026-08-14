@@ -8,8 +8,10 @@ import { TWO_JOINT_REACH_FIXTURE_ID } from "../artifacts/two-joint-reach-fixture
 import { canonicalJsonBytes, sha256Hex } from "../kernel/canonical-json";
 import type { Entity, Pose, RefRecord, WorldProgram } from "../kernel/types";
 import { CURRENT_WORLD_REF, deepFreeze } from "../kernel/world";
+import { WORLD_POSE_POSITION_ENVELOPE } from "./pose-envelope";
 
 export { BALL_VESSEL_FIXTURE_ID, TWO_JOINT_REACH_FIXTURE_ID };
+export { WORLD_POSE_POSITION_ENVELOPE } from "./pose-envelope";
 
 export const WORLD_FIXTURE_IDS = Object.freeze([
   PRIMITIVE_BOX_FIXTURE_ID,
@@ -26,14 +28,24 @@ export const ACTUATOR_SEQUENCE_GOLDEN_DIGEST =
 
 const SNAPSHOT_ID_PATTERN = "^snapshot:[A-Za-z0-9][A-Za-z0-9._-]{0,127}$";
 const RUN_ID_PATTERN = "^run:[A-Za-z0-9][A-Za-z0-9._-]{0,63}$";
-const scalarSchema = deepFreeze({ type: "number", minimum: -4, maximum: 4 });
+const scalarSchema = deepFreeze({
+  type: "number",
+  minimum: WORLD_POSE_POSITION_ENVELOPE.x.minimum,
+  maximum: WORLD_POSE_POSITION_ENVELOPE.x.maximum,
+});
 
 function objectSchema(properties: Readonly<Record<string, unknown>>, required: readonly string[]) {
   return deepFreeze({ type: "object", properties, required, additionalProperties: false });
 }
 
 const positionSchema = objectSchema({
-  x: scalarSchema, y: scalarSchema, z: { type: "number", minimum: 0, maximum: 4 },
+  x: scalarSchema,
+  y: scalarSchema,
+  z: {
+    type: "number",
+    minimum: WORLD_POSE_POSITION_ENVELOPE.z.minimum,
+    maximum: WORLD_POSE_POSITION_ENVELOPE.z.maximum,
+  },
 }, ["x", "y", "z"]);
 const rotationSchema = objectSchema({
   x: { type: "number" }, y: { type: "number" }, z: { type: "number" }, w: { type: "number" },
@@ -156,6 +168,31 @@ export type JointStateEditChange = Extract<WorldEditChange, { readonly kind: "jo
 export interface WorldEditInput { readonly expected: RefRecord; readonly targetRef: Entity["ref"]; readonly change: WorldEditChange }
 export interface WorldRunInput { readonly runId: `run:${string}`; readonly program: WorldProgram }
 
+export interface WorldEditPoseWireInput {
+  readonly expected: RefRecord;
+  readonly targetRef: Entity["ref"];
+  readonly change: {
+    readonly kind: "pose";
+    readonly frameRef: "frame:world";
+    readonly pose: {
+      readonly position: Readonly<{ x: number; y: number; z: number }>;
+      readonly rotation: Readonly<{ x: number; y: number; z: number; w: number }>;
+    };
+  };
+}
+
+export type WorldEditStructuralInput = WorldEditPoseWireInput | Readonly<{
+  expected: RefRecord;
+  targetRef: Entity["ref"];
+  change: Readonly<{
+    kind: "joint-state";
+    joints: readonly [
+      Readonly<{ jointRef: string; positionRadians: number; velocityRadiansPerSecond: number }>,
+      Readonly<{ jointRef: string; positionRadians: number; velocityRadiansPerSecond: number }>,
+    ];
+  }>;
+}>;
+
 export function requireWorldWriteInput(value: unknown): WorldWriteInput {
   const input = exactRecord(value, "write input", ["fixtureId"]);
   if (!WORLD_FIXTURE_IDS.includes(input.fixtureId as WorldFixtureId)) throw new Error(`fixtureId 必须是 ${WORLD_FIXTURE_IDS.join("、")}`);
@@ -167,6 +204,83 @@ function requireExpectedRef(value: unknown): RefRecord {
   const snapshotId = requireId(expected.snapshotId, /^snapshot:[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/, "expected.snapshotId");
   if (typeof expected.version !== "number" || !Number.isSafeInteger(expected.version) || expected.version < 1) throw new Error("expected.version 必须是大于等于 1 的安全整数");
   return deepFreeze({ name: CURRENT_WORLD_REF, snapshotId, version: expected.version }) as RefRecord;
+}
+function requireNumberPrimitive(value: unknown, label: string): number {
+  if (typeof value !== "number") throw new Error(`${label} 必须是 number`);
+  return value;
+}
+function requireStringPrimitive(value: unknown, label: string): string {
+  if (typeof value !== "string") throw new Error(`${label} 必须是 string`);
+  return value;
+}
+export function decodeWorldEditInputStructure(value: unknown): WorldEditStructuralInput {
+  const input = exactRecord(value, "edit input", ["expected", "targetRef", "change"]);
+  if (input.targetRef !== "entity:cube" && input.targetRef !== "entity:ball" && input.targetRef !== "entity:arm" && input.targetRef !== "entity:generated-object") {
+    throw new Error("targetRef 非法");
+  }
+  const preview = exactRecord(
+    input.change,
+    "change preview",
+    Reflect.ownKeys(input.change as object).filter((key): key is string => typeof key === "string"),
+  );
+  const expected = requireExpectedRef(input.expected);
+  if (preview.kind === "pose") {
+    const change = exactRecord(input.change, "change", ["kind", "frameRef", "pose"]);
+    if (change.frameRef !== "frame:world") throw new Error("pose change frameRef 非法");
+    const pose = exactRecord(change.pose, "change.pose", ["position", "rotation"]);
+    const position = exactRecord(pose.position, "change.pose.position", ["x", "y", "z"]);
+    const rotation = exactRecord(pose.rotation, "change.pose.rotation", ["x", "y", "z", "w"]);
+    return deepFreeze({
+      expected,
+      targetRef: input.targetRef as Entity["ref"],
+      change: {
+        kind: "pose",
+        frameRef: "frame:world",
+        pose: {
+          position: {
+            x: requireNumberPrimitive(position.x, "position.x"),
+            y: requireNumberPrimitive(position.y, "position.y"),
+            z: requireNumberPrimitive(position.z, "position.z"),
+          },
+          rotation: {
+            x: requireNumberPrimitive(rotation.x, "rotation.x"),
+            y: requireNumberPrimitive(rotation.y, "rotation.y"),
+            z: requireNumberPrimitive(rotation.z, "rotation.z"),
+            w: requireNumberPrimitive(rotation.w, "rotation.w"),
+          },
+        },
+      },
+    }) as WorldEditPoseWireInput;
+  }
+  if (preview.kind === "joint-state") {
+    const change = exactRecord(input.change, "change", ["kind", "joints"]);
+    const joints = denseArray(change.joints, "change.joints", 2, 2).map((value, index) => {
+      const joint = exactRecord(
+        value,
+        `change.joints[${index}]`,
+        ["jointRef", "positionRadians", "velocityRadiansPerSecond"],
+      );
+      return {
+        jointRef: requireStringPrimitive(joint.jointRef, `change.joints[${index}].jointRef`),
+        positionRadians: requireNumberPrimitive(
+          joint.positionRadians,
+          `change.joints[${index}].positionRadians`,
+        ),
+        velocityRadiansPerSecond: requireNumberPrimitive(
+          joint.velocityRadiansPerSecond,
+          `change.joints[${index}].velocityRadiansPerSecond`,
+        ),
+      };
+    }) as unknown as Extract<WorldEditStructuralInput, {
+      change: { kind: "joint-state" };
+    }>["change"]["joints"];
+    return deepFreeze({
+      expected,
+      targetRef: input.targetRef as Entity["ref"],
+      change: { kind: "joint-state", joints },
+    }) as WorldEditStructuralInput;
+  }
+  throw new Error("change.kind 非法");
 }
 function requirePoseChange(value: unknown): WorldEditChange {
   const change = exactRecord(value, "change", ["kind", "frameRef", "pose"]);
@@ -192,12 +306,12 @@ function requireJointChange(value: unknown): WorldEditChange {
   }) as unknown as JointStateEditChange["joints"] };
 }
 export function requireWorldEditInput(value: unknown): WorldEditInput {
-  const input=exactRecord(value,"edit input",["expected","targetRef","change"]);
-  if (input.targetRef!=="entity:cube"&&input.targetRef!=="entity:ball"&&input.targetRef!=="entity:arm"&&input.targetRef!=="entity:generated-object") throw new Error("targetRef 非法");
-  const kind = exactRecord(input.change,"change preview",Reflect.ownKeys(input.change as object).filter((key): key is string=>typeof key==="string")).kind;
-  const change = kind==="pose" ? requirePoseChange(input.change) : requireJointChange(input.change);
-  if ((input.targetRef==="entity:arm") !== (change.kind==="joint-state")) throw new Error("targetRef 与 change.kind 不匹配");
-  return deepFreeze({ expected:requireExpectedRef(input.expected), targetRef:input.targetRef as Entity["ref"], change }) as WorldEditInput;
+  const structural = decodeWorldEditInputStructure(value);
+  const change = structural.change.kind === "pose"
+    ? requirePoseChange(structural.change)
+    : requireJointChange(structural.change);
+  if ((structural.targetRef === "entity:arm") !== (change.kind === "joint-state")) throw new Error("targetRef 与 change.kind 不匹配");
+  return deepFreeze({ expected:structural.expected, targetRef:structural.targetRef, change }) as WorldEditInput;
 }
 
 function withProgramId(content: Omit<WorldProgram,"id">): WorldProgram {

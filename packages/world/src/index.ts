@@ -125,6 +125,7 @@ export {
 } from "./world-tools/world-tool-surface";
 export {
   WORLD_FIXTURE_IDS,
+  WORLD_POSE_POSITION_ENVELOPE,
   WORLD_TOOL_CONTRACT,
   requireWorldEditInput,
   requireWorldRunInput,
@@ -136,6 +137,12 @@ export {
   type WorldWriteInput,
 } from "./world-tools/world-tool-contract";
 export {
+  admitMarbleHunyuanCompositeEdit,
+  type CompositeAuthoringAdmission,
+  type CompositeAuthoringRejectionCode,
+  type CompositeWorldAuthority,
+} from "./composite-authoring";
+export {
   PRODUCT_WORLD_TOOL_NAMES,
   type ProductSessionEvent,
   type ProductSessionProjection,
@@ -146,6 +153,8 @@ export {
 export {
   decodeProductSessionEvent,
   decodeProductSessionEventTrusted,
+  decodeProductSessionAuthoringTransition,
   decodeProductSessionProjection,
   decodeProductSessionProjectionTrusted,
+  type ProductSessionAuthoringOperation,
 } from "./product-session-codec";

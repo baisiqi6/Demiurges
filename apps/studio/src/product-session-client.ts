@@ -1,9 +1,13 @@
 import {
+  admitMarbleHunyuanCompositeEdit,
+  decodeProductSessionAuthoringTransition,
   decodeProductSessionEventTrusted,
   decodeProductSessionProjectionTrusted,
+  requireWorldWriteInput,
   type ProductSessionEvent,
   type ProductSessionProjection,
   type WorldReadResult,
+  type WorldWriteInput,
 } from "@demiurges/world";
 
 const MAX_EVENT_LINE_BYTES = 1_000_000;
@@ -205,6 +209,17 @@ export class ProductSessionTurnError extends Error {
   constructor(message: string, projection: ProductSessionProjection) {
     super(message.slice(0, 240));
     this.name = "ProductSessionTurnError";
+    this.projection = projection;
+    Object.freeze(this);
+  }
+}
+
+export class ProductSessionAuthoringError extends Error {
+  readonly projection: ProductSessionProjection;
+
+  constructor(message: string, projection: ProductSessionProjection) {
+    super(message.slice(0, 240));
+    this.name = "ProductSessionAuthoringError";
     this.projection = projection;
     Object.freeze(this);
   }
@@ -412,5 +427,96 @@ export class ProductSessionClient {
       throw new ProductSessionTurnError(stream.error, projection);
     }
     return projection;
+  }
+
+  async writeWorld(
+    sessionId: string,
+    input: WorldWriteInput,
+    prior: ProductSessionProjection,
+    signal?: AbortSignal,
+  ): Promise<ProductSessionProjection> {
+    const parsed = requireWorldWriteInput(input);
+    return this.#runAuthoringCommand(
+      sessionId,
+      "write",
+      parsed,
+      prior,
+      { kind: "write", input: parsed },
+      signal,
+    );
+  }
+
+  async editWorld(
+    sessionId: string,
+    input: unknown,
+    prior: ProductSessionProjection,
+    signal?: AbortSignal,
+  ): Promise<ProductSessionProjection> {
+    if (!prior.world) throw new Error("Product Session 尚无可编辑 world");
+    const admission = admitMarbleHunyuanCompositeEdit(prior.world, input);
+    if (admission.status === "rejected") throw new Error(admission.code);
+    if (admission.status === "unchanged") {
+      return decodeProductSessionAuthoringTransition(
+        prior,
+        sessionId,
+        prior,
+        { kind: "edit", outcome: "unchanged" },
+      );
+    }
+    return this.#runAuthoringCommand(
+      sessionId,
+      "edit",
+      admission.canonicalWireInput,
+      prior,
+      { kind: "edit", outcome: "updated", input: admission.parsedInput },
+      signal,
+    );
+  }
+
+  async #runAuthoringCommand(
+    sessionId: string,
+    operation: "write" | "edit",
+    input: unknown,
+    prior: ProductSessionProjection,
+    transition: Parameters<typeof decodeProductSessionAuthoringTransition>[3],
+    signal?: AbortSignal,
+  ): Promise<ProductSessionProjection> {
+    const deadline = Date.now() + this.#turnTimeoutMs;
+    try {
+      const body = await this.#beforeDeadline(
+        deadline,
+        signal,
+        `world/${operation} POST`,
+        async (operationSignal) => {
+          const response = await this.#fetch(
+            `/api/sessions/${encodeURIComponent(sessionId)}/world/${operation}`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(input),
+              signal: operationSignal,
+            },
+          );
+          return responseJson(response);
+        },
+      );
+      return await decodeProductSessionAuthoringTransition(
+        body,
+        sessionId,
+        prior,
+        transition,
+      );
+    } catch (error) {
+      const projection = await this.#readSettledSession(
+        sessionId,
+        deadline,
+        signal,
+        undefined,
+      );
+      throw new ProductSessionAuthoringError(
+        error instanceof Error ? error.message : "Agent Gateway authoring command 失败",
+        projection,
+      );
+    }
   }
 }
