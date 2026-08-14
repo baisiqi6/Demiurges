@@ -17,7 +17,7 @@ describe("WORLD_TOOL_CONTRACT DH-011", () => {
   test("single frozen source exposes four fixtures and per-tool budgets", () => {
     expect(isDeepFrozen(WORLD_TOOL_CONTRACT)).toBe(true);
     expect(WORLD_FIXTURE_IDS).toEqual([
-      "fixture:primitive-box","fixture:diagnostic-wedge-v1","fixture:ball-vessel-v1","fixture:two-joint-planar-reach-v1",
+      "fixture:primitive-box","fixture:diagnostic-wedge-v1","fixture:ball-vessel-v1","fixture:two-joint-planar-reach-v1","fixture:marble-hunyuan-composite-v1",
     ]);
     expect(WORLD_TOOL_CONTRACT.read.inputBudget.maxNodes).toBe(128);
     expect(WORLD_TOOL_CONTRACT.run.inputBudget).toEqual({maxNodes:256,maxDepth:8,maxStringLength:512});
@@ -27,6 +27,8 @@ describe("WORLD_TOOL_CONTRACT DH-011", () => {
     expect(requireWorldWriteInput({fixtureId:"fixture:two-joint-planar-reach-v1"}).fixtureId).toBe("fixture:two-joint-planar-reach-v1");
     const edit=requireWorldEditInput({expected,targetRef:"entity:cube",change:{kind:"pose",frameRef:"frame:world",pose:{position:{x:0,y:0,z:2.8},rotation:{x:0,y:0,z:0,w:1}}}});
     expect(edit.change.kind).toBe("pose");
+    const generated=requireWorldEditInput({expected,targetRef:"entity:generated-object",change:{kind:"pose",frameRef:"frame:world",pose:{position:{x:0,y:0,z:1.2},rotation:{x:0,y:0,z:0,w:1}}}});
+    expect(generated.targetRef).toBe("entity:generated-object");
     expect(()=>requireWorldEditInput({expected,targetRef:"entity:cube",frameRef:"frame:world",pose:{}})).toThrow("字段");
   });
 

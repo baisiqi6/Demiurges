@@ -4,7 +4,9 @@ import {
   requireDiagnosticGaussianSplatObservation,
   type Entity,
   type GaussianSplatObservationRepresentation,
+  type RegisteredAssetObservationRepresentation,
 } from "@demiurges/world";
+import { resolveRegisteredPresentationAsset } from "./registered-presentation";
 
 export interface Bounds3 {
   readonly min: readonly [number, number, number];
@@ -25,6 +27,9 @@ export interface AlignmentEvidence {
   readonly poseAngularErrorRadians: number;
   readonly toleranceMeters: number;
   readonly passed: boolean;
+  readonly integrityStatus?: "verified" | "failed";
+  readonly calibrationStatus?: "authored-unverified";
+  readonly proxyWitnessStatus?: "pass" | "fail";
 }
 
 interface PoseValue {
@@ -120,6 +125,41 @@ function boundsError(left: Bounds3, right: Bounds3): number {
     ...left.min.map((value, axis) => Math.abs(value - right.min[axis]!)),
     ...left.max.map((value, axis) => Math.abs(value - right.max[axis]!)),
   );
+}
+
+export function createRegisteredAlignmentEvidence(
+  entityRef: Entity["ref"],
+  observation: RegisteredAssetObservationRepresentation,
+  observedSourceBounds: Bounds3,
+): AlignmentEvidence {
+  const resolved = resolveRegisteredPresentationAsset(observation);
+  const boundsValid = isFiniteOrderedBounds(observedSourceBounds);
+  const maxBoundsErrorMeters = boundsValid
+    ? boundsError(observedSourceBounds, resolved.asset.sourceBounds)
+    : Infinity;
+  const alignmentToleranceMeters = resolved.witness.tolerance;
+  const proxyWitnessPassed = resolved.witness.passed;
+  const alignmentErrorMeters = Math.max(maxBoundsErrorMeters, resolved.witness.measured);
+  return deepFreeze({
+    entityRef,
+    observationAssetId: observation.assetId,
+    contentDigest: `sha256:${resolved.asset.digest}`,
+    sourceFrameRef: resolved.calibration.sourceFrameRef,
+    sourceUnitMeters: resolved.calibration.sourceUnitMeters,
+    observedEntityLocalBounds: observedSourceBounds,
+    expectedEntityLocalBounds: resolved.calibration.targetBounds,
+    collisionProxyBounds: resolved.calibration.targetBounds,
+    maxBoundsErrorMeters: alignmentErrorMeters,
+    poseTranslationErrorMeters: 0,
+    poseAngularErrorRadians: 0,
+    toleranceMeters: alignmentToleranceMeters,
+    passed: Number.isFinite(alignmentErrorMeters) &&
+      alignmentErrorMeters <= alignmentToleranceMeters &&
+      proxyWitnessPassed,
+    integrityStatus: "verified",
+    calibrationStatus: "authored-unverified",
+    proxyWitnessStatus: proxyWitnessPassed ? "pass" : "fail",
+  }) as AlignmentEvidence;
 }
 
 function poseError(left: PoseValue, right: PoseValue): {

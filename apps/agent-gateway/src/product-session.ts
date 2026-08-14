@@ -2,6 +2,9 @@ import {
   BALL_REF,
   BALL_VESSEL_PROGRAM,
   BALL_VESSEL_FIXTURE_ID,
+  GENERATED_OBJECT_REF,
+  MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
+  MARBLE_HUNYUAN_COMPOSITE_PROGRAM,
   PRIMITIVE_BOX_FIXTURE_ID,
   RuntimeMvpHost,
   WorldToolSurface,
@@ -100,6 +103,7 @@ class ScriptedAgentClient implements OmpAgentClientPort {
       snapshot: { entities: Array<{ ref: string; representations: { semantic: unknown } }> };
     };
     const ballVessel = this.#fixtureId === BALL_VESSEL_FIXTURE_ID;
+    const composite = this.#fixtureId === MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID;
     const articulated = this.#fixtureId === TWO_JOINT_REACH_FIXTURE_ID;
     const armSemantic = articulated
       ? read.snapshot.entities.find((entity) => entity.ref === "entity:arm")?.representations.semantic as {
@@ -122,13 +126,15 @@ class ScriptedAgentClient implements OmpAgentClientPort {
       },
     } : {
       expected: read.ref,
-      targetRef: ballVessel ? BALL_REF : "entity:cube",
+      targetRef: ballVessel ? BALL_REF : composite ? GENERATED_OBJECT_REF : "entity:cube",
       change: {
         kind: "pose",
         frameRef: "frame:world",
         pose: {
           position: ballVessel
             ? { x: 0.12, y: 0, z: 1.25 }
+            : composite
+            ? { x: 0, y: 0, z: 1.2 }
             : { x: 0, y: 0, z: 2.8 },
           rotation: { x: 0, y: 0, z: 0, w: 1 },
         },
@@ -155,6 +161,8 @@ class ScriptedAgentClient implements OmpAgentClientPort {
           }
         : ballVessel
         ? { kind: BALL_VESSEL_PROGRAM.kind, targetRef: BALL_VESSEL_PROGRAM.targetRef, durationSeconds: BALL_VESSEL_PROGRAM.durationSeconds, sampleRateHz: BALL_VESSEL_PROGRAM.sampleRateHz }
+        : composite
+        ? { kind: MARBLE_HUNYUAN_COMPOSITE_PROGRAM.kind, targetRef: MARBLE_HUNYUAN_COMPOSITE_PROGRAM.targetRef, durationSeconds: MARBLE_HUNYUAN_COMPOSITE_PROGRAM.durationSeconds, sampleRateHz: MARBLE_HUNYUAN_COMPOSITE_PROGRAM.sampleRateHz }
         : { kind: FALLING_CUBE_PROGRAM.kind, targetRef: FALLING_CUBE_PROGRAM.targetRef, durationSeconds: FALLING_CUBE_PROGRAM.durationSeconds, sampleRateHz: FALLING_CUBE_PROGRAM.sampleRateHz },
     })) as { evaluation: { passed: boolean } };
     this.#responseText = run.evaluation.passed

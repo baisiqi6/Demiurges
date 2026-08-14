@@ -47,6 +47,14 @@ export const ADOPT_END_EFFECTOR_REACH_POLICY: AdoptPolicy = deepFreeze({
   terminalSource: "runtime-terminal",
 }) as AdoptPolicy;
 
+export const ADOPT_MARBLE_HUNYUAN_COMPOSITE_POLICY: AdoptPolicy = deepFreeze({
+  id: "adopt-policy:marble-hunyuan-composite-v1",
+  evaluatorId: LANDING_EVALUATOR_ID,
+  contractId: "success:stable-on-floor",
+  requirePassed: true,
+  episodeCompletion: "completed",
+  terminalSource: "runtime-terminal",
+}) as AdoptPolicy;
 export interface RuntimeMvpAdoptPolicyEntry {
   readonly scenarioId: string;
   readonly programKind: WorldProgram["kind"];
@@ -73,6 +81,11 @@ export const RUNTIME_MVP_ADOPT_POLICY_REGISTRY = deepFreeze([
     scenarioId: "scenario:two-joint-planar-reach-v1",
     programKind: "actuator-sequence",
     policy: ADOPT_END_EFFECTOR_REACH_POLICY,
+  },
+  {
+    scenarioId: "scenario:marble-hunyuan-composite-v1",
+    programKind: "free-fall",
+    policy: ADOPT_MARBLE_HUNYUAN_COMPOSITE_POLICY,
   },
 ] as const) as readonly RuntimeMvpAdoptPolicyEntry[];
 

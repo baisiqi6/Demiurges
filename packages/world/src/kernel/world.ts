@@ -125,6 +125,14 @@ export const BALL_VESSEL_PROGRAM: WorldProgram = deepFreeze({
   sampleRateHz: 30,
 }) as WorldProgram;
 
+export const MARBLE_HUNYUAN_COMPOSITE_PROGRAM: WorldProgram = deepFreeze({
+  id: "program:sha256:8ac50182c352c018cbbf794d10c5cd3ca5cbddbb978164d77bd0097fee12a744",
+  kind: "free-fall",
+  targetRef: "entity:generated-object",
+  durationSeconds: 2.5,
+  sampleRateHz: 30,
+}) as WorldProgram;
+
 export const MUJOCO_PROFILE: RuntimeProfile = deepFreeze({
   id: "runtime:mujoco-wasm-single-3.11.0",
   provider: "MuJoCo WASM",

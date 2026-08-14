@@ -5,6 +5,9 @@ import {
   BALL_VESSEL_FIXTURE_ID,
   BALL_VESSEL_PROGRAM,
   DIAGNOSTIC_RIGID_FIXTURE_ID,
+  GENERATED_OBJECT_REF,
+  MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
+  MARBLE_HUNYUAN_COMPOSITE_PROGRAM,
   TWO_JOINT_REACH_FIXTURE_ID,
   decodeProductSessionProjection,
   decodeProductSessionProjectionTrusted,
@@ -85,6 +88,34 @@ describe("Gateway-owned ProductSession", () => {
     expect(target?.representations.visual.kind).toBe("imported-rigid-mesh");
     expect(projection.lastRun?.episode.samples[0]?.states["entity:cube"]).toBeDefined();
     expect(projection.lastRun?.evaluation.passed).toBe(true);
+    expect(projection.world?.ref.version).toBe(2);
+    expect(projection.world?.snapshot.id).not.toBe(
+      projection.lastRun?.episode.terminalSnapshot.id,
+    );
+  });
+
+  test("scripted Product Session 通过同一四工具闭环 Marble/Hunyuan composite", async () => {
+    const session = new ProductSession(
+      "session:test-marble-hunyuan",
+      createScriptedAgentClientFactory(MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID),
+    );
+    const tools: string[] = [];
+    const projection = await session.runTurn("运行真实 world-model composite", (event) => {
+      if (event.type === "tool.completed") tools.push(event.tool);
+    });
+
+    expect(tools).toEqual(["world_write", "world_read", "world_edit", "world_run"]);
+    expect(projection.world?.snapshot.entities.map((entity) => entity.ref)).toEqual([
+      "entity:environment",
+      "entity:floor",
+      GENERATED_OBJECT_REF,
+    ]);
+    expect(projection.lastRun?.episode.program.id).toBe(MARBLE_HUNYUAN_COMPOSITE_PROGRAM.id);
+    expect(projection.lastRun?.episode.samples[0]?.states[GENERATED_OBJECT_REF]).toBeDefined();
+    expect(projection.lastRun?.evaluation).toMatchObject({
+      contractId: "success:stable-on-floor",
+      passed: true,
+    });
     expect(projection.world?.ref.version).toBe(2);
     expect(projection.world?.snapshot.id).not.toBe(
       projection.lastRun?.episode.terminalSnapshot.id,

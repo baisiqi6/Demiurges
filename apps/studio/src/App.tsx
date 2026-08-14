@@ -21,13 +21,16 @@ import {
 } from "./presentation-three/ThreeViewport";
 import type { AlignmentEvidence } from "./presentation-three/alignment-evidence";
 import { resolveImportedVisualAsset } from "./presentation-three/presentation-assets";
+import { resolveRegisteredPresentationAsset } from "./presentation-three/registered-presentation";
 import {
-  defaultPresentationMode,
+  defaultPresentationLayers,
   evaluationMetricRows,
   preferredSelection,
-  presentationModeFor,
+  presentationLayersFor,
+  registeredIntegrityLabel,
   runContractSummary,
-  type PresentationMode,
+  type PresentationLayers,
+  type RegisteredAssetLoadState,
 } from "./presentation-model";
 import {
   ProductSessionClient,
@@ -38,7 +41,7 @@ type RuntimeStatus = "connecting" | "ready" | "running" | "completed" | "error";
 type ViewMode = "repository" | "episode";
 
 const DEFAULT_PROMPT =
-  "创建登记的两关节机械臂，读取关节与执行器约束，提交显式动作程序，让末端触达目标 Frame 并验证稳定停留。";
+  "加载登记的 Marble 世界与混元 3D 物体，读取它们的 Frame、Units 与 physics proxy，让物体自由落体并验证稳定着陆。";
 
 function formatNumber(value: number, digits = 3): string {
   return Number.isFinite(value) ? value.toFixed(digits) : "—";
@@ -70,8 +73,16 @@ export default function App() {
   const [timelineIndex, setTimelineIndex] = createSignal(0);
   const [viewMode, setViewMode] = createSignal<ViewMode>("repository");
   const [selectedRef, setSelectedRef] = createSignal<Entity["ref"]>();
-  const [presentationMode, setPresentationMode] = createSignal<PresentationMode>("mesh");
+  const [presentationLayers, setPresentationLayers] = createSignal<PresentationLayers>({
+    mesh: true,
+    splat: false,
+    collision: false,
+    alignment: false,
+  });
   const [alignmentEvidence, setAlignmentEvidence] = createSignal<AlignmentEvidence>();
+  const [registeredAssetStates, setRegisteredAssetStates] = createSignal<
+    readonly RegisteredAssetLoadState[]
+  >([]);
   const [runtimeStatus, setRuntimeStatus] = createSignal<RuntimeStatus>("connecting");
   const [errorMessage, setErrorMessage] = createSignal<string>();
   let turnAbort: AbortController | undefined;
@@ -103,6 +114,20 @@ export default function App() {
   const importedAsset = createMemo(() => {
     const visual = importedVisual();
     return visual ? resolveImportedVisualAsset(visual) : undefined;
+  });
+  const registeredVisual = createMemo(() => {
+    const visual = selectedEntity()?.representations.visual;
+    return visual?.kind === "registered-rigid-mesh" ? visual : undefined;
+  });
+  const registeredAsset = createMemo(() => {
+    const visual = registeredVisual();
+    return visual ? resolveRegisteredPresentationAsset(visual) : undefined;
+  });
+  const registeredAssetStatus = createMemo(() => {
+    const assetId = registeredAsset()?.asset.assetId;
+    return assetId
+      ? registeredAssetStates().find((state) => state.assetId === assetId)?.status
+      : undefined;
   });
   const vesselSemantic = createMemo(() => {
     const semantic = selectedEntity()?.representations.semantic;
@@ -138,13 +163,10 @@ export default function App() {
     const previousRef = resetSelection ? undefined : selectedRef();
     const ref = preferredSelection(snapshot, previousRef);
     setSelectedRef(ref);
-    const entity = ref
-      ? snapshot?.entities.find((candidate) => candidate.ref === ref)
-      : undefined;
-    setPresentationMode(
+    setPresentationLayers(
       ref !== previousRef
-        ? defaultPresentationMode(entity)
-        : presentationModeFor(entity, presentationMode()),
+        ? defaultPresentationLayers(snapshot)
+        : presentationLayersFor(snapshot, presentationLayers()),
     );
     setAlignmentEvidence(undefined);
   };
@@ -177,6 +199,7 @@ export default function App() {
     setResponseText("");
     setTimelineIndex(0);
     setViewMode("repository");
+    setRegisteredAssetStates([]);
     try {
       useProjection(await client.createSession(), true);
       setRuntimeStatus("ready");
@@ -277,8 +300,7 @@ export default function App() {
 
   const selectEntity = (ref: Entity["ref"]) => {
     setSelectedRef(ref);
-    const entity = currentSnapshot()?.entities.find((candidate) => candidate.ref === ref);
-    setPresentationMode(presentationModeFor(entity, presentationMode()));
+    setPresentationLayers(presentationLayersFor(currentSnapshot(), presentationLayers()));
     setAlignmentEvidence(undefined);
   };
 
@@ -327,9 +349,10 @@ export default function App() {
             snapshot={currentSnapshot()}
             sample={activeSample()}
             selectedRef={selectedRef()}
-            presentationMode={presentationMode()}
+            presentationLayers={presentationLayers()}
             onSelect={selectEntity}
             onAlignmentEvidence={setAlignmentEvidence}
+            onRegisteredAssetStates={setRegisteredAssetStates}
           />
           <Show when={!currentSnapshot()}>
             <div class="viewport-empty" data-testid="viewport-empty">
@@ -339,24 +362,34 @@ export default function App() {
           <div class="axis-key" aria-label="坐标轴图例">
             <span class="axis-x">X</span><span class="axis-y">Y</span><span class="axis-z">Z</span>
           </div>
-          <div class="presentation-switch" role="group" aria-label="Presentation representation">
-            <For each={(["mesh", "3dgs", "overlay"] as const)}>
-              {(mode) => (
+          <div class="presentation-switch" role="group" aria-label="Presentation layers">
+            <For each={([
+              ["mesh", "Mesh"],
+              ["splat", "3DGS"],
+              ["collision", "Collision"],
+              ["alignment", "Alignment"],
+            ] as const)}>
+              {([layer, label]) => (
                 <button
                   type="button"
-                  data-testid={`presentation-${mode}`}
-                  aria-pressed={presentationMode() === mode}
-                  disabled={mode === "3dgs" && !selectedEntity()?.representations.observation}
+                  data-testid={`presentation-${layer === "splat" ? "3dgs" : layer}`}
+                  aria-pressed={presentationLayers()[layer]}
+                  disabled={layer === "splat" && !currentSnapshot()?.entities.some(
+                    (entity) => entity.representations.observation !== null,
+                  )}
                   title={
-                    mode === "3dgs" && !selectedEntity()?.representations.observation
-                      ? "当前 Entity 没有 3DGS Observation"
+                    layer === "splat" && !currentSnapshot()?.entities.some(
+                      (entity) => entity.representations.observation !== null,
+                    )
+                      ? "当前 Snapshot 没有 3DGS Observation"
                       : undefined
                   }
-                  onClick={() => setPresentationMode(
-                    presentationModeFor(selectedEntity(), mode),
-                  )}
+                  onClick={() => setPresentationLayers((current) => ({
+                    ...current,
+                    [layer]: !current[layer],
+                  }))}
                 >
-                  {mode === "mesh" ? "GLB" : mode === "3dgs" ? "3DGS" : "对齐"}
+                  {label}
                 </button>
               )}
             </For>
@@ -472,7 +505,7 @@ export default function App() {
             <div>
               <dt>visual</dt>
               <dd data-testid="visual-kind">
-                {importedVisual()?.assetId ?? selectedEntity()?.representations.visual.kind ?? "—"}
+                {importedVisual()?.assetId ?? registeredVisual()?.assetId ?? selectedEntity()?.representations.visual.kind ?? "—"}
               </dd>
             </div>
             <Show when={importedVisual()}>
@@ -500,6 +533,24 @@ export default function App() {
                     </dd>
                   </div>
                   <div><dt>provenance</dt><dd>{importedAsset()?.provenance.origin} · {importedAsset()?.provenance.license}</dd></div>
+                </>
+              )}
+            </Show>
+            <Show when={registeredAsset()}>
+              {(resolved) => (
+                <>
+                  <div><dt>assetId</dt><dd data-testid="registered-asset-id">{resolved().asset.assetId}</dd></div>
+                  <div><dt>digest</dt><dd data-testid="registered-asset-digest">sha256:{resolved().asset.digest.slice(0, 16)}…</dd></div>
+                  <div><dt>source frame</dt><dd>{resolved().calibration.sourceFrameRef}</dd></div>
+                  <div><dt>target frame</dt><dd>{resolved().calibration.targetFrameRef}</dd></div>
+                  <div><dt>units</dt><dd>{formatNumber(resolved().calibration.sourceUnitMeters)} m → {formatNumber(resolved().calibration.targetUnitMeters)} m</dd></div>
+                  <div><dt>integrity</dt><dd data-testid="registered-integrity">{registeredIntegrityLabel(registeredAssetStatus())}</dd></div>
+                  <div><dt>calibration</dt><dd data-testid="registered-calibration">CALIBRATION AUTHORED / UNVERIFIED</dd></div>
+                  <div><dt>proxy witness</dt><dd data-testid="registered-witness">PROXY WITNESS {resolved().witness.passed ? "PASS" : "FAIL"}</dd></div>
+                  <div>
+                    <dt>artifact route</dt>
+                    <dd><a href={resolved().url}>{resolved().url}</a></dd>
+                  </div>
                 </>
               )}
             </Show>
@@ -556,6 +607,14 @@ export default function App() {
                 </>
               )}
             </Show>
+            <Show when={alignmentEvidence()?.calibrationStatus}>
+              <>
+                <div><dt>world integrity</dt><dd data-testid="world-integrity">INTEGRITY {alignmentEvidence()?.integrityStatus?.toUpperCase()}</dd></div>
+                <div><dt>world calibration</dt><dd>CALIBRATION AUTHORED / UNVERIFIED</dd></div>
+                <div><dt>world proxy witness</dt><dd>PROXY WITNESS {alignmentEvidence()?.proxyWitnessStatus?.toUpperCase()}</dd></div>
+                <div><dt>bounds error</dt><dd>{formatNumber(alignmentEvidence()?.maxBoundsErrorMeters ?? NaN, 6)} m</dd></div>
+              </>
+            </Show>
             <div>
               <dt>collision</dt>
               <dd data-testid="collision-kind">
@@ -607,7 +666,7 @@ export default function App() {
       <footer class="statusbar">
         <span>Authority: Gateway Product Session</span>
         <span>
-          Presentation: Three.js{selectedEntity()?.representations.observation ? " + Spark" : ""} · {presentationMode()}
+          Presentation: Three.js + Spark · {Object.entries(presentationLayers()).filter(([, enabled]) => enabled).map(([layer]) => layer).join(" + ") || "none"}
         </span>
         <span>Runtime: @mujoco/mujoco · Agent: restricted four-tool session</span>
       </footer>

@@ -23,13 +23,20 @@ import {
   TWO_JOINT_REACH_FIXTURE_ID,
   createTwoJointReachSnapshot,
 } from "./two-joint-reach-fixture";
+import {
+  MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
+  MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID,
+  createMarbleHunyuanCompositeSnapshot,
+  requireMarbleHunyuanCompositeSnapshot,
+} from "./marble-hunyuan-composite-fixture";
 
 export const PRIMITIVE_BOX_FIXTURE_ID = "fixture:primitive-box" as const;
 export const DIAGNOSTIC_RIGID_FIXTURE_ID = "fixture:diagnostic-wedge-v1" as const;
 export type RigidFixtureId =
   | typeof PRIMITIVE_BOX_FIXTURE_ID
   | typeof DIAGNOSTIC_RIGID_FIXTURE_ID
-  | typeof BALL_VESSEL_FIXTURE_ID;
+  | typeof BALL_VESSEL_FIXTURE_ID
+  | typeof MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID;
 export type RegisteredFixtureId = RigidFixtureId | typeof TWO_JOINT_REACH_FIXTURE_ID;
 
 export const DIAGNOSTIC_RIGID_ASSET = deepFreeze({
@@ -79,10 +86,11 @@ export function requireRigidFixtureId(value: unknown): RigidFixtureId {
   if (
     value !== PRIMITIVE_BOX_FIXTURE_ID &&
     value !== DIAGNOSTIC_RIGID_FIXTURE_ID &&
-    value !== BALL_VESSEL_FIXTURE_ID
+    value !== BALL_VESSEL_FIXTURE_ID &&
+    value !== MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID
   ) {
     throw new Error(
-      `fixtureId 必须是 ${PRIMITIVE_BOX_FIXTURE_ID}、${DIAGNOSTIC_RIGID_FIXTURE_ID} 或 ${BALL_VESSEL_FIXTURE_ID}`,
+      `fixtureId 必须是 ${PRIMITIVE_BOX_FIXTURE_ID}、${DIAGNOSTIC_RIGID_FIXTURE_ID}、${BALL_VESSEL_FIXTURE_ID} 或 ${MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID}`,
     );
   }
   return value;
@@ -120,7 +128,6 @@ export function requireDiagnosticRigidCollision(
     throw new Error("imported rigid collision 与登记 proxy 不一致");
   }
 }
-
 export function createFixtureSnapshot(
   height: number,
   fixtureId: RigidFixtureId = PRIMITIVE_BOX_FIXTURE_ID,
@@ -130,6 +137,9 @@ export function createFixtureSnapshot(
   }
   if (fixtureId === BALL_VESSEL_FIXTURE_ID) {
     return createBallVesselSnapshot();
+  }
+  if (fixtureId === MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID) {
+    return createMarbleHunyuanCompositeSnapshot();
   }
 
   const base = createInitialSnapshot(height);
@@ -241,6 +251,10 @@ export function requireRegisteredSnapshotIdentity(snapshot: Snapshot): void {
     });
     return;
   }
+  if (snapshot.scenarioId === MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID) {
+    requireMarbleHunyuanCompositeSnapshot(snapshot);
+    return;
+  }
   if (
     refs.length === 3 &&
     refs[0] === FLOOR_REF &&
@@ -276,6 +290,9 @@ export function requireRegisteredSnapshotIdentity(snapshot: Snapshot): void {
   requireDiagnosticRigidVisual(target.representations.visual);
   requireDiagnosticRigidCollision(target.representations.collision);
   if (target.representations.observation !== null) {
+    if (target.representations.observation.kind !== "gaussian-splat") {
+      throw new Error("diagnostic rigid observation kind 与 fixture registry 漂移");
+    }
     requireDiagnosticGaussianSplatObservation(target.representations.observation);
   }
   const canonicalDiagnostic = createFixtureSnapshot(2, DIAGNOSTIC_RIGID_FIXTURE_ID);

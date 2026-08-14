@@ -11,7 +11,6 @@ import type {
 } from "../kernel/types";
 import {
   BALL_VESSEL_PROGRAM,
-  CUBE_REF,
   FLOOR_REF,
   deepFreeze,
   findEntity,
@@ -59,9 +58,12 @@ export function deriveLandingSuccessContract(episode: Episode): LandingSuccessCo
   if (!isDeepFrozen(episode)) {
     throw new Error("Episode 必须是递归冻结的 plain data record");
   }
+  if (episode.program.kind !== "free-fall") {
+    throw new Error("landing evaluator 只支持 free-fall Program");
+  }
   const terminal = episode.terminalSnapshot;
   const floor = findEntity(terminal, FLOOR_REF);
-  const target = findEntity(terminal, CUBE_REF);
+  const target = findEntity(terminal, episode.program.targetRef);
   const floorShape = floor.representations.collision;
   const targetShape = target.representations.collision;
   if (floorShape.kind !== "box" || targetShape.kind !== "box") {

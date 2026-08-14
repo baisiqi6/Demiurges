@@ -26,6 +26,11 @@ import {
   requireRegisteredSnapshotIdentity,
 } from "../artifacts/diagnostic-rigid-fixture";
 import { CUBE_REF, deepFreeze, findEntity, FLOOR_REF, isDeepFrozen } from "../kernel/world";
+import {
+  GENERATED_OBJECT_REF,
+  MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID,
+  requireMarbleHunyuanCompositeSnapshot,
+} from "../artifacts/marble-hunyuan-composite-fixture";
 import { canonicalJsonBytes, sha256Hex } from "../kernel/canonical-json";
 
 const PROGRAM_SAMPLE_RATE_HZ = 30;
@@ -36,7 +41,7 @@ const RUNTIME_TIMESTEP_SECONDS = 1 / 240;
 const RUNTIME_GRAVITY = [0, 0, -9.81] as const;
 
 interface PreparedRun {
-  readonly scenario: "falling-rigid" | "ball-vessel";
+  readonly scenario: "falling-rigid" | "ball-vessel" | "composite";
   readonly floor: Entity;
   readonly target: Entity;
   readonly vessel?: Entity;
@@ -164,22 +169,25 @@ function requireEntity(entity: Entity): void {
     if (typeof visual.color !== "string" || visual.color.length === 0 || visual.color.length > 64) {
       throw new Error(`${entity.ref} visual color 非法`);
     }
+  } else if (visual.kind === "registered-rigid-mesh") {
+    requireExactOwnKeys(visual, `${entity.ref} registered visual`, [
+      "kind", "assetId", "manifestDigest", "calibrationId", "witnessId",
+    ]);
+    if (
+      !visual.assetId.startsWith("asset:") ||
+      !/^sha256:[a-f0-9]{64}$/.test(visual.manifestDigest) ||
+      !visual.calibrationId.startsWith("calibration:") ||
+      !visual.witnessId.startsWith("witness:")
+    ) throw new Error(`${entity.ref} registered visual identity 非法`);
   } else if (visual.kind === "imported-rigid-mesh") {
     requireExactOwnKeys(visual, `${entity.ref} imported visual`, [
-      "kind",
-      "assetId",
-      "contentDigest",
-      "sourceFrameRef",
-      "sourceUnitMeters",
-      "localTransform",
+      "kind", "assetId", "contentDigest", "sourceFrameRef", "sourceUnitMeters", "localTransform",
     ]);
     requireDiagnosticRigidVisual(visual);
     requireDiagnosticRigidCollision(collision);
     requirePositive(visual.sourceUnitMeters, `${entity.ref} sourceUnitMeters`);
     requireExactOwnKeys(visual.localTransform, `${entity.ref} localTransform`, [
-      "position",
-      "rotation",
-      "scale",
+      "position", "rotation", "scale",
     ]);
     requireFiniteVec(visual.localTransform.position, `${entity.ref} local position`);
     requireUnitQuaternion(visual.localTransform.rotation, `${entity.ref} local rotation`);
@@ -197,6 +205,9 @@ function requireEntity(entity: Entity): void {
     }
     if (visual.kind !== "imported-rigid-mesh") {
       throw new Error(`${entity.ref} observation 只允许绑定登记 imported visual`);
+    }
+    if (observation.kind !== "gaussian-splat") {
+      throw new Error(`${entity.ref} diagnostic observation kind 非法`);
     }
     requireDiagnosticRigidCollision(collision);
     requireExactOwnKeys(observation, `${entity.ref} observation`, [
@@ -301,6 +312,10 @@ function prepareRun(
   program: WorldProgram,
   profile: RuntimeProfile,
 ): PreparedRun {
+  if (!isDeepFrozen(snapshot) || !isDeepFrozen(program) || !isDeepFrozen(profile)) {
+    throw new Error("Snapshot、WorldProgram 与 RuntimeProfile 必须是递归冻结的 plain data record");
+  }
+  requireSnapshotRepresentationIntegrity(snapshot);
   if (program.kind !== "free-fall") {
     throw new Error(`MuJoCo Runtime 尚不支持 ${program.kind}`);
   }
@@ -308,14 +323,18 @@ function prepareRun(
   requirePositive(program.sampleRateHz, "sampleRateHz");
   const scenario = snapshot.scenarioId === "scenario:ball-vessel-free-fall-v1"
     ? "ball-vessel"
-    : snapshot.scenarioId === "scenario:primitive-box-free-fall-v1" ||
-        snapshot.scenarioId === "scenario:diagnostic-rigid-free-fall-v1"
-      ? "falling-rigid"
-      : null;
+    : snapshot.scenarioId === MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID
+      ? "composite"
+      : snapshot.scenarioId === "scenario:primitive-box-free-fall-v1" ||
+          snapshot.scenarioId === "scenario:diagnostic-rigid-free-fall-v1"
+        ? "falling-rigid"
+        : null;
   if (
     scenario === null ||
-    program.targetRef !== (scenario === "falling-rigid" ? CUBE_REF : BALL_REF) ||
-    program.durationSeconds !== (scenario === "falling-rigid" ? 2.5 : 3) ||
+    program.targetRef !== (scenario === "falling-rigid"
+      ? CUBE_REF
+      : scenario === "ball-vessel" ? BALL_REF : GENERATED_OBJECT_REF) ||
+    program.durationSeconds !== (scenario === "ball-vessel" ? 3 : 2.5) ||
     program.sampleRateHz !== PROGRAM_SAMPLE_RATE_HZ
   ) {
     throw new Error(`不受支持的 WorldProgram：${program.id}`);
@@ -342,12 +361,6 @@ function prepareRun(
     throw new Error(`RuntimeProfile identity 与执行参数不一致：${profile.id}`);
   }
 
-  if (!isDeepFrozen(snapshot) || !isDeepFrozen(program) || !isDeepFrozen(profile)) {
-    throw new Error("Snapshot、WorldProgram 与 RuntimeProfile 必须是递归冻结的 plain data record");
-  }
-  if (snapshot.schemaVersion !== 1) {
-    throw new Error(`不受支持的 Snapshot schemaVersion：${snapshot.schemaVersion}`);
-  }
   const entityRefs = new Set(snapshot.entities.map((entity) => entity.ref));
   if (entityRefs.size !== snapshot.entities.length) {
     throw new Error("Snapshot 不能包含重复 EntityRef");
@@ -379,6 +392,38 @@ function prepareRun(
       throw new Error("静态地面必须使用 0 massKg、0 linearVelocity 与 0 angularVelocity");
     }
     requirePositive(target.physics.massKg, `${target.ref} massKg`);
+  } else if (scenario === "composite") {
+    requireMarbleHunyuanCompositeSnapshot(snapshot);
+    if (snapshot.entities.length !== 3) {
+      throw new Error("composite Runtime 必须恰好为 environment/floor/generated-object");
+    }
+    const [environment, compositeFloor, generated] = snapshot.entities as readonly [
+      Entity,
+      Entity,
+      Entity,
+    ];
+    requireEntityCommon(environment);
+    if (environment.representations.collision.kind !== "none") {
+      throw new Error("composite environment 必须是 no-collision observation Entity");
+    }
+    requireEntity(compositeFloor);
+    requireEntity(generated);
+    if (compositeFloor.physics.bodyType !== "static" || generated.physics.bodyType !== "dynamic") {
+      throw new Error("composite 要求静态 floor 与动态 generated-object");
+    }
+    if (
+      compositeFloor.physics.massKg !== 0 ||
+      !isZeroVec(compositeFloor.state.linearVelocity) ||
+      !isZeroVec(compositeFloor.state.angularVelocity) ||
+      environment.physics.massKg !== 0 ||
+      !isZeroVec(environment.state.linearVelocity) ||
+      !isZeroVec(environment.state.angularVelocity)
+    ) {
+      throw new Error("composite 静态 Entity 必须使用 0 massKg 与 0 velocity");
+    }
+    requirePositive(generated.physics.massKg, `${generated.ref} massKg`);
+    floor = compositeFloor;
+    target = generated;
   } else {
     const prepared = requireBallVesselRuntimeSnapshot(snapshot);
     floor = prepared.floor;
@@ -449,6 +494,28 @@ function renderMjcf(prepared: PreparedRun, profile: RuntimeProfile): CompiledRun
       geomOwners: { floor: FLOOR_REF, cube_geom: CUBE_REF },
     };
   }
+
+  if (prepared.scenario === "composite") {
+    const targetShape = target.representations.collision;
+    if (targetShape.kind !== "box") {
+      throw new Error("composite MJCF 只接纳 box generated-object proxy");
+    }
+    return {
+      xml: `<mujoco model="demiurges-marble-hunyuan-composite">
+  <compiler angle="radian" alignfree="false"/>
+  <option timestep="${xmlNumber(profile.timestepSeconds)}" gravity="${xmlVec(profile.gravity)}"/>
+  <worldbody>
+    <geom name="floor" type="box" pos="${xmlVec(floor.state.pose.position)}" quat="${xmlVec(quaternionValues(floor))}" size="${xmlVec(floorShape.halfExtents)}" friction="${xmlNumber(floor.physics.friction)} 0.005 0.0001"/>
+    <body name="generated" pos="${xmlVec(target.state.pose.position)}" quat="${xmlVec(quaternionValues(target))}">
+      <freejoint name="generated_free" align="false"/>
+      <geom name="generated_geom" type="box" size="${xmlVec(targetShape.halfExtents)}" mass="${xmlNumber(target.physics.massKg)}" friction="${xmlNumber(target.physics.friction)} 0.005 0.0001"/>
+    </body>
+  </worldbody>
+</mujoco>`,
+      geomOwners: { floor: FLOOR_REF, generated_geom: GENERATED_OBJECT_REF },
+    };
+  }
+
 
   const vessel = prepared.vessel;
   const vesselShape = vessel?.representations.collision;
@@ -664,15 +731,15 @@ function createTerminalSnapshot(
 }
 
 function runKey(inputs: ExplicitInputs): string {
+  if (!isDeepFrozen(inputs)) {
+    throw new Error("ExplicitInputs 必须递归冻结");
+  }
   if (typeof inputs.runId !== "string" || !inputs.runId.startsWith("run:")) {
     throw new Error("runId 必须以 run: 开头");
   }
   const value = inputs.runId.slice("run:".length);
   if (!/^[a-zA-Z0-9._-]+$/.test(value)) {
     throw new Error("runId 仅允许字母、数字、点、下划线与连字符");
-  }
-  if (!isDeepFrozen(inputs)) {
-    throw new Error("ExplicitInputs 必须递归冻结");
   }
   return value;
 }
@@ -698,8 +765,9 @@ export async function runFallingCube(
   profile: RuntimeProfile,
   inputs: ExplicitInputs,
 ): Promise<Episode> {
-  const key = executionKey(runKey(inputs), snapshotKey(snapshot));
+  const run = runKey(inputs);
   const prepared = prepareRun(snapshot, program, profile);
+  const key = executionKey(run, snapshotKey(snapshot));
   const compiled = renderMjcf(prepared, profile);
   const mujoco = await getMujoco();
   let model: MjModel | undefined;

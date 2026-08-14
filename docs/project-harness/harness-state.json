@@ -1,21 +1,21 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "generated_at": "2026-08-13T09:31:01Z",
+  "generated_at": "2026-08-14T07:57:04Z",
   "source": {
     "checklist_path": "docs/project-harness/harness-checklist.json",
-    "checklist_sha256": "65ccb9d699f019718dca33833a55d11ed4b249528ed999e2a7c41a40f4b6702b"
+    "checklist_sha256": "4076f9687d55e81bc038de194faccdf2f91f9e127241b8097661cb300a43b8d1"
   },
   "current_status": "",
   "current_item": null,
   "checklist_summary": {
     "todo": 0,
     "doing": 0,
-    "done": 14,
+    "done": 15,
     "blocked": 0
   },
   "workflow_summary": {
-    "closed": 14
+    "closed": 15
   },
   "paths": {
     "scope": "docs/project-harness/scope.md",
@@ -53,138 +53,6 @@
   },
   "open_risks": [],
   "recent_events": [
-    {
-      "actor": "fresh-executable-cross-review-round7",
-      "artifacts": [],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-12T16:35:11Z",
-      "id": "evt-20260812T163511Z-5a5b5b73",
-      "idempotency_key": "REVIEW:DH-011:approved:fresh-executable-cross-review-round7",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "approved",
-      "summary": "Two fresh isolated executable reviewers approved frozen aggregate 440188d2...; P0/P1/P2=0; 12/14 and 13/20 legal/adversarial probes; targeted 45/0/158, full 172/0/2958, typecheck/build/diff/EXharness pass; may_closeout=yes.",
-      "target": "codex-root",
-      "task": "DH-011",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260812T163511Z-5a5b5b73 task=DH-011 actor=fresh-executable-cross-review-round7 target=codex-root status=approved"
-    },
-    {
-      "actor": "operator",
-      "artifacts": [],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-12T16:35:11Z",
-      "id": "evt-20260812T163511Z-bdcb9eb1",
-      "idempotency_key": "CLOSE:DH-011:done:operator",
-      "metadata": {
-        "force_reason": null
-      },
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "done",
-      "summary": "operator closed DH-011",
-      "target": null,
-      "task": "DH-011",
-      "type": "CLOSE",
-      "visible_header": "[CLOSE] id=evt-20260812T163511Z-bdcb9eb1 task=DH-011 actor=operator status=done"
-    },
-    {
-      "actor": "operator",
-      "artifacts": [
-        "docs/project-harness/tasks/DH-012/plan.md"
-      ],
-      "branch": "agent/codex/DH-012",
-      "causation_id": null,
-      "created_at": "2026-08-13T08:42:54Z",
-      "id": "evt-20260813T084254Z-d32f02b6",
-      "idempotency_key": "ASSIGN:DH-012:assigned:operator",
-      "metadata": {
-        "force_reason": null,
-        "session": "bootstrap-dh012"
-      },
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "assigned",
-      "summary": "operator assigned DH-012 to codex",
-      "target": "codex",
-      "task": "DH-012",
-      "type": "ASSIGN",
-      "visible_header": "[ASSIGN] id=evt-20260813T084254Z-d32f02b6 task=DH-012 actor=operator target=codex status=assigned branch=agent/codex/DH-012 artifacts=docs/project-harness/tasks/DH-012/plan.md"
-    },
-    {
-      "actor": "codex",
-      "artifacts": [],
-      "branch": "agent/codex/DH-012",
-      "causation_id": null,
-      "created_at": "2026-08-13T08:42:54Z",
-      "id": "evt-20260813T084254Z-1e2fe796",
-      "idempotency_key": "ACCEPT:DH-012:running:codex",
-      "metadata": {
-        "force_reason": null,
-        "session": "bootstrap-dh012"
-      },
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "running",
-      "summary": "codex accepted DH-012",
-      "target": "codex",
-      "task": "DH-012",
-      "type": "ACCEPT",
-      "visible_header": "[ACCEPT] id=evt-20260813T084254Z-1e2fe796 task=DH-012 actor=codex target=codex status=running branch=agent/codex/DH-012"
-    },
-    {
-      "actor": "claude-k3-dh012-final",
-      "artifacts": [],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-13T09:30:35Z",
-      "id": "evt-20260813T093035Z-208405f8",
-      "idempotency_key": "REVIEW:DH-012:approved:claude-k3-dh012-final",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "approved",
-      "summary": "P0/P1=0；production exact read-back、Remote tools/list 单工具、token hygiene、零 channel binding 与 authority 边界均通过；DH012_MAY_CLOSE_AND_MERGE=yes。",
-      "target": "codex",
-      "task": "DH-012",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260813T093035Z-208405f8 task=DH-012 actor=claude-k3-dh012-final target=codex status=approved"
-    },
-    {
-      "actor": "codex",
-      "artifacts": [
-        "docs/project-harness/current/closeout-packet.md"
-      ],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-08-13T09:30:35Z",
-      "id": "evt-20260813T093035Z-ce7e2fcd",
-      "idempotency_key": "RESULT:DH-012:closeout_requested:codex",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "closeout_requested",
-      "summary": "Closeout requested for DH-012",
-      "target": "claude-k3-dh012-final",
-      "task": "DH-012",
-      "type": "RESULT",
-      "visible_header": "[RESULT] id=evt-20260813T093035Z-ce7e2fcd task=DH-012 actor=codex target=claude-k3-dh012-final status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
-    },
     {
       "actor": "claude-k3-dh012-final",
       "artifacts": [],
@@ -226,6 +94,138 @@
       "task": "DH-012",
       "type": "CLOSE",
       "visible_header": "[CLOSE] id=evt-20260813T093101Z-d41b26d5 task=DH-012 actor=codex-operator status=done"
+    },
+    {
+      "actor": "operator",
+      "artifacts": [
+        "docs/project-harness/tasks/DH-013/plan.md"
+      ],
+      "branch": "agent/codex/DH-013",
+      "causation_id": null,
+      "created_at": "2026-08-14T02:46:18Z",
+      "id": "evt-20260814T024618Z-2c5a663c",
+      "idempotency_key": "ASSIGN:DH-013:assigned:operator",
+      "metadata": {
+        "force_reason": null,
+        "session": "codex-dh013-plan-20260813"
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "assigned",
+      "summary": "operator assigned DH-013 to codex",
+      "target": "codex",
+      "task": "DH-013",
+      "type": "ASSIGN",
+      "visible_header": "[ASSIGN] id=evt-20260814T024618Z-2c5a663c task=DH-013 actor=operator target=codex status=assigned branch=agent/codex/DH-013 artifacts=docs/project-harness/tasks/DH-013/plan.md"
+    },
+    {
+      "actor": "codex",
+      "artifacts": [],
+      "branch": "agent/codex/DH-013",
+      "causation_id": null,
+      "created_at": "2026-08-14T02:46:18Z",
+      "id": "evt-20260814T024618Z-98699b32",
+      "idempotency_key": "ACCEPT:DH-013:running:codex",
+      "metadata": {
+        "force_reason": null,
+        "session": "codex-dh013-plan-20260813"
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "running",
+      "summary": "codex accepted DH-013",
+      "target": "codex",
+      "task": "DH-013",
+      "type": "ACCEPT",
+      "visible_header": "[ACCEPT] id=evt-20260814T024618Z-98699b32 task=DH-013 actor=codex target=codex status=running branch=agent/codex/DH-013"
+    },
+    {
+      "actor": "sol-max+deepseek-v4-pro-max",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-14T07:36:45Z",
+      "id": "evt-20260814T073645Z-9ef214de",
+      "idempotency_key": "REVIEW:DH-013:approved:sol-max+deepseek-v4-pro-max",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "approved",
+      "summary": "Final Round 3 frozen aggregate 372630cfee4b50b5550d57425b97a7baec73e34e95e0b7d8bacd84bf3f7706f0；Sol 与 fresh DeepSeek V4 Pro Max 共同批准，P0/P1=0，可请求 closeout。",
+      "target": "codex",
+      "task": "DH-013",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260814T073645Z-9ef214de task=DH-013 actor=sol-max+deepseek-v4-pro-max target=codex status=approved"
+    },
+    {
+      "actor": "codex",
+      "artifacts": [
+        "docs/project-harness/current/closeout-packet.md"
+      ],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-14T07:55:24Z",
+      "id": "evt-20260814T075524Z-8390bec7",
+      "idempotency_key": "RESULT:DH-013:closeout_requested:codex",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "closeout_requested",
+      "summary": "Closeout requested for DH-013",
+      "target": "sol-max+deepseek-v4-pro-max",
+      "task": "DH-013",
+      "type": "RESULT",
+      "visible_header": "[RESULT] id=evt-20260814T075524Z-8390bec7 task=DH-013 actor=codex target=sol-max+deepseek-v4-pro-max status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
+    },
+    {
+      "actor": "sol-max+deepseek-v4-pro-max",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-14T07:55:35Z",
+      "id": "evt-20260814T075535Z-5f85e074",
+      "idempotency_key": "REVIEW:DH-013:approved:sol-max+deepseek-v4-pro-max",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "approved",
+      "summary": "Final Round 3: frozen product aggregate 372630cfee4b50b5550d57425b97a7baec73e34e95e0b7d8bacd84bf3f7706f0；Sol 与 fresh DeepSeek V4 Pro Max 均 approved，P0/P1=0；464 tests、typecheck、build、diff、EXharness、真实 cache 与 Chromium closure 全通过。",
+      "target": "codex",
+      "task": "DH-013",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20260814T075535Z-5f85e074 task=DH-013 actor=sol-max+deepseek-v4-pro-max target=codex status=approved"
+    },
+    {
+      "actor": "codex",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-08-14T07:55:36Z",
+      "id": "evt-20260814T075536Z-c2f362f9",
+      "idempotency_key": "CLOSE:DH-013:done:codex",
+      "metadata": {
+        "force_reason": null
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "done",
+      "summary": "codex closed DH-013",
+      "target": null,
+      "task": "DH-013",
+      "type": "CLOSE",
+      "visible_header": "[CLOSE] id=evt-20260814T075536Z-c2f362f9 task=DH-013 actor=codex status=done"
     }
   ]
 }

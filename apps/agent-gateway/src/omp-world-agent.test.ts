@@ -275,6 +275,7 @@ describe("OMP World Agent Gateway", () => {
             "fixture:diagnostic-wedge-v1",
             "fixture:ball-vessel-v1",
             "fixture:two-joint-planar-reach-v1",
+            "fixture:marble-hunyuan-composite-v1",
           ],
         },
       },

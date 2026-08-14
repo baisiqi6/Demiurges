@@ -5,7 +5,33 @@ import type {
   WorldRunResult,
 } from "@demiurges/world";
 
-export type PresentationMode = "mesh" | "3dgs" | "overlay";
+export interface PresentationLayers {
+  readonly mesh: boolean;
+  readonly splat: boolean;
+  readonly collision: boolean;
+  readonly alignment: boolean;
+}
+
+export type RegisteredAssetLoadStatus =
+  | "loading"
+  | "loaded"
+  | "not-imported"
+  | "error";
+
+export interface RegisteredAssetLoadState {
+  readonly assetId: string;
+  readonly status: RegisteredAssetLoadStatus;
+}
+
+export function registeredIntegrityLabel(
+  status: RegisteredAssetLoadStatus | undefined,
+): string {
+  if (status === "loaded") return "INTEGRITY VERIFIED";
+  if (status === "loading") return "INTEGRITY VERIFYING";
+  if (status === "not-imported") return "NOT IMPORTED";
+  if (status === "error") return "INTEGRITY FAILED";
+  return "AWAITING ASSET";
+}
 
 export interface EvaluationMetricRow {
   readonly key: string;
@@ -27,19 +53,30 @@ export function preferredSelection(
     ?? snapshot.entities[0]?.ref;
 }
 
-export function presentationModeFor(
-  entity: Entity | undefined,
-  requested: PresentationMode,
-): PresentationMode {
-  return requested === "3dgs" && !entity?.representations.observation
-    ? "mesh"
-    : requested;
+export function presentationLayersFor(
+  snapshot: Snapshot | undefined,
+  requested: PresentationLayers,
+): PresentationLayers {
+  const hasObservation = snapshot?.entities.some(
+    (entity) => entity.representations.observation !== null,
+  ) ?? false;
+  return {
+    ...requested,
+    splat: requested.splat && hasObservation,
+  };
 }
 
-export function defaultPresentationMode(
-  entity: Entity | undefined,
-): PresentationMode {
-  return entity?.representations.observation ? "3dgs" : "mesh";
+export function defaultPresentationLayers(
+  snapshot: Snapshot | undefined,
+): PresentationLayers {
+  return {
+    mesh: true,
+    splat: snapshot?.entities.some(
+      (entity) => entity.representations.observation !== null,
+    ) ?? false,
+    collision: false,
+    alignment: false,
+  };
 }
 
 export function evaluationMetricRows(

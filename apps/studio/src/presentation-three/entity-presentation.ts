@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import type { Entity } from "@demiurges/world";
+import { resolveRegisteredPresentationAsset } from "./registered-presentation";
 
 function applyPose(object: THREE.Object3D, pose: Entity["state"]["pose"]): void {
   object.position.set(pose.position[0], pose.position[1], pose.position[2]);
@@ -112,6 +113,51 @@ export function createRimFrameOverlay(entity: Entity): THREE.Group | undefined {
   axes.userData.entityRef = entity.ref;
   axes.userData.frameRef = semantic.rimFrame.ref;
   root.add(ring, axes);
+  return root;
+}
+
+function addCalibrationBounds(
+  root: THREE.Group,
+  representation: Extract<
+    Entity["representations"]["visual"] | NonNullable<Entity["representations"]["observation"]>,
+    { kind: "registered-rigid-mesh" | "registered-gaussian-splat" }
+  >,
+  color: THREE.ColorRepresentation,
+): void {
+  const resolved = resolveRegisteredPresentationAsset(representation);
+  const bounds = resolved.calibration.targetBounds;
+  const helper = new THREE.Box3Helper(
+    new THREE.Box3(
+      new THREE.Vector3(...bounds.min),
+      new THREE.Vector3(...bounds.max),
+    ),
+    color,
+  );
+  helper.userData.assetId = resolved.asset.assetId;
+  helper.userData.calibrationId = resolved.calibration.id;
+  helper.userData.witnessId = resolved.witness.id;
+  root.add(helper);
+}
+
+export function createAlignmentOverlay(entity: Entity): THREE.Group | undefined {
+  const visual = entity.representations.visual;
+  const observation = entity.representations.observation;
+  if (
+    visual.kind !== "registered-rigid-mesh" &&
+    observation?.kind !== "registered-gaussian-splat"
+  ) return undefined;
+  const root = new THREE.Group();
+  root.name = `${entity.ref}:alignment`;
+  root.userData.entityRef = entity.ref;
+  if (visual.kind === "registered-rigid-mesh") {
+    addCalibrationBounds(root, visual, "#27a8a2");
+  }
+  if (observation?.kind === "registered-gaussian-splat") {
+    addCalibrationBounds(root, observation, "#d45bb6");
+  }
+  const axes = new THREE.AxesHelper(0.45);
+  axes.userData.entityRef = entity.ref;
+  root.add(axes);
   return root;
 }
 

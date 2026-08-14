@@ -667,3 +667,10 @@ Independent review：
 - closeout packet 后重新登记 frozen Round 2 approval，正常 `mark-done` 成功；第一次缺少 closeout-phase approval 的 mark-done 被护栏拒绝，未使用 force override；
 - CLOSE event 为 `evt-20260812T060501Z-9debaaa1`，DH-010.1 已为 `done / closed`，lease 已释放，current task pointer 已清空；
 - 后续 authority 仅覆盖 commit + push `agent/codex/DH-010.1` 并回查 remote SHA；不包含 merge `main`、tag、deploy 或真实 provider prompt。
+
+## 2026-08-14 — DH-013 Operator close completed
+
+- Final Round 3 的 Sol 与 fresh DeepSeek V4 Pro Max 共同批准，P0/P1 为 0；42-file product aggregate 为 `372630cfee4b50b5550d57425b97a7baec73e34e95e0b7d8bacd84bf3f7706f0`；
+- Human 授权后完成 closeout packet、closeout-phase approval 与正常 `mark-done`；CLOSE event `evt-20260814T075536Z-c2f362f9`，DH-013 已为 `done / closed`，lease 已释放，未使用 force override；
+- 最终 `464 pass / 0 fail / 3418 expect()`，typecheck、build、diff-check 与 EXharness validate/doctor 通过；真实 provider bytes 继续只存在 ignored local cache，不进入 Git；
+- 当前 authority 仅覆盖 commit + push `agent/codex/DH-013`；不包含 merge `main`、tag、deploy 或新 provider generation。

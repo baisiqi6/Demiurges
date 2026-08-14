@@ -17,6 +17,7 @@ import type {
   ArticulatedJointState,
 } from "../kernel/types";
 import { requireRegisteredSnapshotIdentity } from "../artifacts/diagnostic-rigid-fixture";
+import { requireSnapshotRepresentationIntegrity } from "../artifacts/ball-vessel-fixture";
 import {
   requireAdoptPolicyById,
   RUNTIME_MVP_ADOPT_POLICY_REGISTRY,
@@ -50,6 +51,7 @@ class WorldRepositoryState {
   }
 
   #insert(snapshot: Snapshot): Snapshot {
+    requireSnapshotRepresentationIntegrity(snapshot);
     if (this.#snapshots.has(snapshot.id)) {
       throw new Error(`Snapshot ID 冲突：${snapshot.id}`);
     }
@@ -124,6 +126,7 @@ class WorldRepositoryState {
   }
 
   write(snapshot: Snapshot, ref: RefRecord["name"] = CURRENT_WORLD_REF): Snapshot {
+    requireSnapshotRepresentationIntegrity(snapshot);
     if (snapshot.source !== "write") {
       throw new Error("write 只接纳 source: write 的 root Snapshot");
     }
@@ -140,6 +143,7 @@ class WorldRepositoryState {
   }
 
   record(snapshot: Snapshot): Snapshot {
+    requireSnapshotRepresentationIntegrity(snapshot);
     if (snapshot.source !== "runtime-terminal") {
       throw new Error("record 只接纳 runtime-terminal Snapshot");
     }

@@ -378,7 +378,7 @@ describe("MuJoCo falling-cube Runtime", () => {
     await expect(
       runFallingCube(
         createInitialSnapshot(),
-        { ...FALLING_CUBE_PROGRAM, durationSeconds: -1 },
+        deepFreeze({ ...FALLING_CUBE_PROGRAM, durationSeconds: -1 }) as WorldProgram,
         MUJOCO_PROFILE,
         explicitInputs("run:negative-duration"),
       ),
@@ -388,7 +388,12 @@ describe("MuJoCo falling-cube Runtime", () => {
       runFallingCube(
         createInitialSnapshot(),
         FALLING_CUBE_PROGRAM,
-        { ...MUJOCO_PROFILE, id: "runtime:fake", provider: "Fake Runtime", version: "999" },
+        deepFreeze({
+          ...MUJOCO_PROFILE,
+          id: "runtime:fake",
+          provider: "Fake Runtime",
+          version: "999",
+        }) as RuntimeProfile,
         explicitInputs("run:fake-profile"),
       ),
     ).rejects.toThrow("RuntimeProfile");
@@ -473,6 +478,39 @@ describe("MuJoCo falling-cube Runtime", () => {
         { runId: "run:mutable-inputs" },
       ),
     ).rejects.toThrow("ExplicitInputs");
+  });
+
+  test("runFallingCube 在读取 Snapshot id 前完成 descriptor/deep-frozen admission", async () => {
+    for (const selfMaterializing of [false, true]) {
+      const snapshot = structuredClone(createInitialSnapshot()) as unknown as Record<string, unknown>;
+      const id = snapshot.id;
+      let getterReads = 0;
+      Object.defineProperty(snapshot, "id", {
+        enumerable: true,
+        configurable: true,
+        get() {
+          getterReads += 1;
+          if (selfMaterializing) {
+            snapshot.schemaVersion = 999;
+            Object.defineProperty(snapshot, "id", {
+              value: id,
+              enumerable: true,
+            });
+          }
+          return id;
+        },
+      });
+
+      await expect(
+        runFallingCube(
+          snapshot as unknown as Snapshot,
+          FALLING_CUBE_PROGRAM,
+          MUJOCO_PROFILE,
+          explicitInputs(`run:id-getter-${selfMaterializing ? "self" : "ordinary"}`),
+        ),
+      ).rejects.toThrow("递归冻结");
+      expect(getterReads).toBe(0);
+    }
   });
 
   test("当前 Runtime 只接受完整参与演化的 floor + cube 世界", async () => {

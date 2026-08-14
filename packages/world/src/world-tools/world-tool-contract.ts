@@ -3,6 +3,7 @@ import {
   DIAGNOSTIC_RIGID_FIXTURE_ID,
   PRIMITIVE_BOX_FIXTURE_ID,
 } from "../artifacts/diagnostic-rigid-fixture";
+import { MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID } from "../artifacts/marble-hunyuan-composite-fixture";
 import { TWO_JOINT_REACH_FIXTURE_ID } from "../artifacts/two-joint-reach-fixture";
 import { canonicalJsonBytes, sha256Hex } from "../kernel/canonical-json";
 import type { Entity, Pose, RefRecord, WorldProgram } from "../kernel/types";
@@ -15,6 +16,7 @@ export const WORLD_FIXTURE_IDS = Object.freeze([
   DIAGNOSTIC_RIGID_FIXTURE_ID,
   BALL_VESSEL_FIXTURE_ID,
   TWO_JOINT_REACH_FIXTURE_ID,
+  MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
 ] as const);
 
 export const FREE_FALL_GOLDEN_DIGEST =
@@ -58,10 +60,9 @@ const jointChangeSchema = objectSchema({
     prefixItems: [jointSchema("joint:arm-shoulder"), jointSchema("joint:arm-elbow")],
   },
 }, ["kind", "joints"]);
-
 const freeFallSchema = objectSchema({
   kind: { type: "string", const: "free-fall" },
-  targetRef: { type: "string", enum: ["entity:cube", "entity:ball"] },
+  targetRef: { type: "string", enum: ["entity:cube", "entity:ball", "entity:generated-object"] },
   durationSeconds: { type: "number", enum: [2.5, 3] },
   sampleRateHz: { type: "number", const: 30 },
 }, ["kind", "targetRef", "durationSeconds", "sampleRateHz"]);
@@ -87,7 +88,7 @@ export const WORLD_TOOL_CONTRACT = deepFreeze({
   write: { inputBudget: { maxNodes: 128, maxDepth: 6, maxStringLength: 512 }, input: objectSchema({ fixtureId: { type: "string", enum: WORLD_FIXTURE_IDS } }, ["fixtureId"]) },
   edit: { inputBudget: { maxNodes: 128, maxDepth: 6, maxStringLength: 512 }, input: objectSchema({
     expected: expectedRefSchema,
-    targetRef: { type: "string", enum: ["entity:cube", "entity:ball", "entity:arm"] },
+    targetRef: { type: "string", enum: ["entity:cube", "entity:ball", "entity:arm", "entity:generated-object"] },
     change: { oneOf: [poseChangeSchema, jointChangeSchema] },
   }, ["expected", "targetRef", "change"]) },
   run: { inputBudget: { maxNodes: 256, maxDepth: 8, maxStringLength: 512 }, input: objectSchema({
@@ -192,7 +193,7 @@ function requireJointChange(value: unknown): WorldEditChange {
 }
 export function requireWorldEditInput(value: unknown): WorldEditInput {
   const input=exactRecord(value,"edit input",["expected","targetRef","change"]);
-  if (input.targetRef!=="entity:cube"&&input.targetRef!=="entity:ball"&&input.targetRef!=="entity:arm") throw new Error("targetRef 非法");
+  if (input.targetRef!=="entity:cube"&&input.targetRef!=="entity:ball"&&input.targetRef!=="entity:arm"&&input.targetRef!=="entity:generated-object") throw new Error("targetRef 非法");
   const kind = exactRecord(input.change,"change preview",Reflect.ownKeys(input.change as object).filter((key): key is string=>typeof key==="string")).kind;
   const change = kind==="pose" ? requirePoseChange(input.change) : requireJointChange(input.change);
   if ((input.targetRef==="entity:arm") !== (change.kind==="joint-state")) throw new Error("targetRef 与 change.kind 不匹配");
@@ -205,7 +206,7 @@ function withProgramId(content: Omit<WorldProgram,"id">): WorldProgram {
 }
 function requireFreeFall(value: unknown): WorldProgram {
   const p=exactRecord(value,"program",["kind","targetRef","durationSeconds","sampleRateHz"]);
-  if (p.kind!=="free-fall" || (p.targetRef!=="entity:cube"&&p.targetRef!=="entity:ball") || p.sampleRateHz!==30 || ![2.5,3].includes(p.durationSeconds as number)) throw new Error("free-fall Program 非法");
+  if (p.kind!=="free-fall" || (p.targetRef!=="entity:cube"&&p.targetRef!=="entity:ball"&&p.targetRef!=="entity:generated-object") || p.sampleRateHz!==30 || ![2.5,3].includes(p.durationSeconds as number)) throw new Error("free-fall Program 非法");
   return withProgramId({ kind:"free-fall", targetRef:p.targetRef, durationSeconds:p.durationSeconds, sampleRateHz:30 } as Omit<WorldProgram,"id">);
 }
 function requireActuatorSequence(value: unknown): WorldProgram {

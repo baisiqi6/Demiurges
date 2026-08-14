@@ -13,10 +13,11 @@ import {
   type WorldRunResult,
 } from "@demiurges/world";
 import {
-  defaultPresentationMode,
+  defaultPresentationLayers,
   evaluationMetricRows,
   preferredSelection,
-  presentationModeFor,
+  presentationLayersFor,
+  registeredIntegrityLabel,
   runContractSummary,
 } from "./presentation-model";
 
@@ -32,7 +33,7 @@ describe("Studio trusted presentation projection", () => {
     expect(preferredSelection(undefined, BALL_REF)).toBeUndefined();
   });
 
-  test("没有 Observation 的 Entity 不会进入空白 3DGS mode", () => {
+  test("四个 Presentation layer 独立，Snapshot 无 Observation 时只夹紧 splat", () => {
     const vessel = createBallVesselSnapshot();
     const diagnostic = createFixtureSnapshot(2, "fixture:diagnostic-wedge-v1").entities.find(
       (entity) => entity.ref === "entity:cube",
@@ -40,11 +41,33 @@ describe("Studio trusted presentation projection", () => {
     const ball = vessel.entities.find((entity) => entity.ref === BALL_REF);
     const container = vessel.entities.find((entity) => entity.ref === "entity:vessel");
 
-    expect(presentationModeFor(ball, "3dgs")).toBe("mesh");
-    expect(presentationModeFor(container, "3dgs")).toBe("mesh");
-    expect(presentationModeFor(container, "overlay")).toBe("overlay");
-    expect(defaultPresentationMode(ball)).toBe("mesh");
-    expect(defaultPresentationMode(diagnostic)).toBe("3dgs");
+    const requested = { mesh: false, splat: true, collision: true, alignment: true };
+    expect(presentationLayersFor(vessel, requested)).toEqual({
+      mesh: false,
+      splat: false,
+      collision: true,
+      alignment: true,
+    });
+    expect(defaultPresentationLayers(vessel)).toEqual({
+      mesh: true,
+      splat: false,
+      collision: false,
+      alignment: false,
+    });
+    const diagnosticSnapshot = createFixtureSnapshot(2, "fixture:diagnostic-wedge-v1");
+    expect(defaultPresentationLayers(diagnosticSnapshot).splat).toBe(true);
+    expect(presentationLayersFor(diagnosticSnapshot, requested)).toEqual(requested);
+    expect(ball).toBeDefined();
+    expect(container).toBeDefined();
+    expect(diagnostic).toBeDefined();
+  });
+
+  test("Integrity 标签只由实际 asset load admission 驱动", () => {
+    expect(registeredIntegrityLabel(undefined)).toBe("AWAITING ASSET");
+    expect(registeredIntegrityLabel("loading")).toBe("INTEGRITY VERIFYING");
+    expect(registeredIntegrityLabel("not-imported")).toBe("NOT IMPORTED");
+    expect(registeredIntegrityLabel("error")).toBe("INTEGRITY FAILED");
+    expect(registeredIntegrityLabel("loaded")).toBe("INTEGRITY VERIFIED");
   });
 
   test("两个 closed Evaluation variant 投射为各自的结构化 metrics", () => {

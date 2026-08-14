@@ -17,6 +17,10 @@ import {
   createTwoJointReachSnapshot,
 } from "../artifacts/two-joint-reach-fixture";
 import {
+  MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
+  createMarbleHunyuanCompositeSnapshot,
+} from "../artifacts/marble-hunyuan-composite-fixture";
+import {
   requireWorldEditInput,
   requireWorldRunInput,
   requireWorldWriteInput,
@@ -73,7 +77,9 @@ export class WorldToolSurface {
     const snapshot = this.#host.write(
       fixtureId === TWO_JOINT_REACH_FIXTURE_ID
         ? createTwoJointReachSnapshot()
-        : createFixtureSnapshot(2, fixtureId),
+        : fixtureId === MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID
+          ? createMarbleHunyuanCompositeSnapshot()
+          : createFixtureSnapshot(2, fixtureId),
     );
     return deepFreeze({
       tool: "write",

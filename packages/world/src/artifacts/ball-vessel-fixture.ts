@@ -193,20 +193,46 @@ function finite(value: unknown, label: string): number {
   return value;
 }
 
-function denseVec3(value: unknown, label: string): Vec3 {
-  if (
-    !Array.isArray(value) ||
-    value.length !== 3 ||
-    !Object.hasOwn(value, 0) ||
-    !Object.hasOwn(value, 1) ||
-    !Object.hasOwn(value, 2)
-  ) {
-    throw new Error(`${label} 必须是 dense Vec3`);
+function denseArrayValues(
+  value: unknown,
+  label: string,
+  expectedLength?: number,
+): readonly unknown[] {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+    throw new Error(`${label} 必须是 plain dense array`);
   }
+  const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
+  if (!lengthDescriptor || !("value" in lengthDescriptor)) {
+    throw new Error(`${label}.length 必须是 own data property`);
+  }
+  const length = lengthDescriptor.value;
+  if (!Number.isSafeInteger(length) || length < 0 ||
+      (expectedLength !== undefined && length !== expectedLength)) {
+    throw new Error(`${label} 长度非法`);
+  }
+  const expectedKeys = new Set<PropertyKey>([
+    ...Array.from({ length }, (_, index) => String(index)),
+    "length",
+  ]);
+  const ownKeys = Reflect.ownKeys(value);
+  if (ownKeys.length !== expectedKeys.size || ownKeys.some((key) => !expectedKeys.has(key))) {
+    throw new Error(`${label} 只能包含 dense indices 与 length`);
+  }
+  return Array.from({ length }, (_, index) => {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
+      throw new Error(`${label}[${index}] 必须是 enumerable own data property`);
+    }
+    return descriptor.value;
+  });
+}
+
+function denseVec3(value: unknown, label: string): Vec3 {
+  const values = denseArrayValues(value, `${label} dense Vec3`, 3);
   return [
-    finite(value[0], `${label}[0]`),
-    finite(value[1], `${label}[1]`),
-    finite(value[2], `${label}[2]`),
+    finite(values[0], `${label}[0]`),
+    finite(values[1], `${label}[1]`),
+    finite(values[2], `${label}[2]`),
   ];
 }
 
@@ -243,16 +269,12 @@ function requireCompound(
   expectedPartCount?: number,
 ): void {
   const compound = exactRecord(value, label, ["kind", "parts"]);
-  if (compound.kind !== "compound" || !Array.isArray(compound.parts)) {
+  if (compound.kind !== "compound") {
     throw new Error(`${label} 必须是 compound collision`);
   }
-  for (let index = 0; index < compound.parts.length; index += 1) {
-    if (!Object.hasOwn(compound.parts, index)) {
-      throw new Error(`${label}.parts 必须是 dense array`);
-    }
-  }
+  const parts = denseArrayValues(compound.parts, `${label}.parts`);
   const partKeys = new Set<string>();
-  compound.parts.forEach((value, index) => {
+  parts.forEach((value, index) => {
     const part = exactRecord(value, `${label}.parts[${index}]`, [
       "partKey",
       "localPose",
@@ -282,25 +304,35 @@ function requireCompound(
         `${label}.parts[${index}].shape.halfExtents[${axis}]`,
       ));
   });
-  if (expectedPartCount !== undefined && compound.parts.length !== expectedPartCount) {
+  if (expectedPartCount !== undefined && parts.length !== expectedPartCount) {
     throw new Error(`${label} 必须恰好包含 ${expectedPartCount} parts`);
   }
 }
 
 function requireSemantic(value: unknown, label: string): void {
   if (value === null) return;
-  if (typeof value === "object" && value !== null && "kind" in value &&
-      ((value as { kind?: unknown }).kind === "articulated" || (value as { kind?: unknown }).kind === "goal-frame")) {
+  const semantic = dataRecord(value, label);
+  if (semantic.kind === "articulated" || semantic.kind === "goal-frame") {
     return;
   }
-  const semantic = exactRecord(value, label, ["kind", "rimFrame", "innerEnvelope"]);
-  if (semantic.kind !== "vessel") throw new Error(`${label}.kind 非法`);
-  const rimFrame = exactRecord(semantic.rimFrame, `${label}.rimFrame`, ["ref", "localPose"]);
+  if (semantic.kind === "authored-box-proxy") {
+    const authoredProxy = exactRecord(semantic, label, ["kind", "witnessId"]);
+    if (
+      typeof authoredProxy.witnessId !== "string" ||
+      !authoredProxy.witnessId.startsWith("witness:")
+    ) {
+      throw new Error(`${label}.witnessId 非法`);
+    }
+    return;
+  }
+  const vessel = exactRecord(semantic, label, ["kind", "rimFrame", "innerEnvelope"]);
+  if (vessel.kind !== "vessel") throw new Error(`${label}.kind 非法`);
+  const rimFrame = exactRecord(vessel.rimFrame, `${label}.rimFrame`, ["ref", "localPose"]);
   if (rimFrame.ref !== "frame:vessel-rim-center") {
     throw new Error(`${label}.rim-center ref 非法`);
   }
   requirePose(rimFrame.localPose, `${label}.rim-center localPose`);
-  const envelope = exactRecord(semantic.innerEnvelope, `${label}.innerEnvelope`, [
+  const envelope = exactRecord(vessel.innerEnvelope, `${label}.innerEnvelope`, [
     "radiusMeters",
     "innerFloorZMeters",
     "rimZMeters",
@@ -319,16 +351,38 @@ export function requireSnapshotRepresentationIntegrity(snapshot: Snapshot): void
     "scenarioId",
     "entities",
   ]);
-  if (!Array.isArray(root.entities)) {
-    throw new Error("Snapshot.entities 必须是 dense array");
+  if (root.schemaVersion !== 1) {
+    throw new Error(`不受支持的 Snapshot schemaVersion：${String(root.schemaVersion)}`);
   }
-  for (let index = 0; index < root.entities.length; index += 1) {
-    if (!Object.hasOwn(root.entities, index)) {
-      throw new Error("Snapshot.entities 必须是 dense array");
-    }
+  if (
+    typeof root.id !== "string" ||
+    !/^snapshot:[a-zA-Z0-9._-]+$/.test(root.id)
+  ) {
+    throw new Error("Snapshot.id 非法");
   }
+  if (
+    root.parentId !== null &&
+    (typeof root.parentId !== "string" ||
+      !/^snapshot:[a-zA-Z0-9._-]+$/.test(root.parentId))
+  ) {
+    throw new Error("Snapshot.parentId 非法");
+  }
+  if (
+    root.source !== "write" &&
+    root.source !== "edit" &&
+    root.source !== "runtime-terminal"
+  ) {
+    throw new Error("Snapshot.source 非法");
+  }
+  if (
+    typeof root.scenarioId !== "string" ||
+    !/^scenario:[a-zA-Z0-9._-]+$/.test(root.scenarioId)
+  ) {
+    throw new Error("Snapshot.scenarioId 非法");
+  }
+  const entities = denseArrayValues(root.entities, "Snapshot.entities");
   const entityRefs = new Set<string>();
-  root.entities.forEach((value, index) => {
+  entities.forEach((value, index) => {
     const entity = exactRecord(value, `Snapshot.entities[${index}]`, [
       "ref",
       "label",
@@ -340,6 +394,15 @@ export function requireSnapshotRepresentationIntegrity(snapshot: Snapshot): void
     ]);
     if (typeof entity.ref !== "string" || !entity.ref.startsWith("entity:")) {
       throw new Error(`Snapshot.entities[${index}].ref 非法`);
+    }
+    if (typeof entity.label !== "string" || entity.label.length === 0) {
+      throw new Error(`Snapshot.entities[${index}].label 非法`);
+    }
+    if (entity.frameRef !== "frame:world") {
+      throw new Error(`${entity.ref}.frameRef 必须是 frame:world`);
+    }
+    if (entity.unitSystemRef !== "units:si") {
+      throw new Error(`${entity.ref}.unitSystemRef 必须是 units:si`);
     }
     if (entityRefs.has(entity.ref)) {
       throw new Error("Snapshot EntityRef 必须唯一");
@@ -388,26 +451,29 @@ export function requireSnapshotRepresentationIntegrity(snapshot: Snapshot): void
     } else if (visual.kind === "box") {
       exactRecord(visualRecord, `${entity.ref}.visual`, ["kind", "halfExtents", "color"]);
       denseVec3(visual.halfExtents, `${entity.ref}.visual.halfExtents`);
+    } else if (visual.kind === "registered-rigid-mesh") {
+      const registered = exactRecord(visualRecord, `${entity.ref}.visual`, [
+        "kind", "assetId", "manifestDigest", "calibrationId", "witnessId",
+      ]);
+      if (
+        typeof registered.assetId !== "string" || !registered.assetId.startsWith("asset:") ||
+        typeof registered.manifestDigest !== "string" ||
+        !/^sha256:[a-f0-9]{64}$/.test(registered.manifestDigest) ||
+        typeof registered.calibrationId !== "string" ||
+        !registered.calibrationId.startsWith("calibration:") ||
+        typeof registered.witnessId !== "string" ||
+        !registered.witnessId.startsWith("witness:")
+      ) throw new Error(`${entity.ref}.visual registered asset identity 非法`);
     } else if (visual.kind === "imported-rigid-mesh") {
       exactRecord(visualRecord, `${entity.ref}.visual`, [
-        "kind",
-        "assetId",
-        "contentDigest",
-        "sourceFrameRef",
-        "sourceUnitMeters",
-        "localTransform",
+        "kind", "assetId", "contentDigest", "sourceFrameRef", "sourceUnitMeters", "localTransform",
       ]);
       const transform = exactRecord(visual.localTransform, `${entity.ref}.visual.localTransform`, [
-        "position",
-        "rotation",
-        "scale",
+        "position", "rotation", "scale",
       ]);
       denseVec3(transform.position, `${entity.ref}.visual.localTransform.position`);
       denseVec3(transform.scale, `${entity.ref}.visual.localTransform.scale`)
-        .forEach((component, axis) => requirePositive(
-          component,
-          `${entity.ref}.visual.localTransform.scale[${axis}]`,
-        ));
+        .forEach((component, axis) => requirePositive(component, `${entity.ref}.visual.localTransform.scale[${axis}]`));
       requirePose(
         { position: transform.position, rotation: transform.rotation },
         `${entity.ref}.visual.localTransform`,
@@ -415,7 +481,71 @@ export function requireSnapshotRepresentationIntegrity(snapshot: Snapshot): void
     } else {
       throw new Error(`${entity.ref}.visual.kind 非法`);
     }
+    if (representations.observation !== null) {
+      const observationRecord = dataRecord(
+        representations.observation,
+        `${entity.ref}.observation`,
+      );
+      const observation = exactRecord(
+        observationRecord,
+        `${entity.ref}.observation`,
+        observationRecord.kind === "registered-gaussian-splat"
+          ? ["kind", "role", "assetId", "manifestDigest", "calibrationId", "witnessId"]
+          : ["kind", "role", "assetId", "contentDigest", "sourceFrameRef", "sourceUnitMeters", "localTransform"],
+      );
+      if (observation.role !== "observation") {
+        throw new Error(`${entity.ref}.observation.role 非法`);
+      }
+      if (observation.kind === "registered-gaussian-splat") {
+        if (
+          typeof observation.assetId !== "string" || !observation.assetId.startsWith("asset:") ||
+          typeof observation.manifestDigest !== "string" ||
+          !/^sha256:[a-f0-9]{64}$/.test(observation.manifestDigest) ||
+          typeof observation.calibrationId !== "string" ||
+          !observation.calibrationId.startsWith("calibration:") ||
+          typeof observation.witnessId !== "string" ||
+          !observation.witnessId.startsWith("witness:")
+        ) throw new Error(`${entity.ref}.observation registered asset identity 非法`);
+      } else if (observation.kind === "gaussian-splat") {
+        if (
+          typeof observation.assetId !== "string" || !observation.assetId.startsWith("asset:") ||
+          typeof observation.contentDigest !== "string" ||
+          !/^sha256:[a-f0-9]{64}$/.test(observation.contentDigest) ||
+          typeof observation.sourceFrameRef !== "string" ||
+          !observation.sourceFrameRef.startsWith("frame:")
+        ) throw new Error(`${entity.ref}.observation identity 非法`);
+        requirePositive(observation.sourceUnitMeters, `${entity.ref}.observation.sourceUnitMeters`);
+        const transform = exactRecord(
+          observation.localTransform,
+          `${entity.ref}.observation.localTransform`,
+          ["position", "rotation", "scale"],
+        );
+        denseVec3(transform.position, `${entity.ref}.observation.localTransform.position`);
+        denseVec3(transform.scale, `${entity.ref}.observation.localTransform.scale`)
+          .forEach((component, axis) => requirePositive(
+            component,
+            `${entity.ref}.observation.localTransform.scale[${axis}]`,
+          ));
+        requirePose(
+          { position: transform.position, rotation: transform.rotation },
+          `${entity.ref}.observation.localTransform`,
+        );
+      } else {
+        throw new Error(`${entity.ref}.observation.kind 非法`);
+      }
+    }
     requireSemantic(representations.semantic, `${entity.ref}.semantic`);
+    const physics = exactRecord(entity.physics, `${entity.ref}.physics`, [
+      "bodyType", "massKg", "friction",
+    ]);
+    if (physics.bodyType !== "static" && physics.bodyType !== "dynamic") {
+      throw new Error(`${entity.ref}.physics.bodyType 非法`);
+    }
+    const massKg = finite(physics.massKg, `${entity.ref}.physics.massKg`);
+    const friction = finite(physics.friction, `${entity.ref}.physics.friction`);
+    if (massKg < 0 || friction < 0) {
+      throw new Error(`${entity.ref}.physics massKg/friction 不能为负数`);
+    }
     if ((representations.semantic as { kind?: unknown } | null)?.kind === "vessel" && collision.kind !== "compound") {
       throw new Error(`${entity.ref} vessel semantic 必须绑定 compound collision`);
     }

@@ -22,12 +22,17 @@ import {
   BALL_VESSEL_PROGRAM,
   MUJOCO_PROFILE,
 } from "./kernel/world";
-import { requireDiagnosticGaussianSplatObservation } from "./artifacts/diagnostic-gaussian-splat";
+import {
+  ENVIRONMENT_REF,
+  GENERATED_OBJECT_REF,
+  MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID,
+} from "./artifacts/marble-hunyuan-composite-fixture";
 import {
   requireDiagnosticRigidCollision,
   requireDiagnosticRigidVisual,
   requireRegisteredSnapshotIdentity,
 } from "./artifacts/diagnostic-rigid-fixture";
+import { requireDiagnosticGaussianSplatObservation } from "./artifacts/diagnostic-gaussian-splat";
 import type {
   ProductSessionEvent,
   ProductSessionProjection,
@@ -363,9 +368,61 @@ function gaussianSplatObservation(value: unknown, label: string): void {
   requireDiagnosticGaussianSplatObservation(representation as never);
 }
 
-type ProductScenario = "falling-rigid" | "ball-vessel" | "articulated-reach";
+function registeredVisualShape(value: unknown, label: string): void {
+  const representation = record(value, label, [
+    "kind",
+    "assetId",
+    "manifestDigest",
+    "calibrationId",
+    "witnessId",
+  ]);
+  if (representation.kind !== "registered-rigid-mesh") {
+    throw new Error(`${label}.kind 非法`);
+  }
+  id(representation.assetId, "asset:", `${label}.assetId`);
+  if (
+    typeof representation.manifestDigest !== "string" ||
+    !/^sha256:[a-f0-9]{64}$/.test(representation.manifestDigest)
+  ) {
+    throw new Error(`${label}.manifestDigest 非法`);
+  }
+  id(representation.calibrationId, "calibration:", `${label}.calibrationId`);
+  id(representation.witnessId, "witness:", `${label}.witnessId`);
+}
+
+function registeredObservationShape(value: unknown, label: string): void {
+  const representation = record(value, label, [
+    "kind",
+    "role",
+    "assetId",
+    "manifestDigest",
+    "calibrationId",
+    "witnessId",
+  ]);
+  if (representation.kind !== "registered-gaussian-splat" || representation.role !== "observation") {
+    throw new Error(`${label}.kind/role 非法`);
+  }
+  id(representation.assetId, "asset:", `${label}.assetId`);
+  if (
+    typeof representation.manifestDigest !== "string" ||
+    !/^sha256:[a-f0-9]{64}$/.test(representation.manifestDigest)
+  ) {
+    throw new Error(`${label}.manifestDigest 非法`);
+  }
+  id(representation.calibrationId, "calibration:", `${label}.calibrationId`);
+  id(representation.witnessId, "witness:", `${label}.witnessId`);
+}
+
+
+type ProductScenario = "falling-rigid" | "ball-vessel" | "articulated-reach" | "marble-hunyuan-composite";
 
 function snapshotScenario(refs: readonly string[], label: string): ProductScenario {
+  if (
+    refs.length === 3 &&
+    refs[0] === ENVIRONMENT_REF &&
+    refs[1] === FLOOR_REF &&
+    refs[2] === GENERATED_OBJECT_REF
+  ) return "marble-hunyuan-composite";
   const refSet = new Set(refs);
   if (
     refSet.size === 2 &&
@@ -398,7 +455,8 @@ function snapshot(value: unknown, label: string): Snapshot {
   if (data.scenarioId !== "scenario:primitive-box-free-fall-v1" &&
       data.scenarioId !== "scenario:diagnostic-rigid-free-fall-v1" &&
       data.scenarioId !== "scenario:ball-vessel-free-fall-v1" &&
-      data.scenarioId !== "scenario:two-joint-planar-reach-v1") {
+      data.scenarioId !== "scenario:two-joint-planar-reach-v1" &&
+      data.scenarioId !== MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID) {
     throw new Error(`${label}.scenarioId 非法`);
   }
   if (!Array.isArray(data.entities) || data.entities.length > MAX_ENTITIES) {
@@ -436,6 +494,18 @@ function snapshot(value: unknown, label: string): Snapshot {
       if (representations.semantic !== null) {
         throw new Error(`${label}.entities[${index}].representations.semantic 当前 scenario 必须为 null`);
       }
+    } else if (scenario === "marble-hunyuan-composite") {
+      if (ref === FLOOR_REF) {
+        const semantic = record(representations.semantic, `${label}.${FLOOR_REF}.semantic`, [
+          "kind", "witnessId",
+        ]);
+        if (semantic.kind !== "authored-box-proxy") {
+          throw new Error(`${label}.${FLOOR_REF}.semantic.kind 非法`);
+        }
+        id(semantic.witnessId, "witness:", `${label}.${FLOOR_REF}.semantic.witnessId`);
+      } else if (representations.semantic !== null) {
+        throw new Error(`${label}.${ref}.semantic 必须为 null`);
+      }
     } else if (ref === VESSEL_REF) {
       if (!samePlainData(representations.semantic, BALL_VESSEL_FIXTURE.semantic)) {
         throw new Error(`${label}.${VESSEL_REF}.semantic 与 fixture registry 漂移`);
@@ -472,6 +542,20 @@ function snapshot(value: unknown, label: string): Snapshot {
       if (visual.kind === "imported-rigid-mesh") {
         requireDiagnosticRigidCollision(representations.collision as never);
       }
+    } else if (scenario === "marble-hunyuan-composite") {
+      if (ref === ENVIRONMENT_REF) {
+        registeredVisualShape(visual, visualLabel);
+        const collision = record(representations.collision, collisionLabel);
+        if (collision.kind !== "none" || Reflect.ownKeys(collision).length !== 1) {
+          throw new Error(`${collisionLabel} composite environment collision 必须为 none`);
+        }
+      } else if (ref === GENERATED_OBJECT_REF) {
+        registeredVisualShape(visual, visualLabel);
+        boxCollision(representations.collision, collisionLabel);
+      } else {
+        boxVisual(visual, visualLabel);
+        boxCollision(representations.collision, collisionLabel);
+      }
     } else if (ref === FLOOR_REF) {
       boxVisual(visual, visualLabel);
       boxCollision(representations.collision, collisionLabel);
@@ -505,24 +589,34 @@ function snapshot(value: unknown, label: string): Snapshot {
       }
     }
     if (representations.observation !== null) {
-      if (scenario !== "falling-rigid") {
-        throw new Error(`${label}.${ref}.observation 在 ball-vessel scenario 必须为 null`);
-      }
-      if (ref !== CUBE_REF) {
-        throw new Error(
-          `${label}.entities[${index}].representations.observation 必须绑定 ${CUBE_REF}`,
+      if (scenario === "marble-hunyuan-composite") {
+        if (ref !== ENVIRONMENT_REF) {
+          throw new Error(`${label}.${ref}.observation 必须只绑定 ${ENVIRONMENT_REF}`);
+        }
+        registeredObservationShape(
+          representations.observation,
+          `${label}.entities[${index}].representations.observation`,
+        );
+      } else {
+        if (scenario !== "falling-rigid") {
+          throw new Error(`${label}.${ref}.observation 在 ball-vessel scenario 必须为 null`);
+        }
+        if (ref !== CUBE_REF) {
+          throw new Error(
+            `${label}.entities[${index}].representations.observation 必须绑定 ${CUBE_REF}`,
+          );
+        }
+        if (visual.kind !== "imported-rigid-mesh") {
+          throw new Error(
+            `${label}.entities[${index}].representations.observation 只允许绑定登记 imported visual`,
+          );
+        }
+        requireDiagnosticRigidCollision(representations.collision as never);
+        gaussianSplatObservation(
+          representations.observation,
+          `${label}.entities[${index}].representations.observation`,
         );
       }
-      if (visual.kind !== "imported-rigid-mesh") {
-        throw new Error(
-          `${label}.entities[${index}].representations.observation 只允许绑定登记 imported visual`,
-        );
-      }
-      requireDiagnosticRigidCollision(representations.collision as never);
-      gaussianSplatObservation(
-        representations.observation,
-        `${label}.entities[${index}].representations.observation`,
-      );
     }
     const physics = record(entity.physics, `${label}.entities[${index}].physics`, [
       "bodyType", "massKg", "friction",
@@ -552,6 +646,23 @@ function snapshot(value: unknown, label: string): Snapshot {
     const cube = entities.find((entity) => entity.ref === CUBE_REF)!;
     if (cube.physics.bodyType !== "dynamic" || cube.physics.massKg <= 0) {
       throw new Error(`${label} 要求 positive-mass dynamic cube`);
+    }
+  } else if (scenario === "marble-hunyuan-composite") {
+    const environment = entities.find((entity) => entity.ref === ENVIRONMENT_REF)!;
+    const generated = entities.find((entity) => entity.ref === GENERATED_OBJECT_REF)!;
+    if (
+      environment.physics.bodyType !== "static" ||
+      environment.physics.massKg !== 0 ||
+      environment.state.linearVelocity.some((component) => component !== 0) ||
+      environment.state.angularVelocity.some((component) => component !== 0)
+    ) {
+      throw new Error(`${label} 要求 static 0-mass/velocity environment`);
+    }
+    if (
+      generated.physics.bodyType !== "dynamic" ||
+      generated.physics.massKg !== 1
+    ) {
+      throw new Error(`${label} 要求 registered 1kg dynamic generated-object`);
     }
   } else if (scenario === "ball-vessel") {
     const vessel = entities.find((entity) => entity.ref === VESSEL_REF)!;
@@ -780,7 +891,8 @@ function episode(value: unknown, label: string): Episode {
   if (data.scenarioId !== "scenario:primitive-box-free-fall-v1" &&
       data.scenarioId !== "scenario:diagnostic-rigid-free-fall-v1" &&
       data.scenarioId !== "scenario:ball-vessel-free-fall-v1" &&
-      data.scenarioId !== "scenario:two-joint-planar-reach-v1") {
+      data.scenarioId !== "scenario:two-joint-planar-reach-v1" &&
+      data.scenarioId !== MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID) {
     throw new Error(`${label}.scenarioId 非法`);
   }
   if (data.runtimeProfileId !== MUJOCO_PROFILE.id) {

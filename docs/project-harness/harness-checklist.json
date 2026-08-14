@@ -1,7 +1,7 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "updated_at": "2026-08-13",
+  "updated_at": "2026-08-14",
   "items": [
     {
       "id": "DH-000",
@@ -600,6 +600,48 @@
         "expires_at": "2026-08-13T10:42:54Z",
         "ttl_minutes": 120,
         "released_at": "2026-08-13T09:31:01Z"
+      }
+    },
+    {
+      "id": "DH-013",
+      "title": "真实世界模型产物接入与场景合成切片",
+      "status": "done",
+      "priority": "p0",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-08-14",
+      "dependencies": [
+        "DH-011"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "既有 Marble SPZ/collider 与 Hunyuan GLB 经 verified cache、显式 Frame/Units/Calibration 和独立 MuJoCo proxy 合成为同一 registered world；Studio 提供 3DGS/Mesh/Collision/Alignment 可诊断视图并运行 deterministic Episode；credential/provider transport 与 world authority 分离，四工具和既有场景不回归。",
+      "verification": "Final Round 3 双 reviewer approved（P0/P1=0）；product aggregate 372630cfee4b50b5550d57425b97a7baec73e34e95e0b7d8bacd84bf3f7706f0；bun test 464/0/3418，typecheck、build、git diff、EXharness、三项真实 provider cache validator 与 Chromium Product closure 全通过。",
+      "handoff": "先完成独立 cross-plan review；P0/P1 清零并 approved 后才进入实现。",
+      "plan_path": "docs/project-harness/tasks/DH-013/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-14",
+        "branch": "agent/codex/DH-013"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-013",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "sol-max+deepseek-v4-pro-max",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-14",
+        "summary": "Final Round 3: frozen product aggregate 372630cfee4b50b5550d57425b97a7baec73e34e95e0b7d8bacd84bf3f7706f0；Sol 与 fresh DeepSeek V4 Pro Max 均 approved，P0/P1=0；464 tests、typecheck、build、diff、EXharness、真实 cache 与 Chromium closure 全通过。"
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "codex-dh013-plan-20260813",
+        "acquired_at": "2026-08-14T02:46:18Z",
+        "expires_at": "2026-08-14T04:46:18Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-14T07:55:36Z"
       }
     }
   ]

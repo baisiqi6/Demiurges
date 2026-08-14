@@ -84,7 +84,6 @@ export interface ImportedRigidMeshRepresentation {
     readonly scale: Vec3;
   };
 }
-
 export interface GaussianSplatObservationRepresentation {
   readonly kind: "gaussian-splat";
   readonly role: "observation";
@@ -99,10 +98,37 @@ export interface GaussianSplatObservationRepresentation {
   };
 }
 
+export interface RegisteredAssetVisualRepresentation {
+  readonly kind: "registered-rigid-mesh";
+  readonly assetId: `asset:${string}`;
+  readonly manifestDigest: `sha256:${string}`;
+  readonly calibrationId: `calibration:${string}`;
+  readonly witnessId: `witness:${string}`;
+}
+
+export interface RegisteredAssetObservationRepresentation {
+  readonly kind: "registered-gaussian-splat";
+  readonly role: "observation";
+  readonly assetId: `asset:${string}`;
+  readonly manifestDigest: `sha256:${string}`;
+  readonly calibrationId: `calibration:${string}`;
+  readonly witnessId: `witness:${string}`;
+}
+
+export interface AuthoredBoxProxySemanticRepresentation {
+  readonly kind: "authored-box-proxy";
+  readonly witnessId: `witness:${string}`;
+}
+
+export type ObservationRepresentation =
+  | GaussianSplatObservationRepresentation
+  | RegisteredAssetObservationRepresentation;
+
 export type VisualRepresentation =
   | BoxRepresentation
   | SphereRepresentation
-  | ImportedRigidMeshRepresentation;
+  | ImportedRigidMeshRepresentation
+  | RegisteredAssetVisualRepresentation;
 
 export interface VesselSemanticRepresentation {
   readonly kind: "vessel";
@@ -176,6 +202,7 @@ export type SemanticRepresentation =
   | VesselSemanticRepresentation
   | ArticulatedSemanticRepresentation
   | GoalFrameSemanticRepresentation
+  | AuthoredBoxProxySemanticRepresentation
   | null;
 
 export interface Entity {
@@ -187,7 +214,7 @@ export interface Entity {
   readonly representations: {
     readonly visual: VisualRepresentation;
     readonly collision: CollisionRepresentation;
-    readonly observation: GaussianSplatObservationRepresentation | null;
+    readonly observation: ObservationRepresentation | null;
     readonly semantic: SemanticRepresentation;
   };
   readonly physics: {
@@ -206,7 +233,8 @@ export interface Snapshot {
     | "scenario:primitive-box-free-fall-v1"
     | "scenario:diagnostic-rigid-free-fall-v1"
     | "scenario:ball-vessel-free-fall-v1"
-    | "scenario:two-joint-planar-reach-v1";
+    | "scenario:two-joint-planar-reach-v1"
+    | "scenario:marble-hunyuan-composite-v1";
   readonly entities: readonly Entity[];
 }
 

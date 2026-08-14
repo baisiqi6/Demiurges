@@ -3,9 +3,13 @@ import { describe, expect, test } from "bun:test";
 import {
   CUBE_REF,
   DIAGNOSTIC_GAUSSIAN_SPLAT_ASSET,
+  createMarbleHunyuanCompositeSnapshot,
   createDiagnosticGaussianSplatObservation,
 } from "@demiurges/world";
-import { createAlignmentEvidence } from "./alignment-evidence";
+import {
+  createAlignmentEvidence,
+  createRegisteredAlignmentEvidence,
+} from "./alignment-evidence";
 
 const IDENTITY_POSE = {
   position: [0, 0, 2.4] as const,
@@ -13,6 +17,35 @@ const IDENTITY_POSE = {
 };
 
 describe("3DGS AlignmentEvidence", () => {
+  test("registered SPZ 只把 integrity 与 authored calibration/proxy witness 分层报告", () => {
+    const environment = createMarbleHunyuanCompositeSnapshot().entities[0]!;
+    const observation = environment.representations.observation;
+    if (observation?.kind !== "registered-gaussian-splat") throw new Error("fixture 漂移");
+    const evidence = createRegisteredAlignmentEvidence(
+      environment.ref,
+      observation,
+      {
+        min: [-1.187255859375, -1.81494140625, -2.52490234375],
+        max: [1.823486328125, 0.875732421875, 2.66748046875],
+      },
+    );
+    expect(evidence.integrityStatus).toBe("verified");
+    expect(evidence.calibrationStatus).toBe("authored-unverified");
+    expect(evidence.proxyWitnessStatus).toBe("pass");
+    expect(evidence.passed).toBe(true);
+    expect(evidence.contentDigest).toBe(
+      "sha256:3fc704ff2b5a2f6cc6bf8f5efb179ac30904ba6af3ee2da6b5aa1e2148577cb5",
+    );
+
+    const drifted = createRegisteredAlignmentEvidence(
+      environment.ref,
+      observation,
+      { min: [-1, -1, -1], max: [1, 1, 1] },
+    );
+    expect(drifted.integrityStatus).toBe("verified");
+    expect(drifted.passed).toBe(false);
+  });
+
   test("source frame/units/transform 映射到 collision-aligned entity-local bounds", () => {
     const evidence = createAlignmentEvidence(
       CUBE_REF,
