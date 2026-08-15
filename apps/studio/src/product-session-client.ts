@@ -1,6 +1,7 @@
 import {
   admitMarbleHunyuanCompositeEdit,
   decodeProductSessionAuthoringTransition,
+  decodeProductSessionProjectHistoryTransition,
   decodeProductSessionEventTrusted,
   decodeProductSessionProjectionTrusted,
   requireWorldWriteInput,
@@ -16,6 +17,20 @@ const MAX_TURN_EVENTS = 130;
 const SETTLED_RESYNC_ATTEMPTS = 100;
 const SETTLED_RESYNC_DELAY_MS = 20;
 const DEFAULT_TURN_TIMEOUT_MS = 120_000;
+const MAX_WORLD_PROJECT_BUNDLE_BYTES = 64 * 1024 * 1024;
+const WORLD_PROJECT_BUNDLE_MEDIA_TYPE = "application/vnd.demiurges.world-project+zip";
+
+export interface WorldProjectSummary {
+  readonly projectId: string;
+  readonly displayName: string;
+  readonly revision: string;
+}
+
+export interface WorldProjectList {
+  readonly mode: "writer" | "reader";
+  readonly projects: readonly WorldProjectSummary[];
+  readonly rejectedEntryCount: number;
+}
 
 type EventSink = (event: ProductSessionEvent) => void;
 type FetchPort = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -37,6 +52,92 @@ function mediaType(value: string | null): string {
 
 function byteLength(value: string): number {
   return new TextEncoder().encode(value).byteLength;
+}
+
+function plainRecord(value: unknown, keys: readonly string[]): Record<string, unknown> {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Object.prototype ||
+    Reflect.ownKeys(value).length !== keys.length ||
+    !keys.every((key) => Object.prototype.hasOwnProperty.call(value, key))
+  ) {
+    throw new Error("World Project response shape 非法");
+  }
+  return value as Record<string, unknown>;
+}
+
+function projectSummary(value: unknown): WorldProjectSummary {
+  const record = plainRecord(value, ["projectId", "displayName", "revision"]);
+  if (
+    typeof record.projectId !== "string" ||
+    !/^project:[a-z0-9][a-z0-9-]{0,63}$/.test(record.projectId) ||
+    typeof record.displayName !== "string" ||
+    record.displayName.length < 1 ||
+    record.displayName.length > 128 ||
+    typeof record.revision !== "string" ||
+    !/^project-revision:sha256:[a-f0-9]{64}$/.test(record.revision)
+  ) {
+    throw new Error("World Project summary 非法");
+  }
+  return Object.freeze({
+    projectId: record.projectId,
+    displayName: record.displayName,
+    revision: record.revision,
+  });
+}
+
+function requireOperationSuccess(value: unknown, publishedIdentity: string): void {
+  const terminal = plainRecord(value, [
+    "schemaVersion",
+    "operationId",
+    "bindingDigest",
+    "variant",
+    "publishedIdentity",
+  ]);
+  if (
+    terminal.schemaVersion !== 1 ||
+    typeof terminal.operationId !== "string" ||
+    !/^op:[A-Za-z0-9._-]{1,127}$/.test(terminal.operationId) ||
+    typeof terminal.bindingDigest !== "string" ||
+    !/^[a-f0-9]{64}$/.test(terminal.bindingDigest) ||
+    terminal.variant !== "success" ||
+    terminal.publishedIdentity !== publishedIdentity
+  ) {
+    throw new Error("World Project operation terminal 非法");
+  }
+}
+
+async function readBoundedBytes(
+  response: Response,
+  maximumBytes: number,
+  exactBytes?: number,
+): Promise<Uint8Array> {
+  if (!response.body) throw new Error("Agent Gateway binary response 缺少 body");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maximumBytes || (exactBytes !== undefined && total > exactBytes)) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error("World Project export byteLength 非法");
+    }
+    chunks.push(value);
+  }
+  if (exactBytes !== undefined && total !== exactBytes) {
+    throw new Error("World Project export short read");
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
 }
 
 export async function readProductSessionEvents(
@@ -243,6 +344,154 @@ export class ProductSessionClient {
   async createSession(): Promise<ProductSessionProjection> {
     const response = await this.#fetch("/api/sessions", { method: "POST" });
     return decodeProductSessionProjectionTrusted(await responseJson(response));
+  }
+
+  async listProjects(): Promise<WorldProjectList> {
+    const body = plainRecord(await responseJson(await this.#fetch("/api/projects")), [
+      "mode",
+      "projects",
+      "rejectedEntryCount",
+    ]);
+    if (
+      (body.mode !== "writer" && body.mode !== "reader") ||
+      !Array.isArray(body.projects) ||
+      Reflect.ownKeys(body.projects).length !== body.projects.length + 1 ||
+      typeof body.rejectedEntryCount !== "number" ||
+      !Number.isSafeInteger(body.rejectedEntryCount) ||
+      body.rejectedEntryCount < 0
+    ) {
+      throw new Error("World Project list 非法");
+    }
+    return Object.freeze({
+      mode: body.mode,
+      projects: Object.freeze(body.projects.map(projectSummary)),
+      rejectedEntryCount: body.rejectedEntryCount,
+    });
+  }
+
+  async openProject(projectId: string): Promise<{
+    readonly project: WorldProjectSummary;
+    readonly session: ProductSessionProjection;
+  }> {
+    const body = plainRecord(await responseJson(await this.#fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/open`,
+      { method: "POST" },
+    )), ["project", "session"]);
+    return Object.freeze({
+      project: projectSummary(body.project),
+      session: await decodeProductSessionProjectionTrusted(body.session),
+    });
+  }
+
+  async saveProject(
+    sessionId: string,
+    input: {
+      readonly projectId: string;
+      readonly displayName: string;
+      readonly expectedRevision: string | null;
+    },
+    idempotencyKey: string = crypto.randomUUID(),
+  ): Promise<WorldProjectSummary> {
+    const body = plainRecord(await responseJson(await this.#fetch(
+      `/api/sessions/${encodeURIComponent(sessionId)}/project/${
+        input.expectedRevision === null ? "save-as" : "save"
+      }`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": idempotencyKey,
+        },
+        body: JSON.stringify(input),
+      },
+    )), ["project", "terminal", "replayed"]);
+    if (typeof body.replayed !== "boolean") throw new Error("World Project save result 非法");
+    const project = projectSummary(body.project);
+    requireOperationSuccess(body.terminal, project.revision);
+    return project;
+  }
+
+  async moveProjectHistory(
+    sessionId: string,
+    prior: ProductSessionProjection,
+    direction: "undo" | "redo",
+    projectRevision: string,
+  ): Promise<ProductSessionProjection> {
+    if (prior.world === null) throw new Error("World Project history 缺少 world authority");
+    const bodyValue = await responseJson(await this.#fetch(
+      `/api/sessions/${encodeURIComponent(sessionId)}/project/${direction}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ projectRevision, ref: prior.world.ref }),
+      },
+    ));
+    if (typeof bodyValue !== "object" || bodyValue === null || Array.isArray(bodyValue)) {
+      throw new Error("World Project history response 非法");
+    }
+    const body = bodyValue as Record<string, unknown>;
+    if (body.status !== "updated" && body.status !== "unchanged") {
+      throw new Error("World Project history status 非法");
+    }
+    const expectedKeys = body.status === "updated"
+      ? ["status", "projection", "update"]
+      : ["status", "projection"];
+    plainRecord(body, expectedKeys);
+    return decodeProductSessionProjectHistoryTransition(
+      body.projection,
+      sessionId,
+      prior,
+      direction,
+      body.status,
+    );
+  }
+
+  async exportProject(projectId: string): Promise<Uint8Array> {
+    const response = await this.#fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/export`,
+    );
+    if (!response.ok) await responseJson(response);
+    if (mediaType(response.headers.get("content-type")) !== WORLD_PROJECT_BUNDLE_MEDIA_TYPE) {
+      throw new Error("World Project export media type 非法");
+    }
+    const length = response.headers.get("content-length");
+    if (length === null || !/^\d+$/.test(length) || Number(length) > MAX_WORLD_PROJECT_BUNDLE_BYTES) {
+      throw new Error("World Project export byteLength 非法");
+    }
+    return readBoundedBytes(response, MAX_WORLD_PROJECT_BUNDLE_BYTES, Number(length));
+  }
+
+  async importProject(
+    bytes: Uint8Array,
+    idempotencyKey: string = crypto.randomUUID(),
+  ): Promise<WorldProjectSummary> {
+    if (bytes.byteLength > MAX_WORLD_PROJECT_BUNDLE_BYTES) {
+      throw new Error("World Project bundle 超出 64 MiB");
+    }
+    const body = plainRecord(await responseJson(await this.#fetch("/api/projects/import", {
+      method: "POST",
+      headers: {
+        "content-type": WORLD_PROJECT_BUNDLE_MEDIA_TYPE,
+        "idempotency-key": idempotencyKey,
+      },
+      body: Uint8Array.from(bytes).buffer,
+    })), ["terminal", "projectId", "revision", "replayed"]);
+    if (
+      typeof body.projectId !== "string" ||
+      !/^project:[a-z0-9][a-z0-9-]{0,63}$/.test(body.projectId) ||
+      typeof body.revision !== "string" ||
+      !/^project-revision:sha256:[a-f0-9]{64}$/.test(body.revision) ||
+      typeof body.replayed !== "boolean"
+    ) {
+      throw new Error("World Project import result 非法");
+    }
+    requireOperationSuccess(body.terminal, body.revision);
+    const listed = await this.listProjects();
+    const project = listed.projects.find(
+      (entry) => entry.projectId === body.projectId && entry.revision === body.revision,
+    );
+    if (project === undefined) throw new Error("导入 Project 未出现在受信列表");
+    return project;
   }
 
   async readSession(

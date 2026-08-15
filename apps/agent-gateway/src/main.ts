@@ -4,7 +4,10 @@ import {
   requireOmpModelSelector,
 } from "./omp-world-agent";
 import { createProviderAssetApi } from "./provider-asset-api";
-import { fileURLToPath } from "node:url";
+import {
+  openWorldProjectRuntime,
+  resolveDataRootConfig,
+} from "@demiurges/world-project";
 
 const rawPort = process.env.DEMIURGES_GATEWAY_PORT ?? "8787";
 const port = Number(rawPort);
@@ -13,9 +16,22 @@ if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
 }
 
 const modelSelector = requireOmpModelSelector(process.env.DEMIURGES_OMP_MODEL);
-const api = createProductSessionApi(createOmpAgentClientFactory(modelSelector));
+const dataRootConfig = resolveDataRootConfig(process.env);
+const worldProjects = dataRootConfig.status === "configured"
+  ? await openWorldProjectRuntime(dataRootConfig.absolutePath)
+  : undefined;
+const api = createProductSessionApi(createOmpAgentClientFactory(modelSelector), {
+  worldProjects,
+});
 const assets = createProviderAssetApi({
-  cacheRoot: fileURLToPath(new URL("../../../.artifacts/provider-cache", import.meta.url)),
+  readArtifact: async (entry) => {
+    if (worldProjects === undefined) {
+      const error = new Error("asset not imported") as NodeJS.ErrnoException;
+      error.code = "ENOENT";
+      throw error;
+    }
+    return worldProjects.artifacts.read(entry);
+  },
 });
 const server = Bun.serve({
   hostname: "127.0.0.1",
@@ -24,3 +40,14 @@ const server = Bun.serve({
 });
 
 console.log(`Demiurges Agent Gateway listening on ${server.url}`);
+if (worldProjects !== undefined) {
+  console.log(`World Project Data Root mode: ${worldProjects.mode}`);
+}
+
+const shutdown = async () => {
+  server.stop(true);
+  await worldProjects?.close();
+  process.exit(0);
+};
+process.once("SIGINT", () => void shutdown());
+process.once("SIGTERM", () => void shutdown());

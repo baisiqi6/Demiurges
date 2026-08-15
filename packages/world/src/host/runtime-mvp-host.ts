@@ -17,7 +17,13 @@ import {
   FALLING_CUBE_PROGRAM,
   MUJOCO_PROFILE,
 } from "../kernel/world";
-import { createWorldRepositoryAuthority } from "../repository/world-repository";
+import {
+  createWorldRepositoryAuthority,
+  exportRepositoryHistory,
+  restoreRepositoryAuthority,
+  type RepositoryHistory,
+  type WorldRepositoryAuthority,
+} from "../repository/world-repository";
 import { runFallingCube } from "../runtime-mujoco/run-falling-cube";
 import { runArticulatedReach } from "../runtime-mujoco/run-articulated-reach";
 import { requireAdoptPolicyForProgram } from "./runtime-mvp-adopt-policy";
@@ -27,9 +33,39 @@ export interface RuntimeMvpRunResult {
   readonly episode: Episode;
   readonly baseRef: RefRecord;
 }
-
 export class RuntimeMvpHost {
-  readonly #authority = createWorldRepositoryAuthority();
+  #authority: WorldRepositoryAuthority;
+
+  constructor() {
+    if (arguments.length !== 0) {
+      throw new Error("RuntimeMvpHost 不接纳调用方 Repository authority");
+    }
+    this.#authority = createWorldRepositoryAuthority();
+  }
+
+  /**
+   * project restoration seam：只接收已验证的 immutable plain data，
+   * authority 与 evidence writer 始终在 Host lexical boundary 内创建。
+   */
+  static restoreProject(
+    snapshots: readonly Snapshot[],
+    currentRef: RefRecord,
+  ): RuntimeMvpHost {
+    const host = new RuntimeMvpHost();
+    host.#authority = restoreRepositoryAuthority(snapshots, currentRef);
+    return host;
+  }
+
+  exportProjectHistory(): RepositoryHistory {
+    return exportRepositoryHistory(this.#authority);
+  }
+
+  moveProjectRef(
+    targetSnapshotId: Snapshot["id"],
+    expected: RefRecord,
+  ): RefUpdateResult {
+    return this.#authority.repository.moveCurrentRef(targetSnapshotId, expected);
+  }
 
   write(snapshot: Snapshot): Snapshot {
     return this.#authority.repository.write(snapshot);

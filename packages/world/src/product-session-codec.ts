@@ -1421,3 +1421,49 @@ export async function decodeProductSessionAuthoringTransition(
   }
   return returned;
 }
+
+export async function decodeProductSessionProjectHistoryTransition(
+  value: unknown,
+  expectedSessionId: string,
+  prior: ProductSessionProjection,
+  direction: "undo" | "redo",
+  status: "updated" | "unchanged",
+): Promise<ProductSessionProjection> {
+  const trustedPrior = await decodeProductSessionProjectionTrusted(
+    prior,
+    expectedSessionId,
+  );
+  if (trustedPrior.running || trustedPrior.world === null) {
+    throw new Error("project history transition prior 必须是 settled world");
+  }
+  const returned = await decodeProductSessionProjectionTrusted(
+    value,
+    expectedSessionId,
+  );
+  if (returned.running || returned.world === null) {
+    throw new Error("project history transition 必须返回 settled world");
+  }
+  if (status === "unchanged") {
+    if (!samePlainData(returned, trustedPrior)) {
+      throw new Error("project history unchanged 改变了 authority");
+    }
+    return returned;
+  }
+  if (
+    returned.world.ref.name !== trustedPrior.world.ref.name ||
+    returned.world.ref.version !== trustedPrior.world.ref.version + 1 ||
+    returned.world.ref.snapshotId !== returned.world.snapshot.id ||
+    returned.world.snapshot.scenarioId !== trustedPrior.world.snapshot.scenarioId ||
+    returned.lastRun !== null ||
+    returned.lastSequence !== trustedPrior.lastSequence
+  ) {
+    throw new Error("project history transition Ref/session authority 非法");
+  }
+  const adjacent = direction === "undo"
+    ? trustedPrior.world.snapshot.parentId === returned.world.snapshot.id
+    : returned.world.snapshot.parentId === trustedPrior.world.snapshot.id;
+  if (!adjacent) {
+    throw new Error("project history transition 不是相邻 linear lineage");
+  }
+  return returned;
+}

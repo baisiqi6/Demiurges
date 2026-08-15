@@ -18,6 +18,10 @@ import {
   type WorldEditResult,
   type WorldRunResult,
   type WorldFixtureId,
+  type RepositoryHistory,
+  type RefUpdateResult,
+  type RefRecord,
+  type Snapshot,
   TWO_JOINT_REACH_FIXTURE_ID,
   admitMarbleHunyuanCompositeEdit,
   requireWorldWriteInput,
@@ -39,7 +43,9 @@ export type ProductSessionAuthoringFailureCode =
   | "WORLD_ALREADY_EXISTS"
   | "STALE_REF"
   | "FIXTURE_NOT_COMPOSABLE"
-  | "POSE_NOT_COMPOSABLE";
+  | "POSE_NOT_COMPOSABLE"
+  | "PROJECT_NOT_BOUND"
+  | "PROJECT_HISTORY_BOUNDARY";
 
 export class ProductSessionAuthoringFailure extends Error {
   readonly code: ProductSessionAuthoringFailureCode;
@@ -213,18 +219,137 @@ export function createScriptedAgentClientFactory(
 
 export class ProductSession {
   readonly #sessionId: string;
-  readonly #surface: WorldToolSurface;
+  #host: RuntimeMvpHost;
+  #surface: WorldToolSurface;
   readonly #clientFactory: OmpAgentClientFactory;
   #world: WorldReadResult | null = null;
   #lastRun: WorldRunResult | null = null;
   #sequence = 0;
   #turnSequence = 0;
   #running = false;
+  #projectBinding: {
+    readonly projectId: string;
+    readonly revision: string;
+  } | null = null;
 
   constructor(sessionId: string, clientFactory: OmpAgentClientFactory) {
     this.#sessionId = sessionId;
-    this.#surface = new WorldToolSurface(new RuntimeMvpHost());
+    this.#host = new RuntimeMvpHost();
+    this.#surface = new WorldToolSurface(this.#host);
     this.#clientFactory = clientFactory;
+  }
+
+  static restoreProject(
+    sessionId: string,
+    clientFactory: OmpAgentClientFactory,
+    snapshots: readonly Snapshot[],
+    currentRef: RefRecord,
+    projectId: string,
+    revision: string,
+  ): ProductSession {
+    const session = new ProductSession(sessionId, clientFactory);
+    const host = RuntimeMvpHost.restoreProject(snapshots, currentRef);
+    session.#host = host;
+    session.#surface = new WorldToolSurface(host);
+    session.#world = session.#surface.read();
+    session.#projectBinding = deepFreeze({ projectId, revision });
+    return session;
+  }
+
+  exportProjectHistory(): RepositoryHistory {
+    if (this.#world === null) rejectAuthoring("WORLD_REQUIRED");
+    return this.#host.exportProjectHistory();
+  }
+
+  readProjectBinding(): {
+    readonly projectId: string;
+    readonly revision: string;
+  } | null {
+    return this.#projectBinding;
+  }
+
+  bindProject(projectId: string, revision: string): void {
+    if (this.#running) throw new Error("running session 不能绑定 Project revision");
+    if (this.#world === null) rejectAuthoring("WORLD_REQUIRED");
+    this.#projectBinding = deepFreeze({ projectId, revision });
+  }
+
+  tryPersistProject<T>(
+    operation: (input: {
+      readonly history: RepositoryHistory;
+      readonly binding: { readonly projectId: string; readonly revision: string } | null;
+    }) => Promise<{
+      readonly value: T;
+      readonly nextBinding: { readonly projectId: string; readonly revision: string };
+    }>,
+  ): Promise<T> | undefined {
+    if (!this.#tryReserve()) return undefined;
+    return (async () => {
+      try {
+        if (this.#world === null) rejectAuthoring("WORLD_REQUIRED");
+        const result = await operation({
+          history: this.#host.exportProjectHistory(),
+          binding: this.#projectBinding,
+        });
+        this.#projectBinding = deepFreeze(result.nextBinding);
+        return result.value;
+      } finally {
+        this.#running = false;
+      }
+    })();
+  }
+
+  tryMoveProjectHistory(
+    direction: "undo" | "redo",
+    expected: {
+      readonly projectRevision: string;
+      readonly ref: {
+        readonly name: "world:current";
+        readonly snapshotId: string;
+        readonly version: number;
+      };
+    },
+  ):
+    | { readonly status: "updated"; readonly projection: ProductSessionProjection; readonly update: RefUpdateResult }
+    | { readonly status: "unchanged"; readonly projection: ProductSessionProjection }
+    | undefined {
+    if (!this.#tryReserve()) return undefined;
+    try {
+      if (this.#projectBinding === null) rejectAuthoring("PROJECT_NOT_BOUND");
+      if (this.#world === null) rejectAuthoring("WORLD_REQUIRED");
+      if (this.#projectBinding.revision !== expected.projectRevision) {
+        throw new Error("PROJECT_REVISION_CONFLICT");
+      }
+      if (
+        this.#world.ref.name !== expected.ref.name ||
+        this.#world.ref.snapshotId !== expected.ref.snapshotId ||
+        this.#world.ref.version !== expected.ref.version
+      ) {
+        throw new Error("PROJECT_REF_CONFLICT");
+      }
+      const history = this.#host.exportProjectHistory();
+      const nextCursor = history.cursor + (direction === "undo" ? -1 : 1);
+      if (nextCursor < 0 || nextCursor >= history.snapshots.length) {
+        this.#running = false;
+        return deepFreeze({
+          status: "unchanged",
+          projection: this.readProjection(),
+        });
+      }
+      const target = history.snapshots[nextCursor]!;
+      const update = this.#host.moveProjectRef(target.id, history.currentRef);
+      if (update.status !== "updated") throw new Error("Project history Ref 意外 stale");
+      this.#world = this.#surface.read();
+      this.#lastRun = null;
+      this.#running = false;
+      return deepFreeze({
+        status: "updated",
+        projection: this.readProjection(),
+        update,
+      });
+    } finally {
+      this.#running = false;
+    }
   }
 
   readProjection(): ProductSessionProjection {

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@demiurges/world": "workspace:*",
+    "@demiurges/world-project": "workspace:*",
     "@oh-my-pi/pi-coding-agent": "17.2.12"
   },
   "devDependencies": {

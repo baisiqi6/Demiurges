@@ -10,6 +10,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@demiurges/world": "workspace:*",
+        "@demiurges/world-project": "workspace:*",
         "@oh-my-pi/pi-coding-agent": "17.2.12",
       },
       "devDependencies": {
@@ -40,6 +41,17 @@
       "version": "0.0.0",
       "dependencies": {
         "@mujoco/mujoco": "3.11.0",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.14",
+        "typescript": "6.0.2",
+      },
+    },
+    "packages/world-project": {
+      "name": "@demiurges/world-project",
+      "version": "0.0.0",
+      "dependencies": {
+        "@demiurges/world": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "1.3.14",
@@ -91,6 +103,8 @@
     "@demiurges/studio": ["@demiurges/studio@workspace:apps/studio"],
 
     "@demiurges/world": ["@demiurges/world@workspace:packages/world"],
+
+    "@demiurges/world-project": ["@demiurges/world-project@workspace:packages/world-project"],
 
     "@dimforge/rapier3d-compat": ["@dimforge/rapier3d-compat@0.12.0", "https://mirrors.huaweicloud.com/repository/npm/@dimforge/rapier3d-compat/-/rapier3d-compat-0.12.0.tgz", {}, "sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow=="],
 

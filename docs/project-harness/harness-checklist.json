@@ -1,7 +1,7 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "updated_at": "2026-08-14",
+  "updated_at": "2026-08-15",
   "items": [
     {
       "id": "DH-000",
@@ -733,20 +733,46 @@
     },
     {
       "id": "DH-016",
-      "title": "World Project 持久化与导入导出",
-      "status": "todo",
+      "title": "World Project 持久化与共享 Artifact Store",
+      "status": "done",
       "priority": "p1",
       "owner": null,
       "selected_in_session": null,
-      "updated_at": "2026-08-14",
+      "updated_at": "2026-08-15",
       "dependencies": [
         "DH-015"
       ],
       "blocked_by": [],
       "blocked_reason": null,
-      "acceptance": "以版本化 World Project manifest 持久化并恢复受信 Snapshot lineage、current Ref 与已验证 ArtifactRef；保存与加载必须原子化，损坏或缺失 artifact fail closed；不得持久化 credential、signed URL 或 Presentation transient state；提供受控导入导出。",
-      "verification": "",
-      "handoff": "等待 DH-015 完成后独立规划，不在 Scene Composer 中顺手实现。"
+      "acceptance": "以独立于 Git/worktree 的 DEMIURGES_DATA_ROOT 提供 content-addressed artifacts/sha256 与受控 projects/staging/receipts；版本化 World Project manifest 只持久化并严格恢复不可变 Snapshot lineage、current Ref、被引用 ArtifactRef/digest、Frame/Units/calibration identity 与可验证 metadata；保存采用 crash-safe staging、完整校验、fsync/close 与原子发布，加载时重新验证 schema、lineage、Ref、regular-file identity、digest/length/format/registry，缺失或损坏时不得恢复半个世界或污染旧项目；支持跨 worktree/重启复用、受控 bundle 导入导出与 control-plane 线性 undo/redo；credential、signed URL、Presentation state、PoseDraft、provider job/poll 状态不得持久化，且不调用 Marble/Hunyuan。",
+      "verification": "Round 26 dual fresh approval; focused 115/0/625; full 633/0/4362; typecheck/build/diff-check; EXharness validate 0 warnings and doctor 0 errors; product aggregate 08e45d64fefbc1663f9e67713db931f8b916feec1a353de6d2ddcd3da08df829.",
+      "handoff": "先在独立 worktree 冻结 Data Root、manifest schema、crash atomicity、bundle 与线性 current-Ref history contract，并通过 independent cross-plan review；P0/P1=0 前不得实现。DH-017 仍负责 provider generation，DH-018 仍负责 Agent orchestration。",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-15",
+        "branch": "agent/codex/DH-016"
+      },
+      "artifacts": {
+        "plan": "docs/project-harness/tasks/DH-016/plan.md",
+        "branch": "agent/codex/DH-016",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "sol-r26+cross-sol-r26",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-15",
+        "summary": "Closeout-phase approval confirms Round 26 dual fresh verdicts, P0/P1/P2=0, frozen aggregate 08e45d64...df829 and all mandatory gates."
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "codex-dh016-plan-20260814",
+        "acquired_at": "2026-08-15T04:01:34Z",
+        "expires_at": "2026-08-15T06:01:34Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-15T15:32:40Z"
+      }
     },
     {
       "id": "DH-017",

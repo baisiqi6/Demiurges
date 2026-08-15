@@ -18,6 +18,7 @@ export type {
   SphereCollisionRepresentation,
   SphereRepresentation,
   RefRecord,
+  RefUpdateResult,
   Snapshot,
   VisualRepresentation,
   VesselSemanticRepresentation,
@@ -99,6 +100,9 @@ export {
 } from "./kernel/world";
 export { RuntimeMvpHost } from "./host/runtime-mvp-host";
 export {
+  type RepositoryHistory,
+} from "./repository/world-repository";
+export {
   ARTICULATED_CANONICAL_MODEL_CAUSAL_DIGEST,
   ARTICULATED_MJCF,
   articulatedModelCausalDigest,
@@ -154,6 +158,7 @@ export {
   decodeProductSessionEvent,
   decodeProductSessionEventTrusted,
   decodeProductSessionAuthoringTransition,
+  decodeProductSessionProjectHistoryTransition,
   decodeProductSessionProjection,
   decodeProductSessionProjectionTrusted,
   type ProductSessionAuthoringOperation,

@@ -41,6 +41,7 @@ import {
   ProductSessionAuthoringError,
   ProductSessionClient,
   ProductSessionTurnError,
+  type WorldProjectSummary,
 } from "./product-session-client";
 import {
   createPoseDraft,
@@ -49,6 +50,10 @@ import {
   type PoseDraft,
   type PoseDraftMode,
 } from "./scene-composer";
+import {
+  canExportBoundProject,
+  hasWorldAuthorityTransition,
+} from "./world-project-ui-state";
 import type { ObserverMode } from "./presentation-three/observer-camera";
 
 type RuntimeStatus = "connecting" | "ready" | "running" | "completed" | "error";
@@ -105,7 +110,17 @@ export default function App() {
   const [poseDraft, setPoseDraft] = createSignal<PoseDraft>();
   const [poseDraftMode, setPoseDraftMode] = createSignal<PoseDraftMode>("translate");
   const [observerMode, setObserverMode] = createSignal<ObserverMode>("overview");
+  const [projects, setProjects] = createSignal<readonly WorldProjectSummary[]>([]);
+  const [projectMode, setProjectMode] = createSignal<"writer" | "reader" | "unavailable">("unavailable");
+  const [activeProject, setActiveProject] = createSignal<WorldProjectSummary>();
+  const [projectDirty, setProjectDirty] = createSignal(false);
+  const [projectIdDraft, setProjectIdDraft] = createSignal("project:untitled-world");
+  const [projectNameDraft, setProjectNameDraft] = createSignal("未命名世界");
+  const [projectSelection, setProjectSelection] = createSignal("");
   let turnAbort: AbortController | undefined;
+  let importInput: HTMLInputElement | undefined;
+  let pendingSaveKey: { fingerprint: string; key: string } | undefined;
+  let pendingImportKey: { fingerprint: string; key: string } | undefined;
 
   const episode = createMemo(() => lastRun()?.episode);
   const evaluation = createMemo(() => lastRun()?.evaluation);
@@ -237,6 +252,17 @@ export default function App() {
     }
   };
 
+  const useMutationProjection = (
+    prior: ProductSessionProjection,
+    next: ProductSessionProjection,
+    resetSelection = false,
+  ) => {
+    if (activeProject() && hasWorldAuthorityTransition(prior, next)) {
+      setProjectDirty(true);
+    }
+    useProjection(next, resetSelection);
+  };
+
   const createSession = async () => {
     setRuntimeStatus("connecting");
     setErrorMessage(undefined);
@@ -249,6 +275,8 @@ export default function App() {
     setViewMode("repository");
     setRegisteredAssetStates([]);
     setPoseDraft(undefined);
+    setActiveProject(undefined);
+    setProjectDirty(false);
     try {
       useProjection(await client.createSession(), true);
       setRuntimeStatus("ready");
@@ -257,6 +285,158 @@ export default function App() {
       setErrorMessage(
         error instanceof Error ? error.message : "无法连接 Agent Gateway",
       );
+    }
+  };
+
+  const refreshProjects = async () => {
+    try {
+      const result = await client.listProjects();
+      setProjectMode(result.mode);
+      setProjects(result.projects);
+      setProjectSelection((current) =>
+        result.projects.some((project) => project.projectId === current)
+          ? current
+          : result.projects[0]?.projectId ?? "",
+      );
+    } catch {
+      setProjectMode("unavailable");
+      setProjects([]);
+      setProjectSelection("");
+    }
+  };
+
+  const openSelectedProject = async () => {
+    const projectId = projectSelection();
+    if (!projectId || runtimeStatus() === "running") return;
+    setRuntimeStatus("running");
+    setBusyLabel("正在验证并打开 World Project");
+    setErrorMessage(undefined);
+    setPoseDraft(undefined);
+    try {
+      const opened = await client.openProject(projectId);
+      useProjection(opened.session, true);
+      setActiveProject(opened.project);
+      setProjectDirty(false);
+      setProjectIdDraft(opened.project.projectId);
+      setProjectNameDraft(opened.project.displayName);
+      setViewMode("repository");
+      setRuntimeStatus("completed");
+    } catch (error) {
+      setRuntimeStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : "打开 World Project 失败");
+    }
+  };
+
+  const saveProject = async (saveAs: boolean) => {
+    const current = projection();
+    const active = activeProject();
+    if (!current?.world || runtimeStatus() === "running" || projectMode() !== "writer") return;
+    const input = {
+      projectId: projectIdDraft().trim(),
+      displayName: projectNameDraft().trim(),
+      expectedRevision: saveAs ? null : active?.revision ?? null,
+    };
+    if (!saveAs && !active) return;
+    const fingerprint = JSON.stringify({ sessionId: current.sessionId, ref: current.world.ref, input });
+    const key = pendingSaveKey?.fingerprint === fingerprint
+      ? pendingSaveKey.key
+      : crypto.randomUUID();
+    pendingSaveKey = { fingerprint, key };
+    setRuntimeStatus("running");
+    setBusyLabel(saveAs ? "正在另存为 World Project" : "正在保存 World Project");
+    setErrorMessage(undefined);
+    try {
+      const saved = await client.saveProject(current.sessionId, input, key);
+      pendingSaveKey = undefined;
+      setActiveProject(saved);
+      setProjectDirty(false);
+      setProjectIdDraft(saved.projectId);
+      setProjectNameDraft(saved.displayName);
+      await refreshProjects();
+      setProjectSelection(saved.projectId);
+      setRuntimeStatus("completed");
+    } catch (error) {
+      setRuntimeStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : "保存 World Project 失败");
+    }
+  };
+
+  const moveProjectHistory = async (direction: "undo" | "redo") => {
+    const current = projection();
+    if (!current || !activeProject() || runtimeStatus() === "running") return;
+    setRuntimeStatus("running");
+    setBusyLabel(direction === "undo" ? "正在撤销到上一 Snapshot" : "正在重做到下一 Snapshot");
+    setErrorMessage(undefined);
+    setPoseDraft(undefined);
+    try {
+      const next = await client.moveProjectHistory(
+        current.sessionId,
+        current,
+        direction,
+        activeProject()!.revision,
+      );
+      useMutationProjection(current, next);
+      setViewMode("repository");
+      setRuntimeStatus("completed");
+    } catch (error) {
+      setRuntimeStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : "World Project history 操作失败");
+    }
+  };
+
+  const exportActiveProject = async () => {
+    const active = activeProject();
+    if (!active || !canExportBoundProject(true, projectDirty(), runtimeStatus() === "running")) return;
+    setRuntimeStatus("running");
+    setBusyLabel("正在导出确定性 World Project bundle");
+    setErrorMessage(undefined);
+    try {
+      const bytes = await client.exportProject(active.projectId);
+      const url = URL.createObjectURL(new Blob([Uint8Array.from(bytes).buffer], {
+        type: "application/vnd.demiurges.world-project+zip",
+      }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${active.projectId.slice("project:".length)}.dworld`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setRuntimeStatus("completed");
+    } catch (error) {
+      setRuntimeStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : "导出 World Project 失败");
+    }
+  };
+
+  const importProject = async (file: File) => {
+    if (runtimeStatus() === "running" || projectMode() !== "writer") return;
+    const fingerprint = `${file.name}:${file.size}:${file.lastModified}`;
+    const key = pendingImportKey?.fingerprint === fingerprint
+      ? pendingImportKey.key
+      : crypto.randomUUID();
+    pendingImportKey = { fingerprint, key };
+    setRuntimeStatus("running");
+    setBusyLabel("正在验证并导入 World Project bundle");
+    setErrorMessage(undefined);
+    try {
+      const imported = await client.importProject(
+        new Uint8Array(await file.arrayBuffer()),
+        key,
+      );
+      pendingImportKey = undefined;
+      await refreshProjects();
+      setProjectSelection(imported.projectId);
+      const opened = await client.openProject(imported.projectId);
+      useProjection(opened.session, true);
+      setActiveProject(opened.project);
+      setProjectDirty(false);
+      setProjectIdDraft(opened.project.projectId);
+      setProjectNameDraft(opened.project.displayName);
+      setRuntimeStatus("completed");
+    } catch (error) {
+      setRuntimeStatus("error");
+      setErrorMessage(error instanceof Error ? error.message : "导入 World Project 失败");
+    } finally {
+      if (importInput) importInput.value = "";
     }
   };
 
@@ -324,12 +504,12 @@ export default function App() {
         turnAbort.signal,
         current.world,
       );
-      useProjection(next);
+      useMutationProjection(current, next);
       setRuntimeStatus("completed");
     } catch (error) {
       setRuntimeStatus("error");
       if (error instanceof ProductSessionTurnError) {
-        useProjection(error.projection);
+        useMutationProjection(current, error.projection);
       } else {
         setProjection(undefined);
         setAuthoritativeWorld(undefined, true);
@@ -367,12 +547,14 @@ export default function App() {
       const next = await client.writeWorld(current.sessionId, {
         fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
       }, current);
-      useProjection(next, true);
+      useMutationProjection(current, next, true);
       setSelectedRef(GENERATED_OBJECT_REF);
       setViewMode("repository");
       setRuntimeStatus("completed");
     } catch (error) {
-      if (error instanceof ProductSessionAuthoringError) useProjection(error.projection);
+      if (error instanceof ProductSessionAuthoringError) {
+        useMutationProjection(current, error.projection);
+      }
       setRuntimeStatus("error");
       setErrorMessage(error instanceof Error ? error.message : "创建已登记组合失败");
     }
@@ -429,18 +611,23 @@ export default function App() {
         current,
       );
       setPoseDraft(undefined);
-      useProjection(next);
+      useMutationProjection(current, next);
       setViewMode("repository");
       setRuntimeStatus("completed");
     } catch (error) {
       setPoseDraft(undefined);
-      if (error instanceof ProductSessionAuthoringError) useProjection(error.projection);
+      if (error instanceof ProductSessionAuthoringError) {
+        useMutationProjection(current, error.projection);
+      }
       setRuntimeStatus("error");
       setErrorMessage(error instanceof Error ? error.message : "提交 world_edit 失败");
     }
   };
 
-  onMount(() => void createSession());
+  onMount(() => {
+    void createSession();
+    void refreshProjects();
+  });
   onCleanup(() => turnAbort?.abort());
 
   return (
@@ -551,6 +738,90 @@ export default function App() {
               <div><dt>frame</dt><dd>frame:world</dd></div>
               <div><dt>units</dt><dd>units:si</dd></div>
             </dl>
+          </section>
+
+          <section class="inspector-section project-control" data-testid="world-project-control">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Persistent world fact</span>
+                <h2>World Project</h2>
+              </div>
+              <span class="project-mode" data-mode={projectMode()}>{projectMode()}</span>
+            </div>
+            <label class="field-label" for="project-id">Project ID</label>
+            <input
+              id="project-id"
+              data-testid="project-id-input"
+              value={projectIdDraft()}
+              disabled={runtimeStatus() === "running"}
+              onInput={(event) => {
+                pendingSaveKey = undefined;
+                setProjectIdDraft(event.currentTarget.value);
+              }}
+            />
+            <label class="field-label" for="project-name">名称</label>
+            <input
+              id="project-name"
+              data-testid="project-name-input"
+              value={projectNameDraft()}
+              disabled={runtimeStatus() === "running"}
+              onInput={(event) => {
+                pendingSaveKey = undefined;
+                setProjectNameDraft(event.currentTarget.value);
+                if (
+                  activeProject() &&
+                  event.currentTarget.value !== activeProject()!.displayName
+                ) setProjectDirty(true);
+              }}
+            />
+            <div class="project-actions" role="group" aria-label="World Project save actions">
+              <button class="button secondary" disabled={!activeProject() || !currentSnapshot() || projectMode() !== "writer" || runtimeStatus() === "running"} onClick={() => void saveProject(false)}>保存</button>
+              <button class="button primary" data-testid="project-save-as" disabled={!currentSnapshot() || projectMode() !== "writer" || runtimeStatus() === "running"} onClick={() => void saveProject(true)}>另存为</button>
+              <button class="button ghost" disabled={!activeProject() || runtimeStatus() === "running"} onClick={() => void moveProjectHistory("undo")}>撤销</button>
+              <button class="button ghost" disabled={!activeProject() || runtimeStatus() === "running"} onClick={() => void moveProjectHistory("redo")}>重做</button>
+            </div>
+            <label class="field-label" for="recent-project">最近项目</label>
+            <div class="project-open-row">
+              <select
+                id="recent-project"
+                data-testid="recent-projects"
+                value={projectSelection()}
+                disabled={projects().length === 0 || runtimeStatus() === "running"}
+                onChange={(event) => setProjectSelection(event.currentTarget.value)}
+              >
+                <Show when={projects().length === 0}>
+                  <option value="">暂无已验证项目</option>
+                </Show>
+                <For each={projects()}>
+                  {(project) => <option value={project.projectId}>{project.displayName} · {project.projectId}</option>}
+                </For>
+              </select>
+              <button class="button secondary" disabled={!projectSelection() || runtimeStatus() === "running"} onClick={() => void openSelectedProject()}>打开</button>
+            </div>
+            <div class="project-actions">
+              <button class="button ghost" disabled={!canExportBoundProject(Boolean(activeProject()), projectDirty(), runtimeStatus() === "running")} onClick={() => void exportActiveProject()}>导出 .dworld</button>
+              <button class="button ghost" disabled={projectMode() !== "writer" || runtimeStatus() === "running"} onClick={() => importInput?.click()}>导入 .dworld</button>
+              <input
+                ref={importInput}
+                class="visually-hidden"
+                data-testid="project-import-input"
+                type="file"
+                accept=".dworld,application/vnd.demiurges.world-project+zip"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  if (file) void importProject(file);
+                }}
+              />
+            </div>
+            <p class="project-revision" data-testid="active-project-revision">
+              {activeProject()
+                ? projectDirty()
+                  ? `${activeProject()!.projectId} · 未保存更改（保存后才能导出）`
+                  : `${activeProject()!.projectId} · ${activeProject()!.revision.slice(0, 31)}…`
+                : projectMode() === "unavailable"
+                  ? "Data Root 未配置，当前仍是内存 Session"
+                  : "尚未绑定 Project；相机、选择和 Draft 不会被保存"}
+            </p>
           </section>
 
           <section class="inspector-section scene-composer" data-testid="scene-composer">

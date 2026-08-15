@@ -19,7 +19,7 @@ type ArtifactValidator = (
 ) => unknown;
 
 export interface ProviderAssetApiOptions {
-  readonly cacheRoot: string;
+  readonly cacheRoot?: string;
   readonly assets?: readonly ManifestAssetEntry[];
   readonly validate?: ArtifactValidator;
   readonly readDeadlineMs?: number;
@@ -116,8 +116,11 @@ export function createProviderAssetApi(
   if (!Number.isSafeInteger(maximumConcurrentReads) || maximumConcurrentReads < 1) {
     throw new Error("asset concurrent read 上限必须为正整数");
   }
+  if (options.readArtifact === undefined && options.cacheRoot === undefined) {
+    throw new Error("asset API 需要显式 Artifact reader 或 cacheRoot");
+  }
   const readArtifact = options.readArtifact ?? ((entry, signal) =>
-    readExactArtifact(options.cacheRoot, entry, signal));
+    readExactArtifact(options.cacheRoot!, entry, signal));
   const byId = new Map(assets.map((entry) => [entry.assetId, entry] as const));
   let activeReads = 0;
 

@@ -794,4 +794,96 @@ describe("Studio Product Session client", () => {
       readProductSessionEvents(disguised, "session:local-1", () => undefined),
     ).rejects.toThrow("NDJSON");
   });
+
+  test("World Project client 绑定 exact terminal/revision，并 bounded 读取 bundle", async () => {
+    const revision = `project-revision:sha256:${"a".repeat(64)}`;
+    const terminal = {
+      schemaVersion: 1,
+      operationId: "op:client-save",
+      bindingDigest: "b".repeat(64),
+      variant: "success",
+      publishedIdentity: revision,
+    };
+    const saveRoutes: string[] = [];
+    const forged = new ProductSessionClient(async (input) => {
+      saveRoutes.push(String(input));
+      return Response.json({
+        project: { projectId: "project:demo", displayName: "Demo", revision },
+        terminal: { ...terminal, publishedIdentity: `project-revision:sha256:${"c".repeat(64)}` },
+        replayed: false,
+      });
+    });
+    await expect(forged.saveProject("session:demo", {
+      projectId: "project:demo",
+      displayName: "Demo",
+      expectedRevision: null,
+    }, "client-save")).rejects.toThrow("terminal");
+    await expect(forged.saveProject("session:demo", {
+      projectId: "project:demo",
+      displayName: "Demo",
+      expectedRevision: revision,
+    }, "client-save-v2")).rejects.toThrow("terminal");
+    expect(saveRoutes).toEqual([
+      "/api/sessions/session%3Ademo/project/save-as",
+      "/api/sessions/session%3Ademo/project/save",
+    ]);
+
+    const historySurface = new WorldToolSurface(new RuntimeMvpHost());
+    historySurface.write({ fixtureId: PRIMITIVE_BOX_FIXTURE_ID });
+    const historyPrior = {
+      sessionId: "session:local-history-client",
+      world: historySurface.read(),
+      lastRun: null,
+      lastSequence: 0,
+      running: false,
+    } as const;
+    let historyRequestBody: unknown;
+    const historyClient = new ProductSessionClient(async (_input, init) => {
+      historyRequestBody = JSON.parse(String(init?.body));
+      return Response.json({ status: "unchanged", projection: historyPrior });
+    });
+    expect(await historyClient.moveProjectHistory(
+      historyPrior.sessionId,
+      historyPrior,
+      "undo",
+      revision,
+    )).toEqual(historyPrior);
+    expect(historyRequestBody).toEqual({
+      projectRevision: revision,
+      ref: historyPrior.world.ref,
+    });
+
+    const overflow = new ProductSessionClient(async () => new Response(
+      new Uint8Array([1, 2, 3]),
+      { headers: {
+        "content-type": "application/vnd.demiurges.world-project+zip",
+        "content-length": "2",
+      } },
+    ));
+    await expect(overflow.exportProject("project:demo")).rejects.toThrow("byteLength");
+
+    let calls = 0;
+    const valid = new ProductSessionClient(async (input) => {
+      calls += 1;
+      if (String(input) === "/api/projects/import") {
+        return Response.json({
+          terminal: { ...terminal, operationId: "op:client-import" },
+          projectId: "project:demo",
+          revision,
+          replayed: false,
+        });
+      }
+      return Response.json({
+        mode: "writer",
+        projects: [{ projectId: "project:demo", displayName: "Demo", revision }],
+        rejectedEntryCount: 0,
+      });
+    });
+    expect(await valid.importProject(new Uint8Array([1]), "client-import")).toEqual({
+      projectId: "project:demo",
+      displayName: "Demo",
+      revision,
+    });
+    expect(calls).toBe(2);
+  });
 });

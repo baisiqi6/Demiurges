@@ -6,8 +6,9 @@ describe("Agent Gateway production composition", () => {
 
     expect(source).toContain("DEMIURGES_OMP_MODEL");
     expect(source).toContain(
-      "createProductSessionApi(createOmpAgentClientFactory(modelSelector))",
+      "createProductSessionApi(createOmpAgentClientFactory(modelSelector), {",
     );
+    expect(source).toContain("worldProjects,");
     expect(source).not.toContain("createScriptedAgentClientFactory");
   });
 });

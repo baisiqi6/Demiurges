@@ -293,8 +293,8 @@ describe("Product Session HTTP API", () => {
     releaseBody();
     const streamedAbort = await pending;
     expect([streamedAbort.status, await streamedAbort.json()]).toEqual([
-      400,
-      { error: "INVALID_REQUEST" },
+      408,
+      { error: "REQUEST_ABORTED" },
     ]);
     const streamedProjection = await (await api.fetch(new Request(
       `http://local.test/api/sessions/${streaming.sessionId}`,

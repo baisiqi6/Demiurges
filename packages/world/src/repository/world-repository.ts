@@ -29,6 +29,8 @@ class WorldRepositoryState {
   readonly #episodes = new Map<Episode["id"], Episode>();
   readonly #evaluations = new Map<EvaluationRecord["id"], EvaluationRecord>();
   readonly #refs = new Map<RefRecord["name"], RefRecord>();
+  readonly #history: Snapshot["id"][] = [];
+  #historyCursor = -1;
   #editSequence = 0;
 
   constructor() {
@@ -98,6 +100,15 @@ class WorldRepositoryState {
       }) as RefUpdateResult;
     }
 
+    if (ref === CURRENT_WORLD_REF) {
+      const currentHistoryId = this.#history[this.#historyCursor];
+      if (currentHistoryId !== current.snapshotId || target.parentId !== current.snapshotId) {
+        throw new Error("Repository project history 与 Ref lineage 不一致");
+      }
+      this.#history.splice(this.#historyCursor + 1);
+      this.#history.push(target.id);
+      this.#historyCursor = this.#history.length - 1;
+    }
     const nextRef = deepFreeze({
       name: ref,
       snapshotId: target.id,
@@ -126,6 +137,10 @@ class WorldRepositoryState {
       snapshotId: inserted.id,
       version: 1,
     }) as RefRecord);
+    if (ref === CURRENT_WORLD_REF) {
+      this.#history.splice(0, this.#history.length, inserted.id);
+      this.#historyCursor = 0;
+    }
     return inserted;
   }
 
@@ -400,7 +415,123 @@ class WorldRepositoryState {
 
     return this.#updateRef("adopt", episode.terminalSnapshot, expected, ref);
   }
+  /**
+   * 受控 restore：在全新隔离 state 上依序插入完整 lineage，并设置 exact current Ref。
+   * 任何校验失败都只抛错（candidate 不可见），从不逐步修改 live Repository。
+   */
+  restore(snapshots: readonly Snapshot[], currentRef: RefRecord): void {
+    if (!isDeepFrozen(currentRef) ||
+        currentRef.name !== CURRENT_WORLD_REF ||
+        typeof currentRef.snapshotId !== "string" ||
+        !currentRef.snapshotId.startsWith("snapshot:") ||
+        !Number.isSafeInteger(currentRef.version) ||
+        currentRef.version < 1) {
+      throw new Error("restore currentRef 必须是 world:current 的冻结 snapshotId + 正 version record");
+    }
+    if (!Array.isArray(snapshots) || snapshots.length === 0) {
+      throw new Error("restore 必须提供非空 lineage");
+    }
+    for (const snapshot of snapshots) {
+      if (!isDeepFrozen(snapshot)) {
+        throw new Error("restore Snapshot 必须是递归冻结的 plain data record");
+      }
+    }
+    // 先完整校验 lineage 与 target，再插入：candidate 失败不留下可见部分 state。
+    const ids = new Set<string>();
+    snapshots.forEach((snapshot, index) => {
+      if (ids.has(snapshot.id)) {
+        throw new Error(`restore lineage 包含重复 Snapshot ID：${snapshot.id}`);
+      }
+      ids.add(snapshot.id);
+      if (index === 0) {
+        if (snapshot.source !== "write" || snapshot.parentId !== null) {
+          throw new Error("restore lineage 首项必须是 source=write 且 parentId=null");
+        }
+      } else if (snapshot.parentId !== snapshots[index - 1]!.id) {
+        throw new Error(`restore lineage 第 ${index} 项 parentId 必须等于前一项 id`);
+      }
+    });
+    if (!ids.has(currentRef.snapshotId)) {
+      throw new Error("restore currentRef.snapshotId 必须位于 lineage 内");
+    }
+    for (const snapshot of snapshots) {
+      this.#insert(snapshot);
+    }
+    this.#refs.set(CURRENT_WORLD_REF, deepFreeze(currentRef) as RefRecord);
+    this.#history.splice(0, this.#history.length, ...snapshots.map((snapshot) => snapshot.id));
+    this.#historyCursor = snapshots.findIndex((snapshot) => snapshot.id === currentRef.snapshotId);
+    // edit sequence 恢复：下一个合法 edit 从 lineage 内最大 edit-N 续号，不碰撞、不跳号。
+    let maxEditSequence = 0;
+    for (const snapshot of snapshots) {
+      const match = /^snapshot:edit-([0-9]+)$/.exec(snapshot.id);
+      if (match) {
+        const sequence = Number(match[1]);
+        if (Number.isSafeInteger(sequence) && sequence > maxEditSequence) {
+          maxEditSequence = sequence;
+        }
+      }
+    }
+    this.#editSequence = maxEditSequence;
+  }
+
+  /**
+   * ref-control seam（undo/redo 原语）：只允许在 lineage 内把 current 移动到
+   * 其直接 parent（undo）或直接 child（redo），version + 1，Snapshot 不变。
+   * 历史边界与唯一 next 的选择由 product control-plane 依据 history 决定。
+   */
+  moveCurrentRef(
+    targetSnapshotId: Snapshot["id"],
+    expected: RefRecord,
+    ref: RefRecord["name"] = CURRENT_WORLD_REF,
+  ): RefUpdateResult {
+    this.#requireExpectation(expected, ref);
+    const current = this.readRefRecord(ref);
+    if (current.snapshotId !== expected.snapshotId || current.version !== expected.version) {
+      return deepFreeze({
+        status: "stale_ref",
+        ref: current,
+        snapshot: this.readSnapshot(current.snapshotId),
+      }) as RefUpdateResult;
+    }
+    if (targetSnapshotId === current.snapshotId) {
+      throw new Error("moveCurrentRef target 不能是当前 Snapshot");
+    }
+    if (ref !== CURRENT_WORLD_REF || this.#history[this.#historyCursor] !== current.snapshotId) {
+      throw new Error("moveCurrentRef 只支持受信 world:current project history");
+    }
+    const targetIndex = this.#history.indexOf(targetSnapshotId);
+    if (targetIndex < 0 || Math.abs(targetIndex - this.#historyCursor) !== 1) {
+      throw new Error("moveCurrentRef 只允许移动到线性 history 的相邻 Snapshot");
+    }
+    const target = this.readSnapshot(targetSnapshotId);
+    const nextRef = deepFreeze({
+      name: ref,
+      snapshotId: target.id,
+      version: current.version + 1,
+    }) as RefRecord;
+    this.#historyCursor = targetIndex;
+    this.#refs.set(ref, nextRef);
+    return deepFreeze({
+      status: "updated",
+      operation: "advance",
+      ref: nextRef,
+      snapshot: target,
+    }) as RefUpdateResult;
+  }
+
+  exportHistory(): RepositoryHistory {
+    const currentRef = this.readRefRecord(CURRENT_WORLD_REF);
+    if (this.#historyCursor < 0 || this.#history[this.#historyCursor] !== currentRef.snapshotId) {
+      throw new Error("Repository project history 与 current Ref 不一致");
+    }
+    return deepFreeze({
+      snapshots: this.#history.map((id) => this.readSnapshot(id)),
+      cursor: this.#historyCursor,
+      currentRef,
+    }) as RepositoryHistory;
+  }
 }
+
 
 export interface WorldRepository {
   write(snapshot: Snapshot, ref?: RefRecord["name"]): Snapshot;
@@ -440,6 +571,19 @@ export interface WorldRepository {
     expected: RefRecord,
     ref?: RefRecord["name"],
   ): RefUpdateResult;
+  moveCurrentRef(
+    targetSnapshotId: Snapshot["id"],
+    expected: RefRecord,
+    ref?: RefRecord["name"],
+  ): RefUpdateResult;
+  exportHistory(): RepositoryHistory;
+}
+
+/** 受控 history export：root → tip 单线 lineage 与 exact current Ref。 */
+export interface RepositoryHistory {
+  readonly snapshots: readonly Snapshot[];
+  readonly cursor: number;
+  readonly currentRef: RefRecord;
 }
 
 export interface WorldEvidenceWriter {
@@ -459,8 +603,31 @@ export function createWorldRepositoryAuthority(
   if (rejectedCallerPolicy !== undefined) {
     throw new Error("Repository 不接纳调用方 policy；必须使用 Host closed registry");
   }
-  const state = new WorldRepositoryState();
+  return makeAuthority(new WorldRepositoryState());
+}
 
+/**
+ * 受控 restore：在全新隔离 `WorldRepositoryState` 上重建完整 lineage 与 exact
+ * current Ref，并恢复 edit sequence。失败只抛错、不返回 authority，
+ * 任何 live Repository 都不被触碰。
+ */
+export function restoreRepositoryAuthority(
+  snapshots: readonly Snapshot[],
+  currentRef: RefRecord,
+): WorldRepositoryAuthority {
+  const state = new WorldRepositoryState();
+  state.restore(snapshots, currentRef);
+  return makeAuthority(state);
+}
+
+/** 只读 history export：从 current Ref 沿 parent 链走到 write root，root → tip 排列。 */
+export function exportRepositoryHistory(
+  authority: WorldRepositoryAuthority,
+): RepositoryHistory {
+  return authority.repository.exportHistory();
+}
+
+function makeAuthority(state: WorldRepositoryState): WorldRepositoryAuthority {
   return Object.freeze({
     repository: Object.freeze({
       write: (snapshot: Snapshot, ref?: RefRecord["name"]) =>
@@ -504,6 +671,12 @@ export function createWorldRepositoryAuthority(
         expected: RefRecord,
         ref?: RefRecord["name"],
       ) => state.adopt(episodeId, evaluationId, policyId, expected, ref),
+      moveCurrentRef: (
+        targetSnapshotId: Snapshot["id"],
+        expected: RefRecord,
+        ref?: RefRecord["name"],
+      ) => state.moveCurrentRef(targetSnapshotId, expected, ref),
+      exportHistory: () => state.exportHistory(),
     }),
     evidence: Object.freeze({
       record: (snapshot: Snapshot) => state.record(snapshot),
