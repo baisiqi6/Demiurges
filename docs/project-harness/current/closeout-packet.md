@@ -2,32 +2,32 @@
 
 ## Subject
 
-- Checklist item: `DH-018`
-- Reviewer: `kimi-k3-max-reviewer`
-- Updated at: `2026-08-25`
-- Canonical plan path: `docs/project-harness/tasks/DH-018/plan.md`
+- Checklist item: `DH-019`
+- Reviewer: `dh019-independent-reviewer`
+- Updated at: `2026-09-05`
+- Canonical plan path: `docs/project-harness/tasks/DH-019/plan.md`
 
 ## Item Snapshot
 
-- Title: Agent Worldmaking Orchestration
-- Status: todo
+- Title: Offline Value Checkpoint 与 Authoring Decision
+- Status: done
 - Workflow status: closeout_requested
 - Priority: p1
 - Owner: None
 - Session: None
-- Dependencies: DH-017
+- Dependencies: DH-018
 
 ## Acceptance
 
-restricted Agent 使用且仅使用 read、write、edit、run 消费 registered ArtifactRef，完成自然语言 world composition、run、evidence inspection 与 repair loop；provider generation 保持 Harness control-plane，不暴露 credential 或第五个 world tool；成功由 deterministic Evaluation 证明。
+复用 DH-018 已完成的 ProductSession/WorldToolSurface seam，在无 provider quota 条件下以 fresh Host 重放 articulated FAIL→evidence→repair→PASS；只使用 read/write/edit/run，记录 fixture/scenario/run/program identity、exact metrics、deterministic receipt/replay digest，不调用 live OMP、Marble、Hunyuan，不自动 adopt。
 
 ## Verification
 
-
+5 focused tests / 19 assertions；全量 bun test 1173 pass / 0 fail / 9264 assertions；bun run typecheck；bun run build；Harness validate 0 warnings；scoped diff-check clean；receipt status=offline-proven。
 
 ## Handoff
 
-等待 verified Artifact 与可持久化 world authoring 成为真实调用方后再规划。
+先通过独立 plan review，再实现 measurement-only replay runner；结果只作为是否进入 data-driven authoring 的决策依据。
 
 ## Review Inputs
 
@@ -40,85 +40,89 @@ restricted Agent 使用且仅使用 read、write、edit、run 消费 registered 
 ## Canonical Plan Content
 
 ```md
-# DH-018 Agent Worldmaking Orchestration — 第一最小闭环
+# DH-019 计划：Offline Value Checkpoint
 
-## 发心
+## 定位
 
-证明 Agent 已经能够消费 DH-017 产出的真实、已验证 `ArtifactRef` 来造世界，而不是再造一套 Agent 框架、provider SDK 或持久化协议。
+这是 DH-018 之后的产品决策 checkpoint，不再实现第二套 worldmaking runner。它复用 DH-018 已完成的 WorldToolSurface fail→repair→pass seam；本 checkpoint 有意保持 measurement-only direct surface，不启动 ProductSession/OMP turn，只负责独立重放、测量和生成 decision receipt，回答：在没有任何 live model/provider quota 时，Demiurges 是否能重复证明一个模型意图经过世界、证据和修复后得到确定性结果。
 
-这一步只回答一个产品问题：给 restricted Agent 一句自然语言任务后，它能否只通过既有 `read`、`write`、`edit`、`run`，把已登记物体放进 Marble 世界，看到确定性失败证据，并修正到 Evaluation 通过。
+## Golden trace
 
-## 已确认事实
+固定使用 `fixture:two-joint-planar-reach-v1`：
 
-- DH-017 已产生一个 durable `verified` Hunyuan `object-glb`：
-  - `artifactSetDigest=5641bf040c5dc881a553332493957627c8557edc5d7aa7d4f65b42139259e69d`
-  - `assetId=asset:generated-sha256-65dc7eb3d71393e624925c6848e88b55cf0bd6fd8d1ca63b956743fddd55e05a`
-  - `contentDigest=65dc7eb3d71393e624925c6848e88b55cf0bd6fd8d1ca63b956743fddd55e05a`
-  - `byteLength=24189512`，`format=glb-2.0`，`elementCount=1`
-- `GeneratedArtifactReader.list()` 已是 durable verified set 的只读 authority；它不暴露 credential、signed URL 或 provider handle。
-- restricted OMP Agent 与四个 world tools 已存在；MuJoCo composite runtime、landing Evaluation、Ref/CAS edit 也已存在。
-- `WorldProjectManifestV1` 固定要求现有 `registry:marble-hunyuan-v1` 及其完整 manifest digest。修改或扩展该 registry 会破坏旧项目恢复，因此本切片不得修改 Project v1 或声称新动态 world 已可落盘恢复。
+1. `world_write` 创建 procedural articulated fixture；
+2. `world_read` 读取结构化 joints、target 与 affordance；
+3. `world_edit` 建立 zero-joint authored state；
+4. `world_run` 使用 `run:dh019-zero` 与 one-step all-zero Program，Evaluation 为 `FAIL`；
+5. 从受信 Evaluation 读取并校验 `supportSamples=0`、`maxPositionErrorMeters=0.226543641354435`、`maxJointSpeedRadiansPerSecond=0`；
+6. 第二次 `world_read` 获取 authored Ref `version=2`；
+7. `world_run` 使用 `run:dh019-corrected` 与 one-step `.65/-1` Program（`kind=actuator-sequence`、`targetRef=entity:arm`、`durationSeconds=3`、`sampleRateHz=30`、唯一 step 为 `timeSeconds=0`），Episode 为 91 samples，Evaluation 为 `PASS`，`supportSamples=16`、`maxPositionErrorMeters=0.00000179062757188384`、`maxJointSpeedRadiansPerSecond=0.0000390513154170192`。
 
-## 最小实现
+首次 zero Program 同样固定为 `kind=actuator-sequence`、`targetRef=entity:arm`、`durationSeconds=3`、`sampleRateHz=30`、唯一 `timeSeconds=0` step，两个 command 均为 `0`。`evidenceFieldsUsed` 固定为字面有序数组 `["supportSamples","maxPositionErrorMeters","maxJointSpeedRadiansPerSecond"]`。
 
-1. 在 control-side session 创建边界，从 `GeneratedArtifactReader.list()` 选择**恰好一个**合法 `object-glb` 候选；零个或多个时不猜测、不自动选最新。
-2. 将该 verified set/member 投影为一个窄的、递归冻结的 generated-object binding：只保留后续 session Snapshot 实际消费的 `artifactSetDigest`、`assetId` 与 `sourceBounds`。其他已验证 summary 字段继续由 Reader 持有，不复制到 Snapshot 边界。
-3. 用该 binding 构造 session-bound Marble composite fixture：
-   - Marble environment/floor 继续复用现有受信静态 registry；
-   - Hunyuan visual identity 使用 `(artifactSetDigest, assetId)`；
-   - glTF Y-up → world Z-up、AABB centering 与 box proxy 明确标注为 `authored-unverified`，不得写成 provider-verified calibration；
-   - 不读取或复制 24 MB GLB bytes 到 Snapshot。
-4. Agent 仍只看到 `read`、`write`、`edit`、`run`。`write` 不增加 Artifact 参数，不增加第五个 tool；Artifact binding 在 Agent 启动前由 Host 固定。
-5. 一次自然语言 turn 执行最短 repair loop：
-   - `write` + `read`；
-   - 首次 `edit` 把 generated object 放到 floor 支撑范围外，`run` 得到 deterministic `passed=false`；
-   - Agent 检查 Evaluation 指标；
-   - `read` 当前 Ref，再次 `edit` 到 floor 上方，第二次 `run` 得到 `passed=true`。
-6. 保留两个 run 的 evidence/trace，使测试能证明失败不是异常吞掉、成功不是脚本口头宣称。
+Repair 函数必须接收第一次受信 Evaluation，逐字段校验上述 metrics 与 episode/evaluator/contract identity 后才能生成 corrected Program；缺失、篡改或错配 evidence 必须拒绝。Repair 是下一次 `world_run` 的显式 `WorldProgram` 改写，不增加 `world_edit` 能力，也不调用 provider。两次 run/evaluate 都不推进 Ref；`adopt` 不属于 checkpoint。
 
-## 非目标
+## 实现边界
 
-- 不调用 Marble/Hunyuan，不读取 Keychain，不新增付费或网络 side effect。
-- 不修改 `MARBLE_HUNYUAN_REGISTRY`，不修改 `WorldProjectManifestV1`、Project Store、bundle 或 startup recovery。
-- 不做通用 artifact resolver、插件系统、planner、workflow engine、retry/backoff、scheduler 或 audit framework。
-- 不增加 `generate`、`inspect`、`adopt` 等第五个 world tool；不自动 adopt terminal Snapshot。
-- 不支持多个 generated candidate 的排序/选择 UI；多候选歧义留给后续真实需求。
-- 不把 source bounds 或 authored calibration 说成语义、尺度或物理形状的 provider 真值。
+新增一个 repo-owned measurement runner 与 deterministic receipt。runner 只依赖现有 `RuntimeMvpHost`、`WorldToolSurface`、articulated fixture、Program parser 和 evaluator；每次 replay 使用 fresh Host；不得复制作第二套 world authority，也不重复实现 DH-018 的 orchestration。
 
-## Worker 允许修改范围
+Receipt 使用 canonical JSON bytes，固定字段：
 
-优先只在下列路径中做 surgical changes；若确有必要超出，Worker 必须先在 RESULT 中说明理由，不能自行扩张：
+```ts
+interface OfflineValueCheckpointReceiptV1 {
+  schemaVersion: 1;
+  fixtureId: "fixture:two-joint-planar-reach-v1";
+  scenarioId: "scenario:two-joint-planar-reach-v1";
+  runIds: readonly ["run:dh019-zero", "run:dh019-corrected"];
+  traceDigest: `trace:sha256:${string}`;
+  toolSequence: readonly ["world_write", "world_read", "world_edit", "world_run", "world_read", "world_run"];
+  episodeIds: readonly [string, string];
+  evaluationIds: readonly [string, string];
+  firstOutcome: "FAIL";
+  secondOutcome: "PASS";
+  repairCount: 1;
+  evidenceFieldsUsed: readonly string[];
+  replayDigest: `replay:sha256:${string}`;
+}
+```
 
-- `packages/world/src/artifacts/marble-hunyuan-composite-fixture.ts`
-- `packages/world/src/artifacts/marble-hunyuan-composite-fixture.test.ts`
-- `packages/world/src/world-tools/world-tool-surface.ts`
-- `packages/world/src/world-tools/world-tool-surface.test.ts`
-- `packages/world/src/world-tools/world-tool-contract.ts`
-- `packages/world/src/world-tools/world-tool-contract.test.ts`
-- `packages/world/src/index.ts`
-- `apps/agent-gateway/src/product-session.ts`
-- `apps/agent-gateway/src/product-session.test.ts`
-- `apps/agent-gateway/src/product-session-api.ts`
-- `apps/agent-gateway/src/product-session-api.test.ts`
-- 必要时新增一个与上述边界同目录、职责单一的 DH-018 binding/helper 及对应 test。
+`traceDigest` 的 preimage 是 domain string `demiurges-dh019-trace-v1\0` 加上 `canonicalJsonBytes` 的 `{fixtureId,scenarioId,runIds,programs,toolSequence}` 包装对象；programs 同时包含完整 canonical program content 与 derived `program.id`。`replayDigest` 的 preimage 是 domain string `demiurges-dh019-replay-v1\0` 加上 `canonicalJsonBytes` 的 receipt 字段（排除两个 digest 字段）。Receipt 不包含 credential、provider URL、raw response、绝对路径或大体积 Artifact bytes；receipt `status` 固定为 `offline-proven`。两次 fresh Host 执行必须生成 byte-identical receipt 与 replay digest。
 
-禁止触碰 provider transport、generation journal/publication、Project Store/manifest、Studio、生产部署文件和 Keychain。
+## Non-goals
 
-## 验收证据
+- 不接入 live OMP、Marble、Hunyuan 或任何 quota；
+- 不增加 `generate`、`inspect`、`adopt` 或第五个 world tool；
+- 不把 scripted replay 宣称为自然语言 Agent canary；
+- 不实现通用 benchmark、任务市场、调度器或长期记忆；
+- 不改变 Snapshot/Ref/Episode/Evaluation/Project authority。
 
-1. Unit test：Reader summary 到 frozen binding 的 exact 投影；零候选/多候选均不猜测。
-2. Fixture test：真实 DH-017 identity、source bounds、authored-unverified calibration 与派生 proxy 重算一致。
-3. Product Session test：tool name 集合仍恰好为四个；trace 中首次 Evaluation fail、修复后 pass；Ref version 单调增长。
-4. Regression：旧 `fixture:marble-hunyuan-composite-v1` 与既有 Project v1 tests 不漂移。
-5. Operator 运行 focused tests、相关 package typecheck，以及一次受限 OMP Agent canary；canary 不调用世界模型 provider。
+## 允许修改范围
 
-## 完成定义
+- `scripts/` 下单一 offline checkpoint runner 与对应测试；
+- 必要时 `packages/world/src` 中已有 Program/evidence 的最小 re-export；
+- `docs/project-harness/tasks/DH-019/` 的 plan、progress、receipt 与 review artifacts；
+- 不修改 provider transport、Keychain、World Project manifest、Studio UI 或生产 Gateway。
 
-- 真实 verified ArtifactRef 由 control side reader 消费并固定到 Agent session。
-- restricted Agent 仅用四工具完成 `compose → run fail → inspect → edit → run pass`。
-- deterministic Evaluation 是唯一成功判据。
-- 无 Project v1 兼容性漂移、无 provider/credential side effect、无通用框架增量。
-- Worker RESULT、Reviewer verdict 与 Operator 独立验证证据均落盘后，才可关闭 DH-018。
+## 验收
+
+1. runner 在无网络、无 Keychain、无 live OMP 环境完成上述六次 world-tool 调用；源码结构检查不得 import provider transport、Keychain 或 OMP；
+2. tool sequence、Episode/Evaluation identity、FAIL/PASS、`repairCount=1` 与 evidence fields exact；
+3. runner 重放两次得到 byte-identical receipt/replay digest；
+4. forged Evaluation 或真实 Episode provenance/content 被篡改时 fail closed；固定 tool sequence、Ref/Program/Evaluation identity 检查阻断额外 tool 或 terminal-only bypass；
+5. 全量 tests、typecheck、build、diff-check 与 Harness validation 通过；
+6. 结果明确记录为 `offline-proven`，不扩大解释为 live Agent 或 predictive world model 已验证。
+
+## 已验证 receipt
+
+当前 offline checkpoint receipt 见 `offline-value-checkpoint-receipt.json`，`status=offline-proven`。它固定 `traceDigest=trace:sha256:3f1c77b8b77ca62d8a830385bb9386f875d49880f734702e52cc360811984177` 与 `replayDigest=replay:sha256:f806faeac3913384b5e09af502dac03af72826ae1ee50c8d6c5ff36eccfbff83`，对应两次 fresh Host 的 byte-identical replay。
+
+## 决策输出
+
+Receipt 只用于决定下一步：
+
+- 若 trace 成功且 evidence 足够定位失败，再设计最小 data-driven authoring；
+- 若 trace 成功但 evidence 不足，先改 evidence projection；
+- 若 trace 不稳定，暂停扩展 authoring，先修 Runtime/authority 根因。
 ```
 
 ## Recent Progress Context

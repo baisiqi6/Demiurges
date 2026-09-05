@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "status": "offline-proven",
+  "fixtureId": "fixture:two-joint-planar-reach-v1",
+  "scenarioId": "scenario:two-joint-planar-reach-v1",
+  "runIds": [
+    "run:dh019-zero",
+    "run:dh019-corrected"
+  ],
+  "toolSequence": [
+    "world_write",
+    "world_read",
+    "world_edit",
+    "world_run",
+    "world_read",
+    "world_run"
+  ],
+  "episodeIds": [
+    "episode:10-dh019-zero-6-edit-1-d77947b5f1f1344d253702d44310418ec831f23a5b6b7867cb8a9660dc0bb405",
+    "episode:15-dh019-corrected-6-edit-1-9791df2a417090506b8cf4a63f0cf05551134aa64995e24803c081e12580d67d"
+  ],
+  "evaluationIds": [
+    "evaluation:10-dh019-zero-6-edit-1-d77947b5f1f1344d253702d44310418ec831f23a5b6b7867cb8a9660dc0bb405:end-effector-reach-v1",
+    "evaluation:15-dh019-corrected-6-edit-1-9791df2a417090506b8cf4a63f0cf05551134aa64995e24803c081e12580d67d:end-effector-reach-v1"
+  ],
+  "firstOutcome": "FAIL",
+  "secondOutcome": "PASS",
+  "repairCount": 1,
+  "evidenceFieldsUsed": [
+    "supportSamples",
+    "maxPositionErrorMeters",
+    "maxJointSpeedRadiansPerSecond"
+  ],
+  "traceDigest": "trace:sha256:3f1c77b8b77ca62d8a830385bb9386f875d49880f734702e52cc360811984177",
+  "replayDigest": "replay:sha256:f806faeac3913384b5e09af502dac03af72826ae1ee50c8d6c5ff36eccfbff83"
+}

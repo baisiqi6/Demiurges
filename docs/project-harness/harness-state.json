@@ -1,21 +1,22 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "generated_at": "2026-08-25T02:30:32Z",
+  "generated_at": "2026-09-05T07:03:17Z",
   "source": {
     "checklist_path": "docs/project-harness/harness-checklist.json",
-    "checklist_sha256": "04f87a3b767203ff8f6075f03e55538088c6eaee4a77728dc215fb217559cbad"
+    "checklist_sha256": "5a816f3b89004c6d20ff2684be11fce2ff6f381ca8b77a06850d363385a0705f"
   },
   "current_status": "",
   "current_item": null,
   "checklist_summary": {
     "todo": 0,
-    "doing": 0,
+    "doing": 1,
     "done": 20,
     "blocked": 0
   },
   "workflow_summary": {
-    "closed": 20
+    "closed": 20,
+    "running": 1
   },
   "paths": {
     "scope": "docs/project-harness/scope.md",
@@ -53,54 +54,6 @@
   },
   "open_risks": [],
   "recent_events": [
-    {
-      "actor": "codex-operator",
-      "artifacts": [
-        "docs/project-harness/tasks/DH-018/plan.md"
-      ],
-      "branch": "agent/codex/DH-017",
-      "causation_id": null,
-      "created_at": "2026-08-25T02:11:24Z",
-      "id": "evt-20260825T021124Z-9a9b53f6",
-      "idempotency_key": "ASSIGN:DH-018:assigned:codex-operator",
-      "metadata": {
-        "force_reason": null,
-        "session": "dh018-omp-canary-diagnostic-20260825"
-      },
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "assigned",
-      "summary": "codex-operator assigned DH-018 to zcode-glm53-max-worker-canary",
-      "target": "zcode-glm53-max-worker-canary",
-      "task": "DH-018",
-      "type": "ASSIGN",
-      "visible_header": "[ASSIGN] id=evt-20260825T021124Z-9a9b53f6 task=DH-018 actor=codex-operator target=zcode-glm53-max-worker-canary status=assigned branch=agent/codex/DH-017 artifacts=docs/project-harness/tasks/DH-018/plan.md"
-    },
-    {
-      "actor": "zcode-glm53-max-worker-canary",
-      "artifacts": [],
-      "branch": "agent/codex/DH-017",
-      "causation_id": null,
-      "created_at": "2026-08-25T02:11:42Z",
-      "id": "evt-20260825T021142Z-f55c6678",
-      "idempotency_key": "ACCEPT:DH-018:running:zcode-glm53-max-worker-canary",
-      "metadata": {
-        "force_reason": null,
-        "session": "dh018-omp-canary-diagnostic-20260825"
-      },
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "running",
-      "summary": "zcode-glm53-max-worker-canary accepted DH-018",
-      "target": "zcode-glm53-max-worker-canary",
-      "task": "DH-018",
-      "type": "ACCEPT",
-      "visible_header": "[ACCEPT] id=evt-20260825T021142Z-f55c6678 task=DH-018 actor=zcode-glm53-max-worker-canary target=zcode-glm53-max-worker-canary status=running branch=agent/codex/DH-017"
-    },
     {
       "actor": "codex-operator",
       "artifacts": [],
@@ -228,6 +181,54 @@
       "task": "DH-018",
       "type": "CLOSE",
       "visible_header": "[CLOSE] id=evt-20260825T023032Z-b5ebf7ba task=DH-018 actor=codex-operator status=done"
+    },
+    {
+      "actor": "operator",
+      "artifacts": [
+        "docs/project-harness/tasks/DH-019/plan.md"
+      ],
+      "branch": "agent/codex/DH-019",
+      "causation_id": null,
+      "created_at": "2026-09-05T06:33:14Z",
+      "id": "evt-20260905T063314Z-685bce39",
+      "idempotency_key": "ASSIGN:DH-019:assigned:operator",
+      "metadata": {
+        "force_reason": null,
+        "session": "demiurges-dh019-value-20260905"
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "assigned",
+      "summary": "operator assigned DH-019 to codex",
+      "target": "codex",
+      "task": "DH-019",
+      "type": "ASSIGN",
+      "visible_header": "[ASSIGN] id=evt-20260905T063314Z-685bce39 task=DH-019 actor=operator target=codex status=assigned branch=agent/codex/DH-019 artifacts=docs/project-harness/tasks/DH-019/plan.md"
+    },
+    {
+      "actor": "codex",
+      "artifacts": [],
+      "branch": "agent/codex/DH-019",
+      "causation_id": null,
+      "created_at": "2026-09-05T06:33:15Z",
+      "id": "evt-20260905T063315Z-fc65d2dc",
+      "idempotency_key": "ACCEPT:DH-019:running:codex",
+      "metadata": {
+        "force_reason": null,
+        "session": "demiurges-dh019-value-20260905"
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "running",
+      "summary": "codex accepted DH-019",
+      "target": "codex",
+      "task": "DH-019",
+      "type": "ACCEPT",
+      "visible_header": "[ACCEPT] id=evt-20260905T063315Z-fc65d2dc task=DH-019 actor=codex target=codex status=running branch=agent/codex/DH-019"
     }
   ]
 }

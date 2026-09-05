@@ -1,7 +1,7 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "updated_at": "2026-08-25",
+  "updated_at": "2026-09-05",
   "items": [
     {
       "id": "DH-000",
@@ -897,6 +897,52 @@
         "expires_at": "2026-08-25T04:11:42Z",
         "ttl_minutes": 120,
         "released_at": "2026-08-25T02:30:21Z"
+      }
+    },
+    {
+      "id": "DH-019",
+      "title": "Offline Value Checkpoint 与 Authoring Decision",
+      "status": "done",
+      "priority": "p1",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-09-05",
+      "dependencies": [
+        "DH-018"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "复用 DH-018 已完成的 ProductSession/WorldToolSurface seam，在无 provider quota 条件下以 fresh Host 重放 articulated FAIL→evidence→repair→PASS；只使用 read/write/edit/run，记录 fixture/scenario/run/program identity、exact metrics、deterministic receipt/replay digest，不调用 live OMP、Marble、Hunyuan，不自动 adopt。",
+      "verification": "5 focused tests / 19 assertions；全量 bun test 1173 pass / 0 fail / 9264 assertions；bun run typecheck；bun run build；Harness validate 0 warnings；scoped diff-check clean；receipt status=offline-proven。",
+      "handoff": "先通过独立 plan review，再实现 measurement-only replay runner；结果只作为是否进入 data-driven authoring 的决策依据。",
+      "plan_path": "docs/project-harness/tasks/DH-019/plan.md",
+      "workflow": {
+        "status": "review_approved",
+        "updated_at": "2026-09-05",
+        "branch": "agent/codex/DH-019"
+      },
+      "artifacts": {
+        "plan": "docs/project-harness/tasks/DH-019/plan.md",
+        "plan_review": "docs/project-harness/tasks/DH-019/plan-review.md",
+        "progress": "docs/project-harness/tasks/DH-019/progress.md",
+        "receipt": "docs/project-harness/tasks/DH-019/offline-value-checkpoint-receipt.json",
+        "runner": "scripts/dh019-offline-value-checkpoint.ts",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "dh019-independent-reviewer",
+        "phase": "closeout_requested",
+        "updated_at": "2026-09-05",
+        "summary": "实现复核通过：Episode provenance/content digest 与 forged real Episode regression 已补齐；5 focused、全量 gate、typecheck/build 通过。"
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "demiurges-dh019-value-20260905",
+        "acquired_at": "2026-09-05T06:33:15Z",
+        "expires_at": "2026-09-05T08:33:15Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-09-05T07:03:43Z"
       }
     }
   ]
