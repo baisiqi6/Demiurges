@@ -989,6 +989,51 @@
         "expires_at": "2026-09-05T09:46:54Z",
         "ttl_minutes": 120
       }
+    },
+    {
+      "id": "DH-021",
+      "title": "Ball-Vessel Evidence-Derived Pose Candidate",
+      "status": "done",
+      "priority": "p1",
+      "owner": "operator",
+      "selected_in_session": "demiurges-dh021-ball-vessel-20260905",
+      "updated_at": "2026-09-05",
+      "dependencies": [
+        "DH-020"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "在 ball-vessel-free-fall-v1 golden FAIL evidence 上生成 frozen ball pose edit candidate；只使用既有 read/write/edit/run admission，不写 Ref、不 adopt、不调用 provider/OMP/Keychain/network；candidate 必须再次经 free-fall Runtime/Evaluation 证明 PASS。",
+      "verification": "3 focused tests / 10 assertions；full bun test 1178 pass / 1 transient lease-related failure；isolated failing test 1 pass；bun run typecheck；bun run build；Harness validate 0 warnings；scoped diff-check clean；proof offline-derived。",
+      "handoff": "",
+      "plan_path": "docs/project-harness/tasks/DH-021/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-09-05",
+        "branch": "agent/codex/DH-021"
+      },
+      "artifacts": {
+        "plan": "docs/project-harness/tasks/DH-021/plan.md",
+        "plan_review": "docs/project-harness/tasks/DH-021/plan-review.md",
+        "proof": "docs/project-harness/tasks/DH-021/proof-of-derivation.md",
+        "implementation": "packages/world/src/authoring/derive-ball-vessel-pose-repair.ts",
+        "tests": "scripts/dh021-ball-vessel-pose-repair.test.ts",
+        "progress": "docs/project-harness/tasks/DH-021/progress.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "dh019-independent-reviewer",
+        "phase": "implementation",
+        "updated_at": "2026-09-05",
+        "summary": "fixture-specific ball-vessel pose repair approved; plan alignment and runtime provenance checks verified."
+      },
+      "lease": {
+        "owner": "operator",
+        "session": "demiurges-dh021-ball-vessel-20260905",
+        "acquired_at": "2026-09-05T11:39:52Z",
+        "expires_at": "2026-09-05T13:39:52Z",
+        "ttl_minutes": 120
+      }
     }
   ]
 }
