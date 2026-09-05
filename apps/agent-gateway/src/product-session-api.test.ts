@@ -1,7 +1,19 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+
+import {
+  bootstrapDataRoot,
+  openWorldProjectRuntime,
+  type GeneratedArtifactSetSummaryV1,
+  type WorldProjectRuntime,
+} from "@demiurges/world-project";
+import { MARBLE_HUNYUAN_GENERATED_SESSION_SNAPSHOT_ID } from "@demiurges/world";
 
 import { createProductSessionApi } from "./product-session-api";
 import { createScriptedAgentClientFactory } from "./product-session";
+import { GenerationConfirmationStore } from "./generation-confirmation";
 import type {
   OmpAgentClientFactory,
   OmpAgentClientPort,
@@ -117,6 +129,81 @@ describe("Product Session HTTP API", () => {
     expect(edited.world.snapshot.entities[2].state.pose.position).toEqual([0.25, -0.1, 1.2]);
     expect(edited.lastSequence).toBe(0);
     expect(edited.lastRun).toBeNull();
+  });
+
+  test("session 创建时读取一次 summaries 并固定 binding，后续 list 变化不影响已建 session", async () => {
+    const objectMember = {
+      assetId: "asset:generated-sha256-65dc7eb3d71393e624925c6848e88b55cf0bd6fd8d1ca63b956743fddd55e05a",
+      role: "object-glb",
+      format: "glb-2.0",
+      contentDigest: "65dc7eb3d71393e624925c6848e88b55cf0bd6fd8d1ca63b956743fddd55e05a",
+      byteLength: 1,
+      elementCount: 1,
+      sourceBounds: {
+        min: [-0.48395800590515137, -3.736129973702895e-8, -0.2797180492002527],
+        max: [0.4801819920539856, 0.574190135291325, 0.2780711007797188],
+      },
+    } as const;
+    const singleSet: GeneratedArtifactSetSummaryV1 = {
+      generationId: `generation:sha256:${"a".repeat(64)}`,
+      provider: "worldlabs-marble-v1",
+      artifactSetDigest: "5641bf040c5dc881a553332493957627c8557edc5d7aa7d4f65b42139259e69d",
+      members: [objectMember],
+    };
+    let listed: readonly GeneratedArtifactSetSummaryV1[] = [singleSet];
+    let listCalls = 0;
+    const worldProjects = {
+      generatedArtifacts: {
+        list() {
+          listCalls += 1;
+          return listed;
+        },
+      },
+    } as unknown as WorldProjectRuntime;
+    const api = createProductSessionApi(createScriptedAgentClientFactory(), {
+      worldProjects,
+    });
+
+    const createSession = async () => await (await api.fetch(
+      new Request("http://local.test/api/sessions", { method: "POST" }),
+    )).json() as { sessionId: string };
+    const writeWorld = async (sessionId: string) => {
+      const response = await api.fetch(new Request(
+        `http://local.test/api/sessions/${sessionId}/world/write`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ fixtureId: "fixture:marble-hunyuan-composite-v1" }),
+        },
+      ));
+      expect(response.status).toBe(200);
+      return await response.json() as any;
+    };
+
+    // 创建后 summaries 变为多候选；已建 session 的 binding 不受影响。
+    const bound = await createSession();
+    listed = [singleSet, { ...singleSet, artifactSetDigest: "d".repeat(64) }];
+    const written = await writeWorld(bound.sessionId);
+    expect(written.world.ref).toEqual({
+      name: "world:current",
+      snapshotId: MARBLE_HUNYUAN_GENERATED_SESSION_SNAPSHOT_ID,
+      version: 1,
+    });
+    expect(written.world.snapshot.entities[2].representations.visual).toMatchObject({
+      kind: "registered-rigid-mesh",
+      assetId: objectMember.assetId,
+    });
+
+    // 多候选时新 session 不猜，保持无绑定，write 回退 static composite。
+    const ambiguous = await createSession();
+    const staticWritten = await writeWorld(ambiguous.sessionId);
+    expect(staticWritten.world.ref).toEqual({
+      name: "world:current",
+      snapshotId: "snapshot:marble-hunyuan-composite-base",
+      version: 1,
+    });
+
+    expect(listCalls).toBe(2);
   });
 
   test("human authoring route 使用稳定 public status/code 并且不留 mutation gap", async () => {
@@ -715,5 +802,101 @@ describe("Product Session HTTP API", () => {
     expect(JSON.stringify(events)).not.toContain("RuntimeMvpHost");
     expect(JSON.stringify(events)).not.toContain("OMP");
     expect(JSON.stringify(events)).not.toContain("/private/path");
+  });
+
+  test("generation prepare/confirm 经同一 active session registry 组合", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "dh017-composed-admission-"));
+    const rootPath = join(parent, "root");
+    bootstrapDataRoot(rootPath);
+    const worldProjects = await openWorldProjectRuntime(rootPath);
+    const api = createProductSessionApi(createScriptedAgentClientFactory(), {
+      worldProjects,
+      generations: {
+        confirmations: new GenerationConfirmationStore(),
+        contract: {
+          provider: "worldlabs-marble-v1",
+          contractProfile: "worldlabs-openapi-2026-08-15-v1",
+          contractShapeDigest: "a".repeat(64),
+        },
+        clock: () => "2026-08-15T10:00:00.000Z",
+      },
+    });
+    try {
+      const created = await api.fetch(
+        new Request("http://local.test/api/sessions", { method: "POST" }),
+      );
+      expect(created.status).toBe(201);
+      const session = await created.json() as { sessionId: string };
+
+      const post = (path: string, body: unknown) => api.fetch(new Request(
+        `http://local.test/api/sessions/${session.sessionId}/${path}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      ));
+
+      const prepared = await post("generations/prepare", {
+        provider: "worldlabs-marble-v1",
+        model: "marble-1.1",
+        prompt: "a composed gateway arch",
+        costUnknownAccepted: true,
+        waitForCompletionAndDownload: true,
+        idempotencyKey: "composed-session-key",
+      });
+      expect(prepared.status).toBe(201);
+      const token = await prepared.json() as {
+        generationId: string;
+        confirmationId: string;
+        requestDigest: string;
+        sessionId: string;
+      };
+      expect(token.sessionId).toBe(session.sessionId);
+
+      const confirmed = await post(`generations/${token.generationId}/confirm`, {
+        confirmationId: token.confirmationId,
+        requestDigest: token.requestDigest,
+      });
+      expect(confirmed.status).toBe(200);
+      const admitted = await confirmed.json() as {
+        status: string;
+        replayed: boolean;
+        generationId: string;
+      };
+      expect(admitted.status).toBe("admitted");
+      expect(admitted.replayed).toBe(false);
+      expect(admitted.generationId).toBe(token.generationId);
+
+      // 响应丢失后同 id 重试走 durable replay。
+      const replayed = await post(`generations/${token.generationId}/confirm`, {
+        confirmationId: token.confirmationId,
+        requestDigest: token.requestDigest,
+      });
+      expect(replayed.status).toBe(200);
+      expect((await replayed.json() as { replayed: boolean }).replayed).toBe(true);
+
+      // registry 外的 session 不能触碰 generation route。
+      const ghost = await api.fetch(new Request(
+        "http://local.test/api/sessions/session:ghost/generations/prepare",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            provider: "worldlabs-marble-v1",
+            model: "marble-1.1",
+            prompt: "ghost",
+            costUnknownAccepted: true,
+            waitForCompletionAndDownload: true,
+            idempotencyKey: "ghost-key",
+          }),
+        },
+      ));
+      expect(ghost.status).toBe(404);
+      expect(await ghost.json()).toEqual({ error: "SESSION_NOT_FOUND" });
+    } finally {
+      await worldProjects.close();
+      rmSync(parent, { recursive: true, force: true });
+    }
   });
 });

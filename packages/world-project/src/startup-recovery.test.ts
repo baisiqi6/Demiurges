@@ -18,7 +18,21 @@ import {
   dataRootReceiptResultPath,
   openDataRoot,
 } from "./data-root";
+import { ensureDataRootLayout } from "./data-root-layout";
 import { acquireDataRootWriterLease } from "./data-root-lease";
+import {
+  createGenerationBinding,
+  createGenerationIntent,
+  requireGenerationRequest,
+  type GenerationIntentV1,
+} from "./generation-contracts";
+import {
+  GENERATION_BIRTH_JOURNAL_TEST_SEAMS,
+  type GenerationBirthJournalStage,
+} from "./generation-birth-journal";
+import { generationCatalogFilename, generationIdDigest } from "./generation-birth";
+import { FirstGenerationCoordinator } from "./first-generation-coordinator";
+import { GENERATION_NAMESPACE_INSTALLER_TEST_SEAMS } from "./generation-namespace-installer";
 import {
   OPERATION_JOURNAL_TEST_SEAMS,
   OperationJournal,
@@ -42,6 +56,27 @@ import {
   STARTUP_RECOVERY_TEST_SEAMS,
   recoverPendingOperations,
 } from "./startup-recovery";
+
+function generationIntent(): GenerationIntentV1 {
+  const prepared = requireGenerationRequest({
+    provider: "worldlabs-marble-v1",
+    model: "marble-1.1",
+    prompt: "startup birth recovery",
+    costUnknownAccepted: true,
+    waitForCompletionAndDownload: true,
+    idempotencyKey: "startup-birth-recovery",
+  });
+  return createGenerationIntent(createGenerationBinding(prepared, {
+    contractProfile: "worldlabs-openapi-2026-08-15-v1",
+    contractShapeDigest: "a".repeat(64),
+  }), "2026-08-16T10:00:00.000Z");
+}
+
+function throwBirthAt(stage: GenerationBirthJournalStage): () => void {
+  return GENERATION_BIRTH_JOURNAL_TEST_SEAMS.replaceStageHook((current) => {
+    if (current === stage) throw new Error(`FAULT:${stage}`);
+  });
+}
 
 describe("startup recovery", () => {
   for (const operationKind of ["project.save-as", "bundle.import"] as const) {
@@ -2043,6 +2078,333 @@ describe("startup recovery", () => {
       ))).toBe(false);
     } finally {
       await leaseResult.lease.close();
+      root.close();
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  for (const stage of [
+    "generation-data-directory-synced",
+    "birth-staging-directory-synced",
+    "catalog-directory-synced",
+    "birth-staging-cleanup-directory-synced",
+  ] as const) {
+    test(`restart recovers birth crash at ${stage} only after Phase-A validation`, async () => {
+      const parent = mkdtempSync(join(tmpdir(), `dh017-startup-birth-${stage}-`));
+      const rootPath = join(parent, "root");
+      bootstrapDataRoot(rootPath);
+      let root = openDataRoot(rootPath);
+      let acquired = await acquireDataRootWriterLease(root);
+      if (acquired.status !== "acquired") throw new Error("lease unavailable");
+      const durableIntent = generationIntent();
+      try {
+        ensureDataRootLayout(root, acquired.lease);
+        const restore = throwBirthAt(stage);
+        try {
+          expect(() => new FirstGenerationCoordinator(root, acquired.lease).admit(durableIntent))
+            .toThrow(`FAULT:${stage}`);
+        } finally {
+          restore();
+        }
+        await acquired.lease.close();
+        root.close();
+
+        root = openDataRoot(rootPath);
+        acquired = await acquireDataRootWriterLease(root);
+        if (acquired.status !== "acquired") throw new Error("lease unavailable");
+        const reader = new WorldProjectWriter(
+          root,
+          acquired.lease,
+          new ArtifactStoreReader(root),
+        ).reader();
+        expect(recoverPendingOperations(root, acquired.lease, reader)).toEqual({
+          recovered: [],
+          alreadyTerminal: [],
+        });
+        const namespacePath = join(rootPath, "receipts", "generations");
+        expect(readdirSync(join(namespacePath, "catalog"))).toEqual([
+          generationCatalogFilename(durableIntent.generationId),
+        ]);
+        expect(readdirSync(join(namespacePath, "birth-staging"))).toEqual([]);
+      } finally {
+        await acquired.lease.close();
+        root.close();
+        rmSync(parent, { recursive: true, force: true });
+      }
+    });
+  }
+
+  test("foreign second-generation evidence blocks old terminal cleanup before its first mutation", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "dh017-startup-birth-global-preflight-"));
+    const rootPath = join(parent, "root");
+    bootstrapDataRoot(rootPath);
+    const root = openDataRoot(rootPath);
+    const acquired = await acquireDataRootWriterLease(root);
+    if (acquired.status !== "acquired") throw new Error("lease unavailable");
+    try {
+      ensureDataRootLayout(root, acquired.lease);
+      new FirstGenerationCoordinator(root, acquired.lease).admit(generationIntent());
+      const journal = new OperationJournal(root, acquired.lease);
+      const admission = journal.admit({
+        schemaVersion: 1,
+        operationId: "op:startup-birth-old-terminal",
+        operationKind: "project.save-as",
+        target: { kind: "project", id: "project:startup-birth-old-terminal" },
+        expectedIdentity: null,
+        candidateIdentity: { projectRevision: `project-revision:sha256:${"b".repeat(64)}` },
+      });
+      if (admission.status !== "admitted") throw new Error("unexpected replay");
+      journal.finalizeAborted(admission.operation, "OPERATION_INTERRUPTED");
+      const foreign = join(
+        rootPath,
+        "receipts",
+        "generations",
+        "data",
+        "f".repeat(64),
+      );
+      mkdirSync(foreign, { mode: 0o700 });
+      syncDirectory(join(rootPath, "receipts", "generations", "data"));
+
+      const reader = new WorldProjectWriter(
+        root,
+        acquired.lease,
+        new ArtifactStoreReader(root),
+      ).reader();
+      expect(() => recoverPendingOperations(root, acquired.lease, reader))
+        .toThrow("GENERATION_RECOVERY_REQUIRED");
+      expect(existsSync(foreign)).toBe(true);
+      expect(existsSync(admission.operation.attemptPath)).toBe(true);
+      expect(existsSync(join(
+        rootPath,
+        dataRootReceiptResultPath("op:startup-birth-old-terminal"),
+      ))).toBe(true);
+    } finally {
+      await acquired.lease.close();
+      root.close();
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  test("birth apply rejects post-preflight staging drift without publishing or cleanup", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "dh017-startup-birth-apply-drift-"));
+    const rootPath = join(parent, "root");
+    bootstrapDataRoot(rootPath);
+    const root = openDataRoot(rootPath);
+    const acquired = await acquireDataRootWriterLease(root);
+    if (acquired.status !== "acquired") throw new Error("lease unavailable");
+    try {
+      ensureDataRootLayout(root, acquired.lease);
+      const restoreBirth = throwBirthAt("generation-data-directory-synced");
+      try {
+        expect(() => new FirstGenerationCoordinator(root, acquired.lease).admit(generationIntent()))
+          .toThrow("FAULT:generation-data-directory-synced");
+      } finally {
+        restoreBirth();
+      }
+      const stagingPath = join(rootPath, "receipts", "generations", "birth-staging");
+      const foreignPath = join(stagingPath, `${"a".repeat(32)}.json`);
+      const foreignBytes = canonicalJsonBytes({ foreign: true });
+      const restoreApply = STARTUP_RECOVERY_TEST_SEAMS.replaceGenerationBirthApplyHook(
+        () => {
+          writeFileSync(foreignPath, foreignBytes, { mode: 0o600 });
+          syncDirectory(stagingPath);
+        },
+      );
+      try {
+        const reader = new WorldProjectWriter(
+          root,
+          acquired.lease,
+          new ArtifactStoreReader(root),
+        ).reader();
+        expect(() => recoverPendingOperations(root, acquired.lease, reader))
+          .toThrow("GENERATION_RECOVERY_REQUIRED");
+      } finally {
+        restoreApply();
+      }
+      expect(readFileSync(foreignPath)).toEqual(Buffer.from(foreignBytes));
+      expect(readdirSync(join(rootPath, "receipts", "generations", "catalog"))).toEqual([]);
+      expect(readdirSync(join(rootPath, "receipts", "generations", "data"))).toEqual([
+        generationIdDigest(generationIntent().generationId),
+      ]);
+    } finally {
+      await acquired.lease.close();
+      root.close();
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  for (const target of ["intent.json", "record"] as const) {
+    test(`birth apply rejects byte-identical ${target} inode replacement after Phase A`, async () => {
+      const parent = mkdtempSync(join(tmpdir(), `dh017-startup-birth-${target}-inode-`));
+      const rootPath = join(parent, "root");
+      bootstrapDataRoot(rootPath);
+      const root = openDataRoot(rootPath);
+      const acquired = await acquireDataRootWriterLease(root);
+      if (acquired.status !== "acquired") throw new Error("lease unavailable");
+      try {
+        ensureDataRootLayout(root, acquired.lease);
+        const durableIntent = generationIntent();
+        const restoreBirth = throwBirthAt("generation-data-directory-synced");
+        try {
+          expect(() => new FirstGenerationCoordinator(root, acquired.lease).admit(durableIntent))
+            .toThrow("FAULT:generation-data-directory-synced");
+        } finally {
+          restoreBirth();
+        }
+        const generationPath = join(
+          rootPath,
+          "receipts",
+          "generations",
+          "data",
+          generationIdDigest(durableIntent.generationId),
+        );
+        const recordsPath = join(generationPath, "records");
+        const replacementPath = target === "intent.json"
+          ? join(generationPath, "intent.json")
+          : join(recordsPath, readdirSync(recordsPath)[0]!);
+        const before = lstatSync(replacementPath, { bigint: true });
+        const bytes = readFileSync(replacementPath);
+        const restoreApply = STARTUP_RECOVERY_TEST_SEAMS.replaceGenerationBirthApplyHook(
+          () => {
+            unlinkSync(replacementPath);
+            writeFileSync(replacementPath, bytes, { mode: 0o600 });
+            syncDirectory(target === "intent.json" ? generationPath : recordsPath);
+          },
+        );
+        try {
+          const reader = new WorldProjectWriter(
+            root,
+            acquired.lease,
+            new ArtifactStoreReader(root),
+          ).reader();
+          expect(() => recoverPendingOperations(root, acquired.lease, reader))
+            .toThrow("GENERATION_RECOVERY_REQUIRED");
+        } finally {
+          restoreApply();
+        }
+        const after = lstatSync(replacementPath, { bigint: true });
+        expect(after.dev !== before.dev || after.ino !== before.ino).toBe(true);
+        expect(readFileSync(replacementPath)).toEqual(bytes);
+        expect(readdirSync(join(rootPath, "receipts", "generations", "catalog"))).toEqual([]);
+        expect(readdirSync(join(rootPath, "receipts", "generations", "birth-staging")))
+          .toEqual([]);
+      } finally {
+        await acquired.lease.close();
+        root.close();
+        rmSync(parent, { recursive: true, force: true });
+      }
+    });
+  }
+
+  test("staged namespace child evidence blocks legacy cleanup before namespace publish", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "dh017-startup-staged-namespace-birth-"));
+    const rootPath = join(parent, "root");
+    bootstrapDataRoot(rootPath);
+    const root = openDataRoot(rootPath);
+    const acquired = await acquireDataRootWriterLease(root);
+    if (acquired.status !== "acquired") throw new Error("lease unavailable");
+    try {
+      ensureDataRootLayout(root, acquired.lease);
+      const oldJournal = new OperationJournal(root, acquired.lease);
+      const old = oldJournal.admit({
+        schemaVersion: 1,
+        operationId: "op:staged-namespace-old-terminal",
+        operationKind: "project.save-as",
+        target: { kind: "project", id: "project:staged-namespace-old-terminal" },
+        expectedIdentity: null,
+        candidateIdentity: { projectRevision: `project-revision:sha256:${"c".repeat(64)}` },
+      });
+      if (old.status !== "admitted") throw new Error("unexpected replay");
+      oldJournal.finalizeAborted(old.operation, "OPERATION_INTERRUPTED");
+      const restoreNamespace = GENERATION_NAMESPACE_INSTALLER_TEST_SEAMS
+        .replaceStageHook((stage) => {
+          if (stage === "candidate-directory-synced") {
+            throw new Error("FAULT:candidate-directory-synced");
+          }
+        });
+      try {
+        expect(() => new FirstGenerationCoordinator(root, acquired.lease).admit(generationIntent()))
+          .toThrow("FAULT:candidate-directory-synced");
+      } finally {
+        restoreNamespace();
+      }
+      const attemptName = readdirSync(join(rootPath, "staging")).find((name) =>
+        name.startsWith("op:generation-namespace-install-v1-"),
+      );
+      if (attemptName === undefined) throw new Error("missing namespace attempt");
+      const foreignPath = join(
+        rootPath,
+        "staging",
+        attemptName,
+        "generation-namespace",
+        "birth-staging",
+        "foreign",
+      );
+      writeFileSync(foreignPath, "preserve", { mode: 0o600 });
+      syncDirectory(join(foreignPath, ".."));
+      const reader = new WorldProjectWriter(
+        root,
+        acquired.lease,
+        new ArtifactStoreReader(root),
+      ).reader();
+      expect(() => recoverPendingOperations(root, acquired.lease, reader))
+        .toThrow("GENERATION_RECOVERY_REQUIRED");
+      expect(existsSync(foreignPath)).toBe(true);
+      expect(existsSync(old.operation.attemptPath)).toBe(true);
+      expect(existsSync(join(rootPath, "receipts", "generations"))).toBe(false);
+    } finally {
+      await acquired.lease.close();
+      root.close();
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  test("published namespace child drift after Phase A blocks its result publication", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "dh017-startup-published-namespace-birth-"));
+    const rootPath = join(parent, "root");
+    bootstrapDataRoot(rootPath);
+    const root = openDataRoot(rootPath);
+    const acquired = await acquireDataRootWriterLease(root);
+    if (acquired.status !== "acquired") throw new Error("lease unavailable");
+    try {
+      ensureDataRootLayout(root, acquired.lease);
+      const restoreNamespace = GENERATION_NAMESPACE_INSTALLER_TEST_SEAMS
+        .replaceStageHook((stage) => {
+          if (stage === "namespace-directory-synced") {
+            throw new Error("FAULT:namespace-directory-synced");
+          }
+        });
+      try {
+        expect(() => new FirstGenerationCoordinator(root, acquired.lease).admit(generationIntent()))
+          .toThrow("FAULT:namespace-directory-synced");
+      } finally {
+        restoreNamespace();
+      }
+      const namespacePath = join(rootPath, "receipts", "generations");
+      const resultPath = join(rootPath, "receipts");
+      const restoreApply = STARTUP_RECOVERY_TEST_SEAMS.replaceGenerationNamespaceApplyHook(
+        () => {
+          const foreign = join(namespacePath, "data", "foreign");
+          writeFileSync(foreign, "preserve", { mode: 0o600 });
+          syncDirectory(join(namespacePath, "data"));
+        },
+      );
+      try {
+        const reader = new WorldProjectWriter(
+          root,
+          acquired.lease,
+          new ArtifactStoreReader(root),
+        ).reader();
+        expect(() => recoverPendingOperations(root, acquired.lease, reader))
+          .toThrow("GENERATION_RECOVERY_REQUIRED");
+      } finally {
+        restoreApply();
+      }
+      expect(readdirSync(resultPath).filter((name) => name.endsWith(".result.json"))).toEqual([]);
+      expect(existsSync(join(namespacePath, "data", "foreign"))).toBe(true);
+      expect(readdirSync(join(namespacePath, "catalog"))).toEqual([]);
+    } finally {
+      await acquired.lease.close();
       root.close();
       rmSync(parent, { recursive: true, force: true });
     }

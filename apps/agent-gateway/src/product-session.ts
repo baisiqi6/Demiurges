@@ -21,6 +21,7 @@ import {
   type RepositoryHistory,
   type RefUpdateResult,
   type RefRecord,
+  type GeneratedObjectWorldBinding,
   type Snapshot,
   TWO_JOINT_REACH_FIXTURE_ID,
   admitMarbleHunyuanCompositeEdit,
@@ -232,10 +233,14 @@ export class ProductSession {
     readonly revision: string;
   } | null = null;
 
-  constructor(sessionId: string, clientFactory: OmpAgentClientFactory) {
+  constructor(
+    sessionId: string,
+    clientFactory: OmpAgentClientFactory,
+    generatedObjectBinding?: GeneratedObjectWorldBinding | null,
+  ) {
     this.#sessionId = sessionId;
     this.#host = new RuntimeMvpHost();
-    this.#surface = new WorldToolSurface(this.#host);
+    this.#surface = new WorldToolSurface(this.#host, generatedObjectBinding ?? undefined);
     this.#clientFactory = clientFactory;
   }
 

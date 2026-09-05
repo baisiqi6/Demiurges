@@ -87,6 +87,67 @@ export {
   type WorldProjectOperationKind,
 } from "./operation-journal";
 export {
+  GENERATION_PROMPT_MAX_BYTES,
+  GENERATION_PROMPT_MAX_SCALARS,
+  GENERATION_REQUEST_MAX_BYTES,
+  HUNYUAN_MODELS,
+  MARBLE_MODELS,
+  GenerationCodecError,
+  createGenerationBinding,
+  createGenerationIntent,
+  generationBindingDigest,
+  generationIdFromIdempotencyKey,
+  generationIntentDigest,
+  generationRequestDigest,
+  requireGenerationBindingBody,
+  requireGenerationBindingBodyFromIntent,
+  requireGenerationIntent,
+  requireGenerationRequest,
+  type GenerationBindingBodyV1,
+  type GenerationCanonicalRequestV1,
+  type GenerationCodecErrorCode,
+  type GenerationContractProfileV1,
+  type GenerationContractSelectionV1,
+  type GenerationIntentV1,
+  type GenerationModelV1,
+  type GenerationProviderRequestV1,
+  type GenerationProviderV1,
+  type HunyuanCanonicalRequestV1,
+  type HunyuanModelV1,
+  type HunyuanProviderRequestV1,
+  type MarbleCanonicalRequestV1,
+  type MarbleModelV1,
+  type MarbleProviderRequestV1,
+  type PreparedGenerationRequestV1,
+} from "./generation-contracts";
+export {
+  GENERATION_STATE_MAX_SEQUENCE,
+  GENERATION_STATE_RECORD_MAX_BYTES,
+  createInitialGenerationStateRecord,
+  createNextGenerationStateRecord,
+  generationStateRecordDigest,
+  generationStateRecordFilename,
+  requireGenerationStateRecord,
+  type EarlyGenerationStatePayloadV1,
+  type EarlyGenerationStateV1,
+  type GenerationStateRecordV1,
+  type PollBudgetV1,
+  type PreSubmitBlockedCodeV1,
+  type ProviderFailedCodeV1,
+  type RemoteBoundPayloadV1,
+} from "./generation-state";
+export {
+  createInitialDownloadBudget,
+  requireInitialDownloadBudget,
+  requireRemoteOutputIdentity,
+  requireSanitizedCost,
+  type GeneratedArtifactOutputRole,
+  type IdleDownloadMemberV1,
+  type InitialDownloadBudgetV1,
+  type RemoteOutputIdentityV1,
+  type SanitizedCostV1,
+} from "./generation-output-contracts";
+export {
   WORLD_PROJECT_LIST_MAX_ENTRIES,
   ProjectStoreError,
   WorldProjectReader,
@@ -110,6 +171,13 @@ export {
   type ArtifactDestinationState,
   type PublishedArtifactIdentity,
 } from "./artifact-store";
+export {
+  GeneratedArtifactReader,
+  GeneratedArtifactReaderError,
+  type GeneratedArtifactReaderErrorCode,
+  type GeneratedArtifactMemberSummaryV1,
+  type GeneratedArtifactSetSummaryV1,
+} from "./generated-artifact-reader";
 export {
   BUNDLE_IMPORT_PHASE_A_MAX_OWNED_BYTES,
   WORLD_PROJECT_BUNDLE_INDEX_MAX_BYTES,
@@ -141,6 +209,25 @@ export {
 } from "./startup-recovery";
 export {
   openWorldProjectRuntime,
+  type OpenWorldProjectRuntimeOptions,
+  type WorldProjectDevelopmentFakeGenerationFacade,
+  type WorldProjectDownloadedGenerationFacade,
+  type WorldProjectFirstGenerationFacade,
   type WorldProjectRuntime,
   type WorldProjectRuntimeMode,
 } from "./world-project-runtime";
+export type {
+  FirstGenerationAdmissionResultV1,
+  FirstGenerationInspectionV1,
+} from "./first-generation-coordinator";
+export type {
+  PreSubmitCheckpointDecisionV1,
+  PreSubmitCheckpointRequestV1,
+  PreSubmitCheckpointResultV1,
+} from "./first-generation-pre-submit-coordinator";
+export type {
+  SubmitResultInspectionV1,
+  SubmitResultOutcomeV1,
+  SubmitResultRequestV1,
+  SubmitResultResultV1,
+} from "./generation-submit-result-coordinator";

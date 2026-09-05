@@ -30,3 +30,11 @@ export type {
   ProductSessionProjection,
 } from "@demiurges/world";
 export { createProductSessionApi } from "./product-session-api";
+export { createGeneratedArtifactApi } from "./generated-artifact-api";
+export {
+  createGenerationAdmissionApi,
+  resolveGenerationContractConfig,
+  type GenerationAdmissionApiOptions,
+  type GenerationAdmissionErrorCode,
+  type GenerationContractConfigV1,
+} from "./generation-admission-api";

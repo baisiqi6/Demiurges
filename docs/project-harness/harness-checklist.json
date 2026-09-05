@@ -1,7 +1,7 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "updated_at": "2026-08-15",
+  "updated_at": "2026-08-25",
   "items": [
     {
       "id": "DH-000",
@@ -777,36 +777,127 @@
     {
       "id": "DH-017",
       "title": "Provider Generation Job 与 Verified Artifact 导入",
-      "status": "todo",
+      "status": "done",
       "priority": "p1",
       "owner": null,
       "selected_in_session": null,
-      "updated_at": "2026-08-14",
+      "updated_at": "2026-08-24",
       "dependencies": [
         "DH-016"
       ],
       "blocked_by": [],
       "blocked_reason": null,
-      "acceptance": "以两个 provider-specific control-plane implementation 完成 Marble 与 Hunyuan prompt、job、poll、download、validation、receipt 与 verified Artifact registration；credential 仅在 server-side，生成需显式用户确认且 bounded、idempotent；Artifact 不自动成为 Snapshot，不建立通用 provider SDK。",
-      "verification": "",
-      "handoff": "等待 World Project 边界稳定后再接真实生成，不预建通用 Adapter framework。"
+      "acceptance": "保留 Marble 与 Hunyuan 两套 provider-specific implementation 与 fake tests；当前真实 MVP 以至少一个真实 provider 完成 prompt、job、poll、download、validation、receipt、verified Artifact registration、Gateway list/read 与 Studio display/download 为通过。Marble 真实 canary deferred，不阻断本阶段；credential 仅在 server-side，生成需显式用户确认且 bounded、idempotent；Artifact 不自动成为 Snapshot，不建立第三 provider 或通用 provider SDK。",
+      "verification": "Operator verified the reviewed single-submit Hunyuan path end to end: prompt/job/poll/download/GLB inspection/durable receipts/verified registration/Gateway list-read/Studio display-download all pass; duplicate submit=0.",
+      "handoff": "DH-017 real-provider MVP acceptance is complete. Marble real canary remains deferred and non-blocking. Do not rerun the paid Hunyuan canary. Preserve VERIFIED vs CALIBRATION MISSING; DH-018 may explicitly consume the registered Artifact without auto-creating a Snapshot.",
+      "plan_path": "docs/project-harness/tasks/DH-017/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-24",
+        "branch": "agent/codex/DH-017",
+        "unblocked_by": "codex-operator",
+        "unblock_decision": "Human authorized continuation on 2026-08-24: implement one minimal Hunyuan live-placeholder codec slice, independently review it, then continue polling the existing remote-bound Job without resubmission.",
+        "handoff_from": "omp-deepseek-v4-flash-worker",
+        "blocked_on": "new Human authority after an offline-only diagnostic observability correction",
+        "unblock_owner": "human",
+        "handoff_target": "kimi-k3-resume-reviewer"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-017",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "handoff_packet": "docs/project-harness/current/handoff-packet.md",
+        "blocker_packet": "docs/project-harness/current/blocker-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "kimi-k3-resume-reviewer",
+        "effort": "max",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-24",
+        "summary": "APPROVE; P0/P1/P2 none; real exact remote_bound resume and product-path closure verified; 21/21 focused tests and typecheck pass.",
+        "artifact": ".artifacts/canary/DH-017/20260824T1407Z/hunyuan-terminal-diagnostic/reviewer-verdict.md",
+        "session": "01a03420-e7bb-76f1-abe9-adbc5baf47e6"
+      },
+      "lease": {
+        "owner": "omp-deepseek-v4-flash-worker",
+        "session": "omp-dh017-hunyuan-resume-existing-20260824",
+        "acquired_at": "2026-08-24T16:08:25Z",
+        "expires_at": "2026-08-24T18:08:25Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-24T16:21:40Z"
+      },
+      "split_operation": {
+        "contract_version": 1,
+        "operation_id": "6e61f934-147e-4f33-b2e0-2d5895bc0fd1",
+        "operation_kind": "task.adopt",
+        "workspace_id": "demiurges",
+        "target_kind": "checklist_task",
+        "target_id": "DH-017",
+        "source_kind": null,
+        "source_id": null,
+        "input_fingerprint": "78b7460c971a70f621fcdc91e1074af9d5bffadc3a7fbc6972110b93755c2b5c",
+        "before_fingerprint": "23082025ffd3b2bf3746622d2ce76c30ec47ba353b58785f503799b06bfc62b3",
+        "after_fingerprint": "23082025ffd3b2bf3746622d2ce76c30ec47ba353b58785f503799b06bfc62b3",
+        "files_applied_at": "2026-08-24T15:15:14Z"
+      }
     },
     {
       "id": "DH-018",
       "title": "Agent Worldmaking Orchestration",
-      "status": "todo",
+      "status": "done",
       "priority": "p1",
       "owner": null,
       "selected_in_session": null,
-      "updated_at": "2026-08-14",
+      "updated_at": "2026-08-25",
       "dependencies": [
         "DH-017"
       ],
       "blocked_by": [],
       "blocked_reason": null,
       "acceptance": "restricted Agent 使用且仅使用 read、write、edit、run 消费 registered ArtifactRef，完成自然语言 world composition、run、evidence inspection 与 repair loop；provider generation 保持 Harness control-plane，不暴露 credential 或第五个 world tool；成功由 deterministic Evaluation 证明。",
-      "verification": "",
-      "handoff": "等待 verified Artifact 与可持久化 world authoring 成为真实调用方后再规划。"
+      "verification": "183/0 DH-018 focused integration tests; 25/0 OMP boundary tests; root typecheck pass; real restricted OMP Agent canary used exactly read/write/edit/run authority and produced Evaluation false at Ref v2, fresh-read repair, then true at Ref v3; two fresh Kimi K3 max reviews APPROVE with zero reviewed-file changes.",
+      "handoff": "等待 verified Artifact 与可持久化 world authoring 成为真实调用方后再规划。",
+      "plan_path": "docs/project-harness/tasks/DH-018/plan.md",
+      "split_operation": {
+        "contract_version": 1,
+        "operation_id": "11e86434-a9a7-4eeb-94d5-51fc39458773",
+        "operation_kind": "task.adopt",
+        "workspace_id": "demiurges",
+        "target_kind": "checklist_task",
+        "target_id": "DH-018",
+        "source_kind": null,
+        "source_id": null,
+        "input_fingerprint": "9b0bb21cd1b7d2403d22c7905931bc4c4540eeaffcb5ab02a9a8244535b79d9b",
+        "before_fingerprint": "019b1b60eb5f187d01123f97d166ac37a448367a54b1d97c6eb1403d658ff23e",
+        "after_fingerprint": "019b1b60eb5f187d01123f97d166ac37a448367a54b1d97c6eb1403d658ff23e",
+        "files_applied_at": "2026-08-24T23:34:36Z"
+      },
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-08-25",
+        "branch": "agent/codex/DH-017"
+      },
+      "artifacts": {
+        "branch": "agent/codex/DH-017",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "kimi-k3-max-reviewer",
+        "phase": "closeout_requested",
+        "updated_at": "2026-08-25",
+        "summary": "Closeout approved. DH-018 completion evidence includes Product Session integration, deterministic and real restricted OMP Agent repair loops, root typecheck, focused regressions, no provider-generation/Keychain side effects, and zero-change independent reviews."
+      },
+      "lease": {
+        "owner": "zcode-glm53-max-worker-canary",
+        "session": "dh018-omp-canary-diagnostic-20260825",
+        "acquired_at": "2026-08-25T02:11:42Z",
+        "expires_at": "2026-08-25T04:11:42Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-08-25T02:30:21Z"
+      }
     }
   ]
 }

@@ -5,6 +5,8 @@ import {
   DIAGNOSTIC_RIGID_FIXTURE_ID,
   PRIMITIVE_BOX_FIXTURE_ID,
 } from "../artifacts/diagnostic-rigid-fixture";
+import { MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID } from "../artifacts/marble-hunyuan-composite-fixture";
+import type { GeneratedObjectWorldBinding } from "../artifacts/marble-hunyuan-generated-session";
 import { isDeepFrozen } from "../kernel/world";
 import {
   WORLD_TOOL_NAMES,
@@ -128,6 +130,36 @@ describe("WorldToolSurface", () => {
       operation: "adopt",
       ref: { version: 2 },
     });
+  });
+
+  test("Host 可选 binding 只替换 composite generated-object，未绑定时保持旧 fixture", async () => {
+    const binding: GeneratedObjectWorldBinding = {
+      artifactSetDigest: "5641bf040c5dc881a553332493957627c8557edc5d7aa7d4f65b42139259e69d",
+      assetId: "asset:generated-sha256-65dc7eb3d71393e624925c6848e88b55cf0bd6fd8d1ca63b956743fddd55e05a",
+      sourceBounds: {
+        min: [-0.48395800590515137, -3.736129973702895e-8, -0.2797180492002527],
+        max: [0.4801819920539856, 0.574190135291325, 0.2780711007797188],
+      },
+    };
+    const legacy = new WorldToolSurface(new RuntimeMvpHost());
+    const bound = new WorldToolSurface(new RuntimeMvpHost(), binding);
+
+    const legacyVisual = legacy.write({ fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID })
+      .snapshot.entities[2]!.representations.visual;
+    const boundWrite = bound.write({ fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID });
+    const boundVisual = boundWrite.snapshot.entities[2]!.representations.visual;
+
+    expect(legacyVisual).toMatchObject({ assetId: "asset:hunyuan-rounded-cube-v1" });
+    expect(boundVisual).toMatchObject({
+      assetId: binding.assetId,
+      manifestDigest: `sha256:${binding.artifactSetDigest}`,
+    });
+    const run = await bound.run({
+      runId: "run:generated-session-surface",
+      program: { kind: "free-fall", targetRef: "entity:generated-object", durationSeconds: 2.5, sampleRateHz: 30 },
+    });
+    expect(run.evaluation.passed).toBe(true);
+    expect(run.baseRef).toBe(boundWrite.ref);
   });
 
   test("JSON round-trip expected ref 可用，stale edit 不改变 current", () => {

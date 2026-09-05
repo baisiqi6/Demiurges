@@ -21,6 +21,10 @@ import {
   createMarbleHunyuanCompositeSnapshot,
 } from "../artifacts/marble-hunyuan-composite-fixture";
 import {
+  createMarbleHunyuanGeneratedSessionSnapshot,
+  type GeneratedObjectWorldBinding,
+} from "../artifacts/marble-hunyuan-generated-session";
+import {
   requireWorldEditInput,
   requireWorldRunInput,
   requireWorldWriteInput,
@@ -59,9 +63,11 @@ export interface WorldRunResult {
 
 export class WorldToolSurface {
   readonly #host: RuntimeMvpHost;
+  readonly #generatedObjectBinding?: GeneratedObjectWorldBinding;
 
-  constructor(host: RuntimeMvpHost) {
+  constructor(host: RuntimeMvpHost, generatedObjectBinding?: GeneratedObjectWorldBinding) {
     this.#host = host;
+    this.#generatedObjectBinding = generatedObjectBinding;
   }
 
   read(): WorldReadResult {
@@ -78,7 +84,9 @@ export class WorldToolSurface {
       fixtureId === TWO_JOINT_REACH_FIXTURE_ID
         ? createTwoJointReachSnapshot()
         : fixtureId === MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID
-          ? createMarbleHunyuanCompositeSnapshot()
+          ? this.#generatedObjectBinding
+            ? createMarbleHunyuanGeneratedSessionSnapshot(this.#generatedObjectBinding)
+            : createMarbleHunyuanCompositeSnapshot()
           : createFixtureSnapshot(2, fixtureId),
     );
     return deepFreeze({

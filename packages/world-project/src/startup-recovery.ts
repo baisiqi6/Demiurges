@@ -8,12 +8,27 @@ import {
   DATA_ROOT_LAYOUT,
   dataRootProjectPath,
   dataRootReceiptIntentPath,
+  dataRootStagingPath,
   requireLiveOpenedDataRoot,
 } from "./data-root";
 import {
   requireLiveDataRootWriterLease,
   type DataRootWriterLease,
 } from "./data-root-lease";
+import {
+  applyGenerationBirthStartupRecovery,
+  inspectGenerationBirthStartupRecovery,
+  type GenerationBirthStartupRecoveryPlan,
+} from "./generation-birth-journal";
+import { GenerationNamespaceInstaller } from "./generation-namespace-installer";
+import type { GenerationNamespaceBirthPreflight } from "./generation-namespace-installer";
+import { createGenerationNamespaceInstallBinding } from "./generation-namespace";
+import {
+  applyGeneratedSetStartupRecovery,
+  inspectGeneratedSetStartupRecovery,
+  requireGeneratedSetStartupRecoveryAttemptPath,
+  type GeneratedSetStartupRecoveryPlan,
+} from "./generated-set-startup-recovery";
 import {
   cleanupRecoveredArtifactAttemptCandidates,
   inspectRegisteredArtifactDestination,
@@ -66,8 +81,18 @@ export interface StartupRecoveryResult {
 type ConfirmedTerminal = ReturnType<OperationJournal["confirmExistingTerminal"]>;
 
 type ConfirmedCleanupHook = (confirmed: ConfirmedTerminal) => void;
+type GenerationBirthApplyHook = (
+  plan: GenerationBirthStartupRecoveryPlan,
+) => void;
+type GenerationNamespaceApplyHook = (
+  preflight: GenerationNamespaceBirthPreflight | undefined,
+) => void;
+type GeneratedSetApplyHook = (plan: GeneratedSetStartupRecoveryPlan) => void;
 
 let confirmedCleanupHook: ConfirmedCleanupHook | undefined;
+let generationBirthApplyHook: GenerationBirthApplyHook | undefined;
+let generationNamespaceApplyHook: GenerationNamespaceApplyHook | undefined;
+let generatedSetApplyHook: GeneratedSetApplyHook | undefined;
 
 function artifactStates(
   root: OpenedDataRoot,
@@ -326,8 +351,9 @@ function requireAllExistingAttemptsCleanable(
   journal: OperationJournal,
   bindings: readonly OperationBinding[],
   terminalAtStartup: ReadonlySet<string>,
+  additionalCoveredAttemptPaths: ReadonlySet<string> = new Set(),
 ): void {
-  const coveredAttemptPaths = new Set<string>();
+  const coveredAttemptPaths = new Set<string>(additionalCoveredAttemptPaths);
   for (const binding of bindings) {
     const entries = bindingArtifacts(binding);
     for (const attempt of journal.inspectExistingAttempts(binding)) {
@@ -995,6 +1021,38 @@ export function recoverPendingOperations(
   lease: DataRootWriterLease,
   reader: WorldProjectReader,
 ): StartupRecoveryResult {
+  const generationInstaller = new GenerationNamespaceInstaller(root, lease);
+  const generationRecoveryPlan = generationInstaller.inspectRecovery();
+  const generationNamespaceBirthPreflight =
+    generationRecoveryPlan?.state === "install-intent-pending" ||
+      generationRecoveryPlan?.state === "directory-published-result-pending"
+      ? generationInstaller.inspectBirthPreflight(generationRecoveryPlan)
+      : undefined;
+  // Birth evidence enters the same global Phase A as legacy Operations, before
+  // any recovery fsync, terminalization, or cleanup can mutate the root.
+  const generationBirthRecoveryPlan = inspectGenerationBirthStartupRecovery(
+    root,
+    lease,
+  );
+  // Generated-set tail is part of the same Phase A.  Its inspector rebuilds
+  // durable publication evidence before legacy recovery is allowed to mutate.
+  const generatedSetRecoveryPlan = inspectGeneratedSetStartupRecovery(root, lease);
+  const generationAttemptPaths = new Set<string>();
+  if (generationRecoveryPlan !== undefined) {
+    const rootPath = requireLiveOpenedDataRoot(root).absolutePath;
+    const binding = createGenerationNamespaceInstallBinding(root, lease);
+    generationAttemptPaths.add(join(
+      rootPath,
+      dataRootStagingPath(binding.operationId, generationRecoveryPlan.attemptToken),
+    ));
+  }
+  if (generatedSetRecoveryPlan !== undefined) {
+    generationAttemptPaths.add(requireGeneratedSetStartupRecoveryAttemptPath(
+      generatedSetRecoveryPlan,
+      root,
+      lease,
+    ));
+  }
   const journal = new OperationJournal(root, lease);
   const bindings = journal.listBindings();
   // Phase A：任何durability repair、terminalization或cleanup前的全局只读preflight。
@@ -1011,6 +1069,7 @@ export function recoverPendingOperations(
     journal,
     bindings,
     initiallyTerminal,
+    generationAttemptPaths,
   );
   requirePendingProjectPublicationEvidence(journal, bindings, initiallyTerminal);
   const evidenceAtStartup = inspectProjectEvidenceOwners(root, bindings);
@@ -1030,6 +1089,20 @@ export function recoverPendingOperations(
         classifyPendingRecovery(root, reader, binding),
       );
     }
+  }
+
+  // All namespace/birth/generated/legacy evidence has now completed Phase A.
+  // Namespace recovery is the first allowed mutation; its birth preflight is
+  // revalidated immediately before apply, before any legacy repair/finalize or
+  // cleanup can alter the root.
+  if (generationRecoveryPlan !== undefined) {
+    generationNamespaceApplyHook?.(generationNamespaceBirthPreflight);
+    if (generationNamespaceBirthPreflight !== undefined) {
+      generationInstaller.revalidateBirthPreflight(
+        generationNamespaceBirthPreflight,
+      );
+    }
+    generationInstaller.applyRecovery(generationRecoveryPlan);
   }
 
   repairRecoveryControlDirectoryDurability(root, lease, journal, bindings);
@@ -1055,12 +1128,20 @@ export function recoverPendingOperations(
   }
 
   // Phase C：新recovery attempts也必须加入全局coverage，然后全体confirm后才cleanup。
+  if (generatedSetRecoveryPlan !== undefined) {
+    generationAttemptPaths.add(requireGeneratedSetStartupRecoveryAttemptPath(
+      generatedSetRecoveryPlan,
+      root,
+      lease,
+    ));
+  }
   requireAllExistingAttemptsCleanable(
     root,
     lease,
     journal,
     bindings,
     initiallyTerminal,
+    generationAttemptPaths,
   );
   const confirmations = bindings.map((binding) => {
     const confirmed = journal.confirmExistingTerminal(binding);
@@ -1125,6 +1206,18 @@ export function recoverPendingOperations(
       ? alreadyTerminal
       : recovered).push(currentConfirmed.result);
   }
+  if (generationBirthRecoveryPlan !== undefined) {
+    generationBirthApplyHook?.(generationBirthRecoveryPlan);
+    applyGenerationBirthStartupRecovery(
+      generationBirthRecoveryPlan,
+      root,
+      lease,
+    );
+  }
+  if (generatedSetRecoveryPlan !== undefined) {
+    generatedSetApplyHook?.(generatedSetRecoveryPlan);
+    applyGeneratedSetStartupRecovery(generatedSetRecoveryPlan, root, lease);
+  }
   return Object.freeze({
     recovered: Object.freeze(recovered),
     alreadyTerminal: Object.freeze(alreadyTerminal),
@@ -1137,6 +1230,29 @@ export const STARTUP_RECOVERY_TEST_SEAMS = Object.freeze({
     confirmedCleanupHook = replacement;
     return () => {
       confirmedCleanupHook = previous;
+    };
+  },
+  replaceGenerationBirthApplyHook(replacement: GenerationBirthApplyHook): () => void {
+    const previous = generationBirthApplyHook;
+    generationBirthApplyHook = replacement;
+    return () => {
+      generationBirthApplyHook = previous;
+    };
+  },
+  replaceGenerationNamespaceApplyHook(
+    replacement: GenerationNamespaceApplyHook,
+  ): () => void {
+    const previous = generationNamespaceApplyHook;
+    generationNamespaceApplyHook = replacement;
+    return () => {
+      generationNamespaceApplyHook = previous;
+    };
+  },
+  replaceGeneratedSetApplyHook(replacement: GeneratedSetApplyHook): () => void {
+    const previous = generatedSetApplyHook;
+    generatedSetApplyHook = replacement;
+    return () => {
+      generatedSetApplyHook = previous;
     };
   },
 });

@@ -26,6 +26,14 @@ export interface VerifiedArtifactIdentity {
   readonly sourceBounds: Bounds3;
 }
 
+export interface InspectedArtifactBytes {
+  readonly format: ManifestAssetEntry["format"];
+  readonly digest: string;
+  readonly byteLength: number;
+  readonly elementCount: number;
+  readonly sourceBounds: Bounds3;
+}
+
 function finiteNumber(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`${label} 必须是 finite number`);
@@ -429,6 +437,30 @@ export function sha256Hex(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+export function inspectArtifactBytes(
+  format: ManifestAssetEntry["format"],
+  bytes: Uint8Array,
+): InspectedArtifactBytes {
+  if (format !== "spz-v2" && format !== "glb-2.0") {
+    throw new Error("artifact format 非法");
+  }
+  const decoded = format === "spz-v2" ? decodeSpzIdentity(bytes) : decodeGlbIdentity(bytes);
+  const sourceBounds: Bounds3 = {
+    min: [...decoded.sourceBounds.min] as [number, number, number],
+    max: [...decoded.sourceBounds.max] as [number, number, number],
+  };
+  Object.freeze(sourceBounds.min);
+  Object.freeze(sourceBounds.max);
+  Object.freeze(sourceBounds);
+  return Object.freeze({
+    format,
+    digest: sha256Hex(bytes),
+    byteLength: bytes.byteLength,
+    elementCount: decoded.elementCount,
+    sourceBounds,
+  });
+}
+
 export function validateRegisteredArtifactBytes(
   entry: ManifestAssetEntry,
   bytes: Uint8Array,
@@ -438,18 +470,16 @@ export function validateRegisteredArtifactBytes(
   }
   const digest = sha256Hex(bytes);
   if (digest !== entry.digest) throw new Error("artifact digest 与 manifest 不一致");
-  const decoded = entry.format === "spz-v2"
-    ? decodeSpzIdentity(bytes)
-    : decodeGlbIdentity(bytes);
-  if (decoded.elementCount !== entry.elementCount) {
+  const inspected = inspectArtifactBytes(entry.format, bytes);
+  if (inspected.elementCount !== entry.elementCount) {
     throw new Error("artifact elementCount 与 manifest 不一致");
   }
-  sameBounds(decoded.sourceBounds, entry.sourceBounds, entry.assetId);
+  sameBounds(inspected.sourceBounds, entry.sourceBounds, entry.assetId);
   return {
     assetId: entry.assetId,
     digest,
-    byteLength: bytes.byteLength,
-    elementCount: decoded.elementCount,
-    sourceBounds: decoded.sourceBounds,
+    byteLength: inspected.byteLength,
+    elementCount: inspected.elementCount,
+    sourceBounds: inspected.sourceBounds,
   };
 }

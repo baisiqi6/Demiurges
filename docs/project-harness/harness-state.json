@@ -1,21 +1,21 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "generated_at": "2026-08-15T15:32:40Z",
+  "generated_at": "2026-08-25T02:30:32Z",
   "source": {
     "checklist_path": "docs/project-harness/harness-checklist.json",
-    "checklist_sha256": "47d6d20a22f21b9afc26f2b5d22021cf302f2aebb5a39a0b0b266d63752c3fd3"
+    "checklist_sha256": "04f87a3b767203ff8f6075f03e55538088c6eaee4a77728dc215fb217559cbad"
   },
   "current_status": "",
   "current_item": null,
   "checklist_summary": {
-    "todo": 2,
+    "todo": 0,
     "doing": 0,
-    "done": 18,
+    "done": 20,
     "blocked": 0
   },
   "workflow_summary": {
-    "closed": 18
+    "closed": 20
   },
   "paths": {
     "scope": "docs/project-harness/scope.md",
@@ -54,165 +54,167 @@
   "open_risks": [],
   "recent_events": [
     {
-      "actor": "operator",
+      "actor": "codex-operator",
       "artifacts": [
-        "docs/project-harness/tasks/DH-016/plan.md"
+        "docs/project-harness/tasks/DH-018/plan.md"
       ],
-      "branch": "agent/codex/DH-016",
+      "branch": "agent/codex/DH-017",
       "causation_id": null,
-      "created_at": "2026-08-15T04:01:34Z",
-      "id": "evt-20260815T040134Z-d62d2ed9",
-      "idempotency_key": "ASSIGN:DH-016:assigned:operator",
+      "created_at": "2026-08-25T02:11:24Z",
+      "id": "evt-20260825T021124Z-9a9b53f6",
+      "idempotency_key": "ASSIGN:DH-018:assigned:codex-operator",
       "metadata": {
         "force_reason": null,
-        "session": "codex-dh016-plan-20260814"
+        "session": "dh018-omp-canary-diagnostic-20260825"
       },
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "assigned",
-      "summary": "operator assigned DH-016 to codex",
-      "target": "codex",
-      "task": "DH-016",
+      "summary": "codex-operator assigned DH-018 to zcode-glm53-max-worker-canary",
+      "target": "zcode-glm53-max-worker-canary",
+      "task": "DH-018",
       "type": "ASSIGN",
-      "visible_header": "[ASSIGN] id=evt-20260815T040134Z-d62d2ed9 task=DH-016 actor=operator target=codex status=assigned branch=agent/codex/DH-016 artifacts=docs/project-harness/tasks/DH-016/plan.md"
+      "visible_header": "[ASSIGN] id=evt-20260825T021124Z-9a9b53f6 task=DH-018 actor=codex-operator target=zcode-glm53-max-worker-canary status=assigned branch=agent/codex/DH-017 artifacts=docs/project-harness/tasks/DH-018/plan.md"
     },
     {
-      "actor": "codex",
+      "actor": "zcode-glm53-max-worker-canary",
       "artifacts": [],
-      "branch": "agent/codex/DH-016",
+      "branch": "agent/codex/DH-017",
       "causation_id": null,
-      "created_at": "2026-08-15T04:01:34Z",
-      "id": "evt-20260815T040134Z-b4fc75ee",
-      "idempotency_key": "ACCEPT:DH-016:running:codex",
+      "created_at": "2026-08-25T02:11:42Z",
+      "id": "evt-20260825T021142Z-f55c6678",
+      "idempotency_key": "ACCEPT:DH-018:running:zcode-glm53-max-worker-canary",
       "metadata": {
         "force_reason": null,
-        "session": "codex-dh016-plan-20260814"
+        "session": "dh018-omp-canary-diagnostic-20260825"
       },
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "running",
-      "summary": "codex accepted DH-016",
-      "target": "codex",
-      "task": "DH-016",
+      "summary": "zcode-glm53-max-worker-canary accepted DH-018",
+      "target": "zcode-glm53-max-worker-canary",
+      "task": "DH-018",
       "type": "ACCEPT",
-      "visible_header": "[ACCEPT] id=evt-20260815T040134Z-b4fc75ee task=DH-016 actor=codex target=codex status=running branch=agent/codex/DH-016"
+      "visible_header": "[ACCEPT] id=evt-20260825T021142Z-f55c6678 task=DH-018 actor=zcode-glm53-max-worker-canary target=zcode-glm53-max-worker-canary status=running branch=agent/codex/DH-017"
     },
     {
-      "actor": "sol-max+zcode-glm-5.3-unverified",
+      "actor": "codex-operator",
       "artifacts": [],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-15T05:52:20Z",
-      "id": "evt-20260815T055220Z-97b00bf1",
-      "idempotency_key": "REVIEW:DH-016:approved:sol-max+zcode-glm-5.3-unverified",
-      "metadata": {},
+      "created_at": "2026-08-25T02:30:21Z",
+      "id": "evt-20260825T023021Z-bf4c3346",
+      "idempotency_key": "RELEASE:DH-018:released:codex-operator",
+      "metadata": {
+        "force_reason": "Diagnostic Worker completed the bounded OMP terminal/schema corrections; Operator independently verified tests and a real restricted OMP Agent fail-read-repair-pass canary, and fresh Kimi K3 review approved."
+      },
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
-      "status": "approved",
-      "summary": "Round 10 fresh cross-review approved: P0=0/P1=0; operator verified frozen plan and ordered aggregate; implementation may begin.",
-      "target": "codex",
-      "task": "DH-016",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260815T055220Z-97b00bf1 task=DH-016 actor=sol-max+zcode-glm-5.3-unverified target=codex status=approved"
+      "status": "released",
+      "summary": "codex-operator released DH-018",
+      "target": null,
+      "task": "DH-018",
+      "type": "RELEASE",
+      "visible_header": "[RELEASE] id=evt-20260825T023021Z-bf4c3346 task=DH-018 actor=codex-operator status=released"
     },
     {
-      "actor": "codex",
+      "actor": "operator",
       "artifacts": [
         "docs/project-harness/current/review-packet.md"
       ],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-15T07:25:51Z",
-      "id": "evt-20260815T072551Z-36108ab9",
-      "idempotency_key": "REVIEW:DH-016:requested:codex",
+      "created_at": "2026-08-25T02:30:21Z",
+      "id": "evt-20260825T023021Z-a2bb881e",
+      "idempotency_key": "REVIEW:DH-018:requested:operator",
       "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "requested",
-      "summary": "Review requested for DH-016",
-      "target": "codex",
-      "task": "DH-016",
+      "summary": "Review requested for DH-018",
+      "target": "kimi-k3-max-reviewer",
+      "task": "DH-018",
       "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260815T072551Z-36108ab9 task=DH-016 actor=codex target=codex status=requested artifacts=docs/project-harness/current/review-packet.md"
+      "visible_header": "[REVIEW] id=evt-20260825T023021Z-a2bb881e task=DH-018 actor=operator target=kimi-k3-max-reviewer status=requested artifacts=docs/project-harness/current/review-packet.md"
     },
     {
-      "actor": "sol-r26+cross-sol-r26",
+      "actor": "kimi-k3-max-reviewer",
       "artifacts": [],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-15T15:32:28Z",
-      "id": "evt-20260815T153228Z-fd9a4fad",
-      "idempotency_key": "REVIEW:DH-016:approved:sol-r26+cross-sol-r26",
+      "created_at": "2026-08-25T02:30:21Z",
+      "id": "evt-20260825T023021Z-2d1f589b",
+      "idempotency_key": "REVIEW:DH-018:approved:kimi-k3-max-reviewer",
       "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "approved",
-      "summary": "Round 26 two-way fresh implementation review approved: P0=P1=P2=0; aggregate 08e45d64...df829 stable; 633 tests, typecheck, build, diff-check, validate/doctor pass.",
-      "target": "codex",
-      "task": "DH-016",
+      "summary": "P0/P1 none. Product Session MVP and OMP terminal/schema boundary corrections approved from first principles; real OMP canary reached Evaluation false at Ref v2 then true at Ref v3. Deferred P2 only: future stopReason=length policy and explicit generated-reader recovery semantics.",
+      "target": null,
+      "task": "DH-018",
       "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260815T153228Z-fd9a4fad task=DH-016 actor=sol-r26+cross-sol-r26 target=codex status=approved"
+      "visible_header": "[REVIEW] id=evt-20260825T023021Z-2d1f589b task=DH-018 actor=kimi-k3-max-reviewer status=approved"
     },
     {
-      "actor": "codex",
+      "actor": "operator",
       "artifacts": [
         "docs/project-harness/current/closeout-packet.md"
       ],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-15T15:32:28Z",
-      "id": "evt-20260815T153228Z-77a98247",
-      "idempotency_key": "RESULT:DH-016:closeout_requested:codex",
+      "created_at": "2026-08-25T02:30:21Z",
+      "id": "evt-20260825T023021Z-0ba189ac",
+      "idempotency_key": "RESULT:DH-018:closeout_requested:operator",
       "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "closeout_requested",
-      "summary": "Closeout requested for DH-016",
-      "target": "sol-r26+cross-sol-r26",
-      "task": "DH-016",
+      "summary": "Closeout requested for DH-018",
+      "target": "kimi-k3-max-reviewer",
+      "task": "DH-018",
       "type": "RESULT",
-      "visible_header": "[RESULT] id=evt-20260815T153228Z-77a98247 task=DH-016 actor=codex target=sol-r26+cross-sol-r26 status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
+      "visible_header": "[RESULT] id=evt-20260825T023021Z-0ba189ac task=DH-018 actor=operator target=kimi-k3-max-reviewer status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
     },
     {
-      "actor": "sol-r26+cross-sol-r26",
+      "actor": "kimi-k3-max-reviewer",
       "artifacts": [],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-15T15:32:40Z",
-      "id": "evt-20260815T153240Z-3f7ee08b",
-      "idempotency_key": "REVIEW:DH-016:approved:sol-r26+cross-sol-r26",
+      "created_at": "2026-08-25T02:30:32Z",
+      "id": "evt-20260825T023032Z-b2bef0ed",
+      "idempotency_key": "REVIEW:DH-018:approved:kimi-k3-max-reviewer",
       "metadata": {},
       "parent": null,
       "pr": null,
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "approved",
-      "summary": "Closeout-phase approval confirms Round 26 dual fresh verdicts, P0/P1/P2=0, frozen aggregate 08e45d64...df829 and all mandatory gates.",
-      "target": "codex",
-      "task": "DH-016",
+      "summary": "Closeout approved. DH-018 completion evidence includes Product Session integration, deterministic and real restricted OMP Agent repair loops, root typecheck, focused regressions, no provider-generation/Keychain side effects, and zero-change independent reviews.",
+      "target": null,
+      "task": "DH-018",
       "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260815T153240Z-3f7ee08b task=DH-016 actor=sol-r26+cross-sol-r26 target=codex status=approved"
+      "visible_header": "[REVIEW] id=evt-20260825T023032Z-b2bef0ed task=DH-018 actor=kimi-k3-max-reviewer status=approved"
     },
     {
-      "actor": "codex",
+      "actor": "codex-operator",
       "artifacts": [],
       "branch": null,
       "causation_id": null,
-      "created_at": "2026-08-15T15:32:40Z",
-      "id": "evt-20260815T153240Z-8640ce62",
-      "idempotency_key": "CLOSE:DH-016:done:codex",
+      "created_at": "2026-08-25T02:30:32Z",
+      "id": "evt-20260825T023032Z-b5ebf7ba",
+      "idempotency_key": "CLOSE:DH-018:done:codex-operator",
       "metadata": {
         "force_reason": null
       },
@@ -221,11 +223,11 @@
       "publish_status": "local_only",
       "schema_version": 1,
       "status": "done",
-      "summary": "codex closed DH-016",
+      "summary": "codex-operator closed DH-018",
       "target": null,
-      "task": "DH-016",
+      "task": "DH-018",
       "type": "CLOSE",
-      "visible_header": "[CLOSE] id=evt-20260815T153240Z-8640ce62 task=DH-016 actor=codex status=done"
+      "visible_header": "[CLOSE] id=evt-20260825T023032Z-b5ebf7ba task=DH-018 actor=codex-operator status=done"
     }
   ]
 }

@@ -23,6 +23,9 @@ export const MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID = "scenario:marble-hunyuan-com
 export const ENVIRONMENT_REF = "entity:environment" as const;
 export const GENERATED_OBJECT_REF = "entity:generated-object" as const;
 export const MARBLE_HUNYUAN_COMPOSITE_SNAPSHOT_ID = "snapshot:marble-hunyuan-composite-base" as const;
+export const GENERATED_SESSION_CALIBRATION_ID = "calibration:hunyuan-generated-session-v1" as const;
+export const GENERATED_SESSION_WITNESS_ID = "witness:hunyuan-generated-session-box-proxy-v1" as const;
+export const MARBLE_HUNYUAN_GENERATED_SESSION_SNAPSHOT_ID = "snapshot:marble-hunyuan-generated-session" as const;
 
 const GENERATED_OBJECT_MASS_KG = 1;
 const GENERATED_OBJECT_INITIAL_CENTER_Z = 1.2;
@@ -213,8 +216,13 @@ export function requireMarbleHunyuanCompositeSnapshot(snapshot: Snapshot): void 
   const canonical = createMarbleHunyuanCompositeSnapshot();
   const [environment, floor, generated] = snapshot.entities;
   const [canonicalEnvironment, canonicalFloor, canonicalGenerated] = canonical.entities;
+  const visual = generated!.representations.visual;
+  const isGeneratedSession =
+    visual.kind === "registered-rigid-mesh" &&
+    visual.calibrationId === GENERATED_SESSION_CALIBRATION_ID &&
+    visual.witnessId === GENERATED_SESSION_WITNESS_ID;
 
-  if (snapshot.source === "write") {
+  if (snapshot.source === "write" && !isGeneratedSession) {
     if (!samePlainData(snapshot, canonical)) {
       throw new Error("composite write Snapshot 必须与 canonical fixture 完全一致");
     }
@@ -232,7 +240,30 @@ export function requireMarbleHunyuanCompositeSnapshot(snapshot: Snapshot): void 
     }
   }
 
-  if (
+  if (isGeneratedSession) {
+    const { collision, observation, semantic } = generated!.representations;
+    if (
+      generated!.label !== canonicalGenerated!.label ||
+      generated!.frameRef !== canonicalGenerated!.frameRef ||
+      generated!.unitSystemRef !== canonicalGenerated!.unitSystemRef ||
+      collision.kind !== "box" ||
+      observation !== null ||
+      semantic?.kind !== "authored-box-proxy" ||
+      semantic.witnessId !== GENERATED_SESSION_WITNESS_ID ||
+      !samePlainData(generated!.physics, canonicalGenerated!.physics)
+    ) {
+      throw new Error("generated session representation/physics 与 fixture 边界漂移");
+    }
+    if (snapshot.source === "write") {
+      if (
+        snapshot.id !== MARBLE_HUNYUAN_GENERATED_SESSION_SNAPSHOT_ID ||
+        !samePlainData(generated!.state, canonicalGenerated!.state)
+      ) {
+        throw new Error("generated session write Snapshot identity/state 漂移");
+      }
+      return;
+    }
+  } else if (
     generated!.label !== canonicalGenerated!.label ||
     generated!.frameRef !== canonicalGenerated!.frameRef ||
     generated!.unitSystemRef !== canonicalGenerated!.unitSystemRef ||
@@ -241,6 +272,7 @@ export function requireMarbleHunyuanCompositeSnapshot(snapshot: Snapshot): void 
   ) {
     throw new Error("composite generated-object representation/physics 与 fixture registry 漂移");
   }
+
   if (snapshot.source === "edit") {
     requireCanonicalCompositePose(generated!.state.pose);
     requireAuthoredPoseAboveFloor(generated!, floor!, generated!.state.pose);

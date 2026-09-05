@@ -11,10 +11,17 @@ import {
 } from "@demiurges/world-project";
 
 import type { OmpAgentClientFactory } from "./omp-world-agent";
+import type { GeneratedArtifactSetSummaryV1 } from "@demiurges/world-project";
 import {
   ProductSession,
   ProductSessionAuthoringFailure,
 } from "./product-session";
+import { selectGeneratedObjectBinding } from "./generated-object-binding";
+import {
+  createGenerationAdmissionApi,
+  type GenerationContractConfigV1,
+} from "./generation-admission-api";
+import { GenerationConfirmationStore } from "./generation-confirmation";
 
 const MAX_SESSIONS = 32;
 const MAX_TURN_BODY_BYTES = 16_384;
@@ -290,10 +297,19 @@ function authoringRequestError(error: unknown): { status: number; code: string }
 class ProductSessionRegistry {
   readonly #sessions = new Map<string, ProductSession>();
   readonly #clientFactory: OmpAgentClientFactory;
+  readonly #generatedArtifacts: {
+    readonly list: () => readonly GeneratedArtifactSetSummaryV1[];
+  } | undefined;
   #sequence = 0;
 
-  constructor(clientFactory: OmpAgentClientFactory) {
+  constructor(
+    clientFactory: OmpAgentClientFactory,
+    generatedArtifacts?: {
+      readonly list: () => readonly GeneratedArtifactSetSummaryV1[];
+    },
+  ) {
     this.#clientFactory = clientFactory;
+    this.#generatedArtifacts = generatedArtifacts;
   }
 
   create(): ProductSession {
@@ -301,7 +317,17 @@ class ProductSessionRegistry {
       throw new Error(`本地 Product Sessions 不能超过 ${MAX_SESSIONS}`);
     }
     const id = `session:local-${++this.#sequence}`;
-    const session = new ProductSession(id, this.#clientFactory);
+    // 零个或多个 eligible 候选、或 reader 处于 recovery 时保持无绑定，
+    // 该 session 的 composite write 回退到 static fixture。
+    let binding: ReturnType<typeof selectGeneratedObjectBinding> = null;
+    if (this.#generatedArtifacts !== undefined) {
+      try {
+        binding = selectGeneratedObjectBinding(this.#generatedArtifacts.list());
+      } catch {
+        binding = null;
+      }
+    }
+    const session = new ProductSession(id, this.#clientFactory, binding);
     this.#sessions.set(id, session);
     return session;
   }
@@ -388,6 +414,11 @@ export function createProductSessionApi(
     readonly turnTimeoutMs?: number;
     readonly bodyTimeoutMs?: number;
     readonly worldProjects?: WorldProjectRuntime;
+    readonly generations?: {
+      readonly confirmations: GenerationConfirmationStore;
+      readonly contract?: GenerationContractConfigV1;
+      readonly clock?: () => string;
+    };
   } = DEFAULT_GATEWAY_TURN_TIMEOUT_MS,
 ): { readonly fetch: (request: Request) => Promise<Response> } {
   const turnTimeoutMs = typeof optionsOrTimeout === "number"
@@ -405,7 +436,23 @@ export function createProductSessionApi(
   if (!Number.isFinite(bodyTimeoutMs) || bodyTimeoutMs <= 0) {
     throw new Error("Gateway body timeout 必须是正有限毫秒数");
   }
-  const sessions = new ProductSessionRegistry(clientFactory);
+  const sessions = new ProductSessionRegistry(
+    clientFactory,
+    worldProjects?.generatedArtifacts,
+  );
+  const generations = typeof optionsOrTimeout === "number"
+    ? undefined
+    : optionsOrTimeout.generations;
+  const generationAdmission = generations === undefined
+    ? undefined
+    : createGenerationAdmissionApi({
+        confirmations: generations.confirmations,
+        firstGeneration: worldProjects?.firstGeneration ?? null,
+        contract: generations.contract,
+        clock: generations.clock,
+        bodyTimeoutMs,
+        hasSession: (sessionId) => sessions.get(sessionId) !== undefined,
+      });
 
   return Object.freeze({
     async fetch(request: Request): Promise<Response> {
@@ -486,6 +533,11 @@ export function createProductSessionApi(
         } catch (error) {
           return errorResponse(503, "session_capacity_reached");
         }
+      }
+
+      if (generationAdmission !== undefined) {
+        const generationResponse = await generationAdmission.fetch(request);
+        if (generationResponse !== undefined) return generationResponse;
       }
 
       const route = parseSessionPath(url.pathname);

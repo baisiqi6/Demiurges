@@ -1,12 +1,20 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { canonicalJsonBytes } from "@demiurges/world";
+import { canonicalJsonBytes, sha256Hex } from "@demiurges/world";
 
 import {
   bootstrapDataRoot,
+  dataRootReceiptIntentPath,
   dataRootReceiptResultPath,
   openDataRoot,
   type OpenedDataRoot,
@@ -27,6 +35,16 @@ import {
   type OperationBinding,
 } from "./operation-journal";
 import { writeNewSyncedFile } from "./safe-filesystem";
+import {
+  createGenerationNamespaceInstallBindingFromLeaseDigest,
+  generationNamespaceInstallBindingDigest,
+  generationNamespaceSeedDigest,
+} from "./generation-namespace";
+import {
+  generatedSetPublicationBindingDigest,
+  requireGeneratedSetPublicationBinding,
+  type GeneratedSetPublicationBindingV1,
+} from "./generated-artifact-publication";
 
 function projectBinding(
   operationId = "op:save-1",
@@ -40,6 +58,43 @@ function projectBinding(
     expectedIdentity: null,
     candidateIdentity: { projectRevision: revision },
   };
+}
+
+function generatedSetBinding(
+  generationId = `generation:sha256:${"a".repeat(64)}`,
+  artifactSetDigest = "b".repeat(64),
+): GeneratedSetPublicationBindingV1 {
+  const preimage =
+    "demiurges-generated-set-publication-v1\0" +
+    generationId + "\0" + artifactSetDigest;
+  return requireGeneratedSetPublicationBinding({
+    schemaVersion: 1,
+    operationId: `op:${sha256Hex(new TextEncoder().encode(preimage))}`,
+    operationKind: "artifact.publish-generated-set",
+    target: { kind: "registry", id: "registry:generated-artifact-sets-v1" },
+    expectedIdentity: null,
+    candidateIdentity: {
+      generationId,
+      artifactSetDigest,
+      orderedContentRecordDigests: ["c".repeat(64)],
+      orderedProvenanceRecordDigests: ["d".repeat(64)],
+    },
+  });
+}
+
+function generatedSetResult(
+  binding: GeneratedSetPublicationBindingV1,
+  variant: "success" | "aborted-before-publish",
+): Record<string, unknown> {
+  const base = {
+    schemaVersion: 1,
+    operationId: binding.operationId,
+    bindingDigest: generatedSetPublicationBindingDigest(binding),
+    variant,
+  };
+  return variant === "success"
+    ? { ...base, publishedIdentity: binding.candidateIdentity.artifactSetDigest }
+    : { ...base, code: "GENERATION_RECOVERY_REQUIRED" };
 }
 
 async function withJournal(
@@ -198,6 +253,36 @@ describe("operation binding codec", () => {
 });
 
 describe("OperationJournal", () => {
+  test("receipt scan validates internal namespace evidence without exposing public authority", async () => {
+    await withJournal((journal, _root, _lease, rootPath) => {
+      const binding = createGenerationNamespaceInstallBindingFromLeaseDigest(
+        "0".repeat(64),
+      );
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptIntentPath(binding.operationId)),
+        canonicalJsonBytes(binding),
+      );
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptResultPath(binding.operationId)),
+        canonicalJsonBytes({
+          schemaVersion: 1,
+          operationId: binding.operationId,
+          bindingDigest: generationNamespaceInstallBindingDigest(binding),
+          variant: "success",
+          publishedIdentity: generationNamespaceSeedDigest(),
+        }),
+      );
+      expect(journal.listBindings()).toEqual([]);
+      const receiptsBefore = readdirSync(join(rootPath, "receipts")).sort();
+      const stagingBefore = readdirSync(join(rootPath, "staging")).sort();
+      expect(() => journal.admit(binding as never)).toThrow(
+        "OPERATION_RECOVERY_REQUIRED",
+      );
+      expect(readdirSync(join(rootPath, "receipts")).sort()).toEqual(receiptsBefore);
+      expect(readdirSync(join(rootPath, "staging")).sort()).toEqual(stagingBefore);
+    });
+  });
+
   test("可读 result 文件不等于当前 live operation 已完成 directory fsync", async () => {
     await withJournal((journal, root, lease, rootPath) => {
       const binding = projectBinding("op:visible-not-durable");
@@ -286,6 +371,196 @@ describe("OperationJournal", () => {
           "OPERATION_RECOVERY_REQUIRED",
         );
       }
+    });
+  });
+
+  test("receipts enumerator只跳过exact real 0700 generations directory", async () => {
+    await withJournal((journal, _root, _lease, rootPath) => {
+      const generations = join(rootPath, "receipts", "generations");
+      mkdirSync(generations, { mode: 0o700 });
+      expect(journal.listBindings()).toEqual([]);
+
+      rmSync(generations, { recursive: true });
+      writeFileSync(generations, "not-a-directory", { mode: 0o600 });
+      expect(() => journal.listBindings()).toThrow("OPERATION_RECOVERY_REQUIRED");
+      rmSync(generations);
+
+      const outside = join(rootPath, "outside-generations");
+      mkdirSync(outside, { mode: 0o700 });
+      symlinkSync(outside, generations);
+      expect(() => journal.listBindings()).toThrow("OPERATION_RECOVERY_REQUIRED");
+    });
+  });
+
+  test("receipts enumerator在第2049项incremental fail closed", async () => {
+    await withJournal((journal, _root, _lease, rootPath) => {
+      const receipts = join(rootPath, "receipts");
+      for (let index = 0; index < 2049; index += 1) {
+        writeFileSync(
+          join(receipts, `unknown-${index.toString().padStart(4, "0")}`),
+          "",
+          { mode: 0o600 },
+        );
+      }
+      expect(() => journal.listBindings()).toThrow("OPERATION_RECOVERY_REQUIRED");
+    });
+  });
+
+  test("generated-set internal receipt 被 exact 验证且不暴露为 public binding", async () => {
+    await withJournal((journal, _root, _lease, rootPath) => {
+      const pending = generatedSetBinding(`generation:sha256:${"1".repeat(64)}`);
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptIntentPath(pending.operationId)),
+        canonicalJsonBytes(pending),
+      );
+      const success = generatedSetBinding(`generation:sha256:${"2".repeat(64)}`);
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptIntentPath(success.operationId)),
+        canonicalJsonBytes(success),
+      );
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptResultPath(success.operationId)),
+        canonicalJsonBytes(generatedSetResult(success, "success")),
+      );
+      const aborted = generatedSetBinding(`generation:sha256:${"3".repeat(64)}`);
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptIntentPath(aborted.operationId)),
+        canonicalJsonBytes(aborted),
+      );
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptResultPath(aborted.operationId)),
+        canonicalJsonBytes(generatedSetResult(aborted, "aborted-before-publish")),
+      );
+      expect(journal.listBindings()).toEqual([]);
+    });
+  });
+
+  test("generated-set result without intent fail closed", async () => {
+    await withJournal((journal, _root, _lease, rootPath) => {
+      const resultWithoutIntent = generatedSetBinding(
+        `generation:sha256:${"1".repeat(64)}`,
+      );
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptResultPath(resultWithoutIntent.operationId)),
+        canonicalJsonBytes(generatedSetResult(resultWithoutIntent, "success")),
+      );
+      expect(() => journal.listBindings()).toThrow("OPERATION_RECOVERY_REQUIRED");
+    });
+  });
+
+  test("generated-set binding/result drift fail closed", async () => {
+    await withJournal((journal, _root, _lease, rootPath) => {
+      const drift = generatedSetBinding(`generation:sha256:${"2".repeat(64)}`);
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptIntentPath(drift.operationId)),
+        canonicalJsonBytes(drift),
+      );
+      const driftedResult = generatedSetResult(drift, "success");
+      driftedResult.bindingDigest = "f".repeat(64);
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptResultPath(drift.operationId)),
+        canonicalJsonBytes(driftedResult),
+      );
+      expect(() => journal.listBindings()).toThrow("GENERATION_RECOVERY_REQUIRED");
+    });
+  });
+
+  test("generated-set intent 未知字段 fail closed", async () => {
+    await withJournal((journal, _root, _lease, rootPath) => {
+      const unknownKey = generatedSetBinding(`generation:sha256:${"3".repeat(64)}`);
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptIntentPath(unknownKey.operationId)),
+        canonicalJsonBytes({ ...unknownKey, extra: "x" }),
+      );
+      expect(() => journal.listBindings()).toThrow("OPERATION_RECOVERY_REQUIRED");
+    });
+  });
+
+  test("generated-set intent 非 canonical bytes fail closed", async () => {
+    await withJournal((journal, _root, _lease, rootPath) => {
+      const malformed = generatedSetBinding(`generation:sha256:${"4".repeat(64)}`);
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptIntentPath(malformed.operationId)),
+        new TextEncoder().encode('{"schemaVersion": 1}'),
+      );
+      expect(() => journal.listBindings()).toThrow("OPERATION_RECOVERY_REQUIRED");
+    });
+  });
+
+  test("generated-set binding 在错误文件名下 fail closed", async () => {
+    await withJournal((journal, _root, _lease, rootPath) => {
+      const wrongName = generatedSetBinding(`generation:sha256:${"5".repeat(64)}`);
+      writeNewSyncedFile(
+        join(rootPath, dataRootReceiptIntentPath("op:wrong-filename-1")),
+        canonicalJsonBytes(wrongName),
+      );
+      expect(() => journal.listBindings()).toThrow("OPERATION_RECOVERY_REQUIRED");
+    });
+  });
+
+  test("package-root mutation/authority 入口拒绝 generated-set binding 且零磁盘改动", async () => {
+    await withJournal(async (journal, _root, _lease, rootPath) => {
+      const binding = generatedSetBinding();
+      const structural = JSON.parse(JSON.stringify(binding)) as never;
+      const receiptIntent = join(
+        rootPath,
+        dataRootReceiptIntentPath(binding.operationId),
+      );
+      writeNewSyncedFile(receiptIntent, canonicalJsonBytes(binding));
+      const receiptResult = join(
+        rootPath,
+        dataRootReceiptResultPath(binding.operationId),
+      );
+      writeNewSyncedFile(
+        receiptResult,
+        canonicalJsonBytes(generatedSetResult(binding, "success")),
+      );
+      for (const input of [binding as never, structural]) {
+        const receiptsBefore = readdirSync(join(rootPath, "receipts")).sort();
+        const stagingBefore = readdirSync(join(rootPath, "staging")).sort();
+        expect(() => journal.admit(input)).toThrow("OPERATION_RECOVERY_REQUIRED");
+        expect(() => journal.beginRecovery(input)).toThrow(
+          "OPERATION_RECOVERY_REQUIRED",
+        );
+        expect(() => journal.inspectExistingAttempts(input)).toThrow(
+          "OPERATION_RECOVERY_REQUIRED",
+        );
+        expect(() => journal.confirmExistingTerminal(input)).toThrow(
+          "OPERATION_RECOVERY_REQUIRED",
+        );
+        expect(readdirSync(join(rootPath, "receipts")).sort()).toEqual(
+          receiptsBefore,
+        );
+        expect(readdirSync(join(rootPath, "staging")).sort()).toEqual(
+          stagingBefore,
+        );
+      }
+      expect(() => journal.readIntent(binding.operationId)).toThrow(
+        "OPERATION_RECOVERY_REQUIRED",
+      );
+      expect(() => journal.readResult(binding.operationId, binding as never)).toThrow(
+        "OPERATION_RECOVERY_REQUIRED",
+      );
+      const forged = {
+        binding: binding as never,
+        bindingDigest: "0".repeat(64),
+        attemptPath: "",
+        attemptToken: "",
+        intentPath: receiptIntent,
+      } as never;
+      expect(() => journal.finalizeSuccess(forged)).toThrow(
+        "OPERATION_RECOVERY_REQUIRED",
+      );
+      expect(() => journal.finalizeAborted(forged, "SOME_CODE")).toThrow(
+        "OPERATION_RECOVERY_REQUIRED",
+      );
+      expect(() => journal.cleanupAttempt(forged)).toThrow(
+        "OPERATION_RECOVERY_REQUIRED",
+      );
+      const singleFlight = new OperationSingleFlight();
+      await expect(
+        singleFlight.run(binding as never, undefined, async () => "wrong"),
+      ).rejects.toMatchObject({ code: "OPERATION_RECOVERY_REQUIRED" });
     });
   });
 });

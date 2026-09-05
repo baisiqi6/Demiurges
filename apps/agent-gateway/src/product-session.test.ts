@@ -6,8 +6,10 @@ import {
   BALL_VESSEL_PROGRAM,
   DIAGNOSTIC_RIGID_FIXTURE_ID,
   GENERATED_OBJECT_REF,
+  GENERATED_SESSION_CALIBRATION_ID,
   MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
   MARBLE_HUNYUAN_COMPOSITE_PROGRAM,
+  MARBLE_HUNYUAN_GENERATED_SESSION_SNAPSHOT_ID,
   TWO_JOINT_REACH_FIXTURE_ID,
   decodeProductSessionProjection,
   decodeProductSessionProjectionTrusted,
@@ -120,6 +122,140 @@ describe("Gateway-owned ProductSession", () => {
     expect(projection.world?.snapshot.id).not.toBe(
       projection.lastRun?.episode.terminalSnapshot.id,
     );
+  });
+
+  test("generated-session binding 上同一世界完成 run fail → read → repair → run pass", async () => {
+    // DH-017 durable verified Hunyuan object-glb identity。
+    const binding = {
+      assetId: "asset:generated-sha256-65dc7eb3d71393e624925c6848e88b55cf0bd6fd8d1ca63b956743fddd55e05a",
+      artifactSetDigest: "5641bf040c5dc881a553332493957627c8557edc5d7aa7d4f65b42139259e69d",
+      sourceBounds: {
+        min: [-0.48395800590515137, -3.736129973702895e-8, -0.2797180492002527],
+        max: [0.4801819920539856, 0.574190135291325, 0.2780711007797188],
+      },
+    } as const;
+
+    const reads: Array<{ ref: { name: string; snapshotId: string; version: number } }> = [];
+    const editExpected: Array<unknown> = [];
+    const toolNamesSeen = new Set<string>();
+    const factory: OmpAgentClientFactory = (tools) => {
+      const invoke = async (name: string, input: Record<string, unknown>) => {
+        const tool = tools.find((candidate) => candidate.name === name);
+        if (!tool) throw new Error(`fixture 缺少 ${name}`);
+        const result = await tool.execute(
+          `call:${name}`,
+          input,
+          undefined,
+          {} as never,
+          new AbortController().signal,
+        );
+        if (typeof result === "string") throw new Error("预期 structured tool result");
+        return result.details as Record<string, unknown>;
+      };
+      return {
+        async start() {},
+        async stop() {},
+        async getState() {
+          for (const tool of tools) toolNamesSeen.add(tool.name);
+          return {
+            sessionId: "session:generated-repair-agent",
+            toolNames: tools.map((tool) => tool.name),
+            enabledToolNames: tools.map((tool) => tool.name),
+            mountedToolNames: [],
+          };
+        },
+        async promptAndWait() {
+          await invoke("world_write", { fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID });
+          reads.push((await invoke("world_read", {})) as typeof reads[number]);
+          // 第一次 edit 放到 floor 支撑范围之外（floor half-x≈1.48，envelope x≤4）。
+          editExpected.push({ ...reads[0]!.ref });
+          await invoke("world_edit", {
+            expected: reads[0]!.ref,
+            targetRef: GENERATED_OBJECT_REF,
+            change: { kind: "pose", frameRef: "frame:world", pose: {
+              position: { x: 3, y: 0, z: 1.2 },
+              rotation: { x: 0, y: 0, z: 0, w: 1 },
+            } },
+          });
+          await invoke("world_run", {
+            runId: "run:generated-repair-first",
+            program: {
+              kind: MARBLE_HUNYUAN_COMPOSITE_PROGRAM.kind,
+              targetRef: MARBLE_HUNYUAN_COMPOSITE_PROGRAM.targetRef,
+              durationSeconds: MARBLE_HUNYUAN_COMPOSITE_PROGRAM.durationSeconds,
+              sampleRateHz: MARBLE_HUNYUAN_COMPOSITE_PROGRAM.sampleRateHz,
+            },
+          });
+          // 失败后 read 当前 Ref，第二次 edit 精确使用该 Ref 修复 pose。
+          reads.push((await invoke("world_read", {})) as typeof reads[number]);
+          editExpected.push({ ...reads[1]!.ref });
+          await invoke("world_edit", {
+            expected: reads[1]!.ref,
+            targetRef: GENERATED_OBJECT_REF,
+            change: { kind: "pose", frameRef: "frame:world", pose: {
+              position: { x: 0, y: 0, z: 1.2 },
+              rotation: { x: 0, y: 0, z: 0, w: 1 },
+            } },
+          });
+          await invoke("world_run", {
+            runId: "run:generated-repair-second",
+            program: {
+              kind: MARBLE_HUNYUAN_COMPOSITE_PROGRAM.kind,
+              targetRef: MARBLE_HUNYUAN_COMPOSITE_PROGRAM.targetRef,
+              durationSeconds: MARBLE_HUNYUAN_COMPOSITE_PROGRAM.durationSeconds,
+              sampleRateHz: MARBLE_HUNYUAN_COMPOSITE_PROGRAM.sampleRateHz,
+            },
+          });
+        },
+        async getLastAssistantText() { return "修复完成，评测通过。"; },
+      };
+    };
+
+    const session = new ProductSession("session:test-generated-repair", factory, binding);
+    const completed: Array<{ type: string; tool?: string; evidence?: { evaluation?: { passed: boolean }; update?: { status: string; ref?: { version: number } } } }> = [];
+    const projection = await session.runTurn("把已生成物体放进 Marble 世界并通过评测", (event) => {
+      completed.push(event as typeof completed[number]);
+    });
+
+    const toolEvents = completed.filter((event) => event.type === "tool.completed");
+    expect(toolEvents.map((event) => event.tool)).toEqual([
+      "world_write", "world_read", "world_edit", "world_run",
+      "world_read", "world_edit", "world_run",
+    ]);
+    expect([...toolNamesSeen].sort()).toEqual(
+      ["world_edit", "world_read", "world_run", "world_write"],
+    );
+
+    const runs = toolEvents
+      .filter((event) => event.tool === "world_run")
+      .map((event) => event.evidence!);
+    expect(runs[0]!.evaluation!.passed).toBe(false);
+    expect(runs[1]!.evaluation!.passed).toBe(true);
+    expect(runs[0]!.evaluation).toMatchObject({ contractId: "success:stable-on-floor" });
+    expect(runs[1]!.evaluation).toMatchObject({ contractId: "success:stable-on-floor" });
+
+    // 中间 read 的 Ref 被第二次 edit 精确使用；Ref version 单调递增。
+    expect(reads).toHaveLength(2);
+    expect(reads[0]!.ref.snapshotId).toBe(MARBLE_HUNYUAN_GENERATED_SESSION_SNAPSHOT_ID);
+    expect(reads[1]!.ref.version).toBe(reads[0]!.ref.version + 1);
+    const edits = toolEvents
+      .filter((event) => event.tool === "world_edit")
+      .map((event) => event.evidence!);
+    expect(edits.map((edit) => edit.update!.ref!.version)).toEqual([2, 3]);
+    expect(editExpected[1]).toEqual(reads[1]!.ref);
+
+    // session 固定的 generated-session identity 与最终 PASS authority。
+    expect(projection.world?.ref.version).toBe(3);
+    expect(projection.lastRun?.evaluation.passed).toBe(true);
+    expect(projection.world?.snapshot.entities.find(
+      (entity) => entity.ref === GENERATED_OBJECT_REF,
+    )?.representations.visual).toMatchObject({
+      kind: "registered-rigid-mesh",
+      assetId: binding.assetId,
+      calibrationId: GENERATED_SESSION_CALIBRATION_ID,
+    });
+    expect(projection.world?.snapshot.id).toContain("snapshot:edit-");
+    expect(() => JSON.stringify({ completed, projection })).not.toThrow();
   });
 
   test("human composite no-op 保留 lastRun，只有 accepted edit 才清除 evidence", async () => {

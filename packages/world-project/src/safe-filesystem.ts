@@ -29,6 +29,22 @@ export interface StableDirectoryIdentity {
   readonly gid: bigint;
 }
 
+export interface StableRegularFileSnapshotIdentity {
+  readonly dev: bigint;
+  readonly ino: bigint;
+  readonly mode: bigint;
+  readonly uid: bigint;
+  readonly gid: bigint;
+  readonly size: bigint;
+  readonly mtimeNs: bigint;
+  readonly ctimeNs: bigint;
+}
+
+export interface StableRegularFileSnapshot {
+  readonly identity: StableRegularFileSnapshotIdentity;
+  readonly bytes: Uint8Array;
+}
+
 function identity(fd: number): StableFileIdentity {
   const stat = fstatSync(fd, { bigint: true });
   return {
@@ -83,6 +99,103 @@ export function readStableRegularFile(path: string, maxBytes: number): Uint8Arra
       throw new Error("opened target identity 在读取期间漂移");
     }
     return bytes;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+function snapshotIdentity(fd: number): StableRegularFileSnapshotIdentity {
+  const stat = fstatSync(fd, { bigint: true });
+  return {
+    dev: stat.dev,
+    ino: stat.ino,
+    mode: stat.mode,
+    uid: stat.uid,
+    gid: stat.gid,
+    size: stat.size,
+    mtimeNs: stat.mtimeNs,
+    ctimeNs: stat.ctimeNs,
+  };
+}
+
+function sameSnapshotIdentity(
+  left: StableRegularFileSnapshotIdentity,
+  right: StableRegularFileSnapshotIdentity,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
+function requireExact0600RegularFile(stat: StableRegularFileSnapshotIdentity): void {
+  if ((stat.mode & 0o170000n) !== 0o100000n) {
+    throw new Error("opened target 必须是 regular file");
+  }
+  // exact 0600：连同 setuid/setgid/sticky 等特殊位一起拒绝。
+  if ((stat.mode & 0o7777n) !== 0o600n) {
+    throw new Error("opened target mode 必须为 0600");
+  }
+  if (stat.size < 0n || stat.size > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error("opened target byteLength 超出 safe integer");
+  }
+}
+
+/**
+ * 只读稳定文件快照：单个 `O_RDONLY|O_NOFOLLOW` fd 返回 exact 0600 regular file 的
+ * 稳定身份与 bytes。读取前/后 fd 身份与读取后 path lstat 都必须与打开时一致，
+ * 否则视为 identity 漂移 fail closed。不执行任何 mutation。
+ */
+export function readStableRegularFileSnapshot(
+  path: string,
+  maxBytes: number,
+): StableRegularFileSnapshot {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
+    throw new Error("maxBytes 必须是非负 safe integer");
+  }
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, FS.O_RDONLY | FS.O_NOFOLLOW);
+    const before = snapshotIdentity(fd);
+    requireExact0600RegularFile(before);
+    if (before.size > BigInt(maxBytes)) throw new Error("opened target 超出 byte budget");
+    const bytes = new Uint8Array(Number(before.size));
+    let offset = 0;
+    while (offset < bytes.byteLength) {
+      const count = readSync(fd, bytes, offset, bytes.byteLength - offset, offset);
+      if (count <= 0) throw new Error("opened target short read");
+      offset += count;
+    }
+    const after = snapshotIdentity(fd);
+    let pathIdentity: StableRegularFileSnapshotIdentity;
+    try {
+      const stat = lstatSync(path, { bigint: true });
+      pathIdentity = {
+        dev: stat.dev,
+        ino: stat.ino,
+        mode: stat.mode,
+        uid: stat.uid,
+        gid: stat.gid,
+        size: stat.size,
+        mtimeNs: stat.mtimeNs,
+        ctimeNs: stat.ctimeNs,
+      };
+    } catch {
+      throw new Error("opened target path 在读取期间消失");
+    }
+    if (
+      !sameSnapshotIdentity(before, after) ||
+      !sameSnapshotIdentity(before, pathIdentity)
+    ) {
+      throw new Error("opened target identity 在读取期间漂移");
+    }
+    return { identity: before, bytes };
   } finally {
     if (fd !== undefined) closeSync(fd);
   }

@@ -55,6 +55,7 @@ import {
   hasWorldAuthorityTransition,
 } from "./world-project-ui-state";
 import type { ObserverMode } from "./presentation-three/observer-camera";
+import { GeneratedArtifactsPanel } from "./GeneratedArtifactsPanel";
 
 type RuntimeStatus = "connecting" | "ready" | "running" | "completed" | "error";
 type ViewMode = "repository" | "episode";
@@ -739,6 +740,8 @@ export default function App() {
               <div><dt>units</dt><dd>units:si</dd></div>
             </dl>
           </section>
+
+          <GeneratedArtifactsPanel />
 
           <section class="inspector-section project-control" data-testid="world-project-control">
             <div class="section-heading">

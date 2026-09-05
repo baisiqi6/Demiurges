@@ -2,24 +2,24 @@
 
 ## Subject
 
-- Checklist item: `DH-016`
-- Reviewer: `sol-r26+cross-sol-r26`
-- Updated at: `2026-08-15`
-- Canonical plan path: `docs/project-harness/tasks/DH-016/plan.md`
+- Checklist item: `DH-018`
+- Reviewer: `kimi-k3-max-reviewer`
+- Updated at: `2026-08-25`
+- Canonical plan path: `docs/project-harness/tasks/DH-018/plan.md`
 
 ## Item Snapshot
 
-- Title: World Project 持久化与共享 Artifact Store
-- Status: doing
+- Title: Agent Worldmaking Orchestration
+- Status: todo
 - Workflow status: closeout_requested
 - Priority: p1
-- Owner: codex
-- Session: codex-dh016-plan-20260814
-- Dependencies: DH-015
+- Owner: None
+- Session: None
+- Dependencies: DH-017
 
 ## Acceptance
 
-以独立于 Git/worktree 的 DEMIURGES_DATA_ROOT 提供 content-addressed artifacts/sha256 与受控 projects/staging/receipts；版本化 World Project manifest 只持久化并严格恢复不可变 Snapshot lineage、current Ref、被引用 ArtifactRef/digest、Frame/Units/calibration identity 与可验证 metadata；保存采用 crash-safe staging、完整校验、fsync/close 与原子发布，加载时重新验证 schema、lineage、Ref、regular-file identity、digest/length/format/registry，缺失或损坏时不得恢复半个世界或污染旧项目；支持跨 worktree/重启复用、受控 bundle 导入导出与 control-plane 线性 undo/redo；credential、signed URL、Presentation state、PoseDraft、provider job/poll 状态不得持久化，且不调用 Marble/Hunyuan。
+restricted Agent 使用且仅使用 read、write、edit、run 消费 registered ArtifactRef，完成自然语言 world composition、run、evidence inspection 与 repair loop；provider generation 保持 Harness control-plane，不暴露 credential 或第五个 world tool；成功由 deterministic Evaluation 证明。
 
 ## Verification
 
@@ -27,7 +27,7 @@
 
 ## Handoff
 
-先在独立 worktree 冻结 Data Root、manifest schema、crash atomicity、bundle 与线性 current-Ref history contract，并通过 independent cross-plan review；P0/P1=0 前不得实现。DH-017 仍负责 provider generation，DH-018 仍负责 Agent orchestration。
+等待 verified Artifact 与可持久化 world authoring 成为真实调用方后再规划。
 
 ## Review Inputs
 
@@ -40,396 +40,85 @@
 ## Canonical Plan Content
 
 ```md
-# DH-016 — World Project 持久化与共享 Artifact Store
-
-## Authority
-
-- Item：`DH-016`
-- Owner：`codex`
-- Session：`codex-dh016-plan-20260814`
-- Branch：`agent/codex/DH-016`
-- Worktree：`/Users/Admin/projects/WorkTrees/Demiurges-DH-016`
-- Base：`0efcef3a531c192410cdabcd62cf736e54404313`
-- 模式：high-risk（持久 authority、schema、崩溃恢复、导入导出）
-- 当前 authority：只允许完善稳定设计输入、canonical plan、验收设计与 independent cross-plan review。
-- Implementation gate：只有相互隔离的 independent reviewers 对同一冻结输入共同达到 `approved / P0=0 / P1=0` 后才进入实现。
-- Standing release authority 不跳过 plan/implementation review、closeout 或其他生命周期 gate。
-
-## Goal 与路线位置
-
-把一次性 Gateway 内存 Product Session 中的世界，提升为可长期保存、关闭后恢复、跨 worktree 共用大体积资产并可安全搬运的 `World Project`。
-
-```text
-World Project = 可持久化的世界事实与 current Ref
-Artifact Store = 可复用、content-addressed 的大体积内容
-Repository = 当前进程内的受信运行状态
-Presentation = 可丢弃的界面状态
-```
-
-DH-016 不改变此前路线，只把第二步从功能名称具体化为长期 ownership 边界：
-
-1. DH-015：真实资产可选择、可摆放、可推演；
-2. **DH-016：World Project 持久化与共享 Artifact Store；**
-3. DH-017：Marble/Hunyuan prompt → job → verified Artifact；
-4. DH-018：Agent 编排已登记资产的生成、组合、运行与评测。
-
-DH-017 是 Artifact Producer，DH-018 是受限的 Agent Consumer；两者都不得重新定义 DH-016 的 Store、Project manifest 或恢复语义。
-
-## 当前事实与设计驱动
-
-- DH-013 的 provider cache 已有 regular-file、symlink、size、mode、读取期 identity、digest、格式与 registry 校验；这些算法应复用。
-- 现有路径仍是每个checkout的仓库根 `.artifacts/provider-cache/sha256/<digest>`，不能跨worktree成为唯一事实源。
-- `WorldRepository` 只支持进程内 write/edit/run/adopt/read；没有受控枚举、完整重建、project history 或持久化接口。
-- `RuntimeMvpHost` 自行私有创建 Repository；`ProductSession` 只保存当前 projection、`lastRun` 与 turn state，进程退出即消失。
-- `MARBLE_HUNYUAN_MANIFEST_DIGEST` 已把三项 Artifact、三项 calibration 与三项 witness 绑定成静态 registry identity，可作为首版恢复闭合依据。
-- `canonicalJsonBytes` 与 `sha256Hex` 已提供拒绝 sparse/accessor/non-finite/`-0` 的 canonical identity 基础。
-
-## 不变量
-
-1. **Project 不越过 Kernel：** 保存、打开、undo/redo 只能恢复或移动已经验证的 Snapshot/Ref，不修改 Snapshot 内容，也不增加第五个 Agent tool。
-2. **候选世界先完整后可见：** open/import 在独立 candidate 中完成 schema、lineage、registry 与所有 Artifact 校验；成功后才整体替换/创建 Product Session。
-3. **磁盘状态不自动成为 authority：** 文件存在、JSON 可解析或 HTTP 200 均不足以恢复世界。
-4. **Artifact bytes 不携带世界语义：** digest/length/format 证明内容 identity；Frame、Units、calibration/witness 仍由受信 registry 与 Snapshot representation 共同解释。
-5. **Presentation 可丢弃：** camera、Observer mode、selection、panel、debug layer、播放游标、`PoseDraft` 与未提交 Transform 不进入 Project。
-6. **Runtime evidence 首版不恢复：** `Episode`、`Evaluation`、`lastRun`、正在运行的 turn 与 event sequence 不进入 v1 Project；打开后 `lastRun=null`、`lastSequence=0`、`running=false`。
-7. **Credential 永不落盘：** API key、signed URL、Authorization/header、provider raw response、job/poll 临时状态不进入 Data Root、Project、bundle 或 receipt。
-8. **安全失败优先：** 缺失、篡改、超预算、未知 schema/registry、锁冲突、staging 残留时 fail closed；不得恢复半个世界或静默 fallback 到旧 checkout cache。
-
-## 目录与配置 contract
-
-唯一 server-side 根为显式环境变量 `DEMIURGES_DATA_ROOT`：
-
-```text
-DEMIURGES_DATA_ROOT/
-├── artifacts/
-│   └── sha256/<64-lowercase-hex-digest>
-├── projects/
-│   └── <project-id>/
-│       ├── project.json
-│       └── .write-lock
-├── receipts/
-│   ├── <operation-id>.intent.json
-│   └── <operation-id>.result.json
-└── staging/
-    └── <operation-id>-<attempt-token>/
-```
-
-冻结规则：
-
-- Data Root由显式`bun run data:init -- /absolute/path` bootstrap创建。bootstrap要求parent已存在且受支持，只用atomic non-recursive `mkdir(mode=0700)`创建empty root；并发bootstrap最多一个mkdir成功，其他只验证同一empty regular directory identity。它不创建子目录、不导入Artifact、不启动Gateway，是“所有mutation先持lease”之外唯一且有界的root-birth operation。
-- Gateway生产入口遇到root缺失、为空配置、相对路径、NUL、symlink/non-directory或无法打开时以稳定`DATA_ROOT_UNAVAILABLE`拒绝disk writer且零filesystem mutation；测试显式注入已bootstrap的临时绝对root。只有取得writer lease后才可创建/修复`artifacts/projects/receipts/staging`子目录。
-- 不提供 repo-relative、cwd-relative、`$HOME` 或 `.artifacts/provider-cache` fallback。
-- Gateway以`O_DIRECTORY|O_NOFOLLOW`打开root并持有directory fd，`fstat`要求directory、mode=0700与支持的本机filesystem；realpath只用于路径策略/诊断，不作为lease identity。所有内部路径只由受限ID/digest生成，不接收客户端相对/绝对filesystem path；每项I/O前后核对root fd dev/ino与已打开target identity。
-- `staging` 与 `projects` 必须位于同一 Data Root，以保证 manifest publish 使用同 filesystem rename。
-- v1 Data Root只允许一个active Gateway writer，但允许其他Gateway以reader mode读取同一Project/Artifact Store并在内存中运行世界；reader mode的Save/Save As/import/DH-013 publish稳定返回`DATA_ROOT_READ_ONLY`。
-- 唯一writer admission是package-owned `DataRootWriterLease`。identity bytes严格为UTF-8 `demiurges-data-root-lease-v1\0<dev-decimal>\0<ino-decimal>`，其中dev/ino来自held root fd的BigInt fstat；`leaseDigest=SHA-256(identityBytes)`，`port=49152 + (readUInt16BE(leaseDigest,0) % 16384)`。同一host directory object的case/path alias得到同一dev/ino与port；公式与endianness不留给实现者选择。
-- Gateway用`node:net`/Bun兼容backend以`exclusive:true`独占监听`127.0.0.1:<port>`并持有server handle直到进程退出。该backend必须启用`SO_REUSEADDR`但不得启用`SO_REUSEPORT`；实际Bun 1.3.14 probe若无法证明live listener排他、accepted handshake后SIGKILL可在bounded deadline内rebind，则implementation保持blocked，不试探备用port。
-- kernel listen handle是唯一lifetime/fencing authority：paused process仍持有端口，crash/exit由OS释放；`owner.json`、Unix socket、PID、TTL、mtime、connect failure与filesystem rename都不得判断或夺取ownership。可选bounded handshake只返回fixed protocol version、lease digest与opaque instance token供诊断，不影响admission。
-- Save、Save As、DH-013 Artifact publish、bundle import、project/receipt publish、startup intent recovery与cleanup从开始到最后一次filesystem mutation必须持有同一个live `DataRootWriterLease`对象；不能依赖“publish前再检查token”的TOCTOU。普通API与Studio不能伪造lease。
-- v1采用**cooperative single-writer boundary**：所有守约的Demiurges writer都必须服从上述live lease，直接绕过package-owned入口修改Data Root的本机进程属于environment corruption，不是第二个受支持writer。Data Root不是针对同UID任意进程的安全沙箱。
-- startup recovery在cleanup前全局冻结并重验全部evidence；每个destructive operation前仍须重验当前target的exact identity。若此后观察到out-of-band filesystem drift，立即停止本轮剩余cleanup，返回稳定`OPERATION_RECOVERY_REQUIRED`，并保留durable receipts及所有尚未完成cleanup的Project/lock/marker/attempt/Artifact evidence。
-- 已在发现该越权drift之前完成并fsync的cleanup不回滚，也不重建原路径。DH-016不实现prepare/commit/rollback namespace、filesystem snapshot或专用Data Root daemon；若未来需要抵御不可信本机并发writer，必须建立独立切片重新设计transaction-grade cleanup。
-- Network filesystem与跨主机并发writer不在v1支持范围；root-fd filesystem capability不能被package-owned local support check积极确认时只进入reader mode。v1真实验收使用同一host/network namespace与本机受支持volume。
-- 新进程只有成功取得kernel lease后，才有authority在开放disk mutation route前收束旧global operation intent、project write lock与staging。
-- Artifact route 从 `<dataRoot>/artifacts/sha256/<digest>` 读取；Studio 与浏览器永远只看到 `assetId`、digest 与受控 `/api/assets/:assetId`。
-- DH-013 旧 cache 只允许通过一次显式 `import:dh013 --data-root ...` 迁入 Store；导入成功后 Gateway 不再读取旧 cache。
-
-## Artifact Store contract
-
-Artifact Store 是 immutable content-addressed bytes，不是通用 provider registry：
-
-- key：严格 lowercase SHA-256，路径为 `artifacts/sha256/<digest>`；
-- publish 输入必须先匹配受信 `ManifestAssetEntry` 的 `assetId/digest/byteLength/format/elementCount/sourceBounds`；
-- 任何 Artifact publish 在 Store 产生首个业务副作用前，必须先完成下文 Data Root 全局 `operationId` durable admission；不能只依赖进程内 mutex、digest CAS 或 project-local lock；
-- 写入 `staging/<operation-id>-<attempt-token>/artifact`，在已打开 fd 上校验 regular file、完整读取、读取前后 identity、digest、format、bounds，再 file `fsync/close` 与attempt-directory fsync；
-- 只有live operation leader可以atomic no-replace `link(stagedArtifact, artifacts/sha256/<digest>)`发布完整inode并fsync Artifact directory；绝不使用会覆盖existing destination的ordinary rename。`EEXIST`只能重新验证exact bytes identity后幂等成功；存在但损坏、wrong type或验证期identity漂移时fail closed，不覆盖、不修补；
-- standalone Artifact live publish的`EEXIST`处理必须走全局common terminal finalizer：destination exact candidate为`success`，destination稳定存在但bytes/type非candidate为`aborted-before-publish + ARTIFACT_DESTINATION_CONFLICT`，identity漂移或无法稳定读取为`OPERATION_RECOVERY_REQUIRED`。在result durable publish前不得向live caller返回terminal结果；
-- publish 先于 project manifest 可留下未引用的安全 orphan；orphan 不可被 Project 自动采用，GC 延后；
-- 从 Store read 时仍重复 regular-file、长度、稳定 identity、digest 与格式校验，不能因为 publish 曾成功而跳过；
-- symlink、directory、FIFO/device/socket、hard-link count 漂移、读取期 inode/mtime/ctime/size/mode 漂移、oversize、trailing bytes、解压预算超限均拒绝；
-- receipt 只记录稳定 code、operation id、assetId、digest、byteLength、结果；不记录来源 URL、credential 或任意本机绝对路径。
-
-首版 Store 只需要登记当前静态 registry 中的 DH-013 三项真实 Artifact；不建立 provider adapter、任意 MIME 上传或通用 Artifact SDK。
-
-`bun run import:dh013 -- --data-root <absolute>`不伪造HTTP header；它用`op:` + SHA-256(`demiurges-dh013-import-v1\0` + frozen registry manifest digest)作为deterministic `operationId`，并与`operationKind=artifact.import-dh013`与三项exact candidate digests绑定。因此同一Data Root重跑是同key/same-binding replay，registry改变则是新operation；CLI不从时间、随机数或本机路径派生identity。
-
-## World Project manifest v1
-
-`project.json` 使用 exact-key、dense-array、plain-data、canonical JSON；未知字段一律拒绝。冻结的逻辑形状为：
-
-```ts
-interface WorldProjectManifestV1 {
-  readonly schemaVersion: 1;
-  readonly projectId: `project:${string}`;
-  readonly revision: `project-revision:sha256:${string}`;
-  readonly metadata: { readonly displayName: string };
-  readonly registry: {
-    readonly id: "registry:marble-hunyuan-v1";
-    readonly manifestDigest: typeof MARBLE_HUNYUAN_MANIFEST_DIGEST;
-  };
-  readonly snapshots: readonly Snapshot[];
-  readonly history: {
-    readonly snapshotIds: readonly Snapshot["id"][];
-    readonly cursor: number;
-  };
-  readonly currentRef: RefRecord;
-  readonly artifacts: readonly {
-    readonly assetId: ManifestAssetEntry["assetId"];
-    readonly digest: string;
-    readonly byteLength: number;
-    readonly format: ManifestAssetEntry["format"];
-  }[];
-}
-```
-
-语义闭合：
-
-- `revision` 是除自身外其余 manifest 语义字段 canonical bytes 的 SHA-256；metadata 不含时间戳，因而同一语义内容得到同一 revision。
-- `projectId` 只能是长度受限的 lowercase slug/UUID-like identifier；不得含 `/`、`\\`、`.` path segment、控制字符、百分号编码或 Unicode confusable。
-- `displayName` 是长度受限、NFC 的可见文本，不成为 path；不得含控制字符。
-- `snapshots` 与 `history.snapshotIds` 一一对应，按 root → tip 的单线顺序排列；首项 `source=write,parentId=null`，其余每项 `parentId` 必须等于前一项 ID。
-- 同一 ID 只出现一次；每个 Snapshot 通过package-root re-export的 `requireSnapshotRepresentationIntegrity`（实现位于 `artifacts/ball-vessel-fixture.ts`）与 `requireRegisteredSnapshotIdentity`（实现位于 `artifacts/diagnostic-rigid-fixture.ts`），保持递归冻结、Frame=`frame:world`、Units=`units:si` 与 scenario exact identity。
-- `cursor` 是 safe integer且落在history内；`currentRef.name=world:current`，`snapshotId=history.snapshotIds[cursor]`，version为正safe integer且不由cursor推导。
-- `artifacts` 只从全部持久 Snapshot 中的`registered-rigid-mesh`与`registered-gaussian-splat` representations推导，形成精确、排序、无重复集合；每项必须exact匹配frozen registry，registry digest必须等于当前受信registry。legacy `imported-rigid-mesh`/`gaussian-splat`不被误解释为DH-013 provider Store entry。
-- World Project v1只允许两类representation：不依赖外部bytes的procedural/primitive representation，以及已被上述registered kind + registry + Store exact支撑的external representation。任何持久Snapshot含legacy `imported-rigid-mesh`、`gaussian-splat`或其他引用external bytes但不能从manifest `artifacts`与Store闭合的representation，Project codec、Save/Save As、Open与bundle import必须以stable `PROJECT_ARTIFACT_UNBACKED` fail closed。Save/Save As与bundle全量验证在global operation admission前完成，因此该拒绝零Data Root mutation；Open在candidate session/repository对live可见前拒绝。
-- primitive/no-external-artifact project 的 `artifacts=[]` 可用于codec/integration回归；首版产品Save/Open UI以Marble × Hunyuan composite为主场景。
-- v1 不含 `Episode`、`Evaluation`、`lastRun`、events、turn/session ID、camera、selection、draft、provider transient或filesystem path。
-- 未知 `schemaVersion` 不猜测迁移、不部分加载；返回稳定 `PROJECT_SCHEMA_UNSUPPORTED`。
-
-## Repository 恢复边界
-
-在 `@demiurges/world` 内增加 package-owned、非 Agent tool 的 project restoration seam：
-
-- 输入只能是已经通过 World Project codec 的 `snapshots + currentRef`；
-- 在新的隔离 `WorldRepositoryState` 中依序插入完整 lineage，验证 source/parent/ID/representation/fixture；
-- 以受控 restore operation 设置 exact current Ref，并把 edit sequence 恢复为不会与已存 `snapshot:edit-N` 冲突的值；
-- 返回新的 `RuntimeMvpHost`/authority；不得逐步修改现有 live Repository；
-- malformed candidate 失败时，原 Product Session 的 Repository、projection、Ref、`lastRun` 与 running reservation byte-equivalent 不变；
-- restore seam 不暴露到 `WORLD_TOOL_CONTRACT`，OMP 仍只有 `read/write/edit/run`。
-
-`ProductSession` 增加可注入 Host/restore candidate 的 product control-plane seam。打开 Project 时创建一个新 settled session；不原地覆写正在运行或已有世界的 session。
-
-## Save、Open 与 crash atomicity
-
-### Save / Save As
-
-每个外部可请求的磁盘mutation都必须携带stable `Idempotency-Key` header；Gateway把它规范化为opaque UUID-like `operationId`。root bootstrap是前述唯一root-birth例外；startup recovery/cleanup只能沿用已durable admit的operationId与binding，不创造新operation。Save/Save As另携带`expectedRevision`；bundle import与DH-013 publish也使用同一幂等键规则。同一Data Root内，同一operation只能绑定一个`operationKind + projectId|assetId + expectedRevision|null + candidateRevision|digest`；该唯一性由全局durable intent建立，不由project-local lock或进程内串行性推断。
-
-每个writer进程必须实作package-owned `OperationSingleFlight`，以`operationId`为key，并在读取/创建staging或global intent前取得。它是live execution authority，不替代global intent的durable namespace authority：同一operationId只有leader可以写staging、发布intent、进入Project lock/Artifact CAS/bundle publish与发布result。same-binding follower必须在critical section外等待leader，leader结束后重读intent/result并replay；等待deadline/request abort时只返回transient `OPERATION_IN_PROGRESS`/`REQUEST_ABORTED`，follower零filesystem mutation且不取消leader。single-flight持有到terminal result、directory fsync与exact cleanup完成；若result无法durable publish，该entry在本进程内poison为`OPERATION_RECOVERY_REQUIRED`，不允许另一live request继续执行，只能由下次lease holder的startup recovery收束。
-
-所有已global admit的mutation（Save/Save As、standalone Artifact publish、DH-013 import、bundle import）共用一个package-owned `OperationTerminalFinalizer`，不把terminalization藏在Save专属步骤。它只发布`success`或`aborted-before-publish + stable public code`，使用下文result no-replace/fsync协议；任何live可分类失败必须先finalize再响应，startup recovery必须根据同一intent与磁盘事实得到同一variant/code。无法稳定分类、intent/result漂移或result不可持久时是`OPERATION_RECOVERY_REQUIRED`，不伪造terminal result。
-
-1. Gateway必须已持有并继续持有进程生命周期`DataRootWriterLease`；session reservation拒绝running、aborted request、空world与非法operationId。
-2. 从受信Repository导出immutable linear history；不从Studio回传projection拼装manifest。服务端计算deterministic candidate revision并验证全部Artifact。
-3. **Global replay/admission优先：** leader在任何Project lock、Artifact CAS publish或bundle business publish前，先读取`receipts/<operation-id>.intent.json`与`<operation-id>.result.json`。terminal result与binding exact时返回同一success/`aborted-before-publish`且零新mutation；任何kind/project/asset/expected/candidate binding drift在业务mutation前统一返回`OPERATION_BINDING_CONFLICT`。无global intent时，先在unique `staging/<operation-id>-<attempt-token>/operation-intent.json`完整写入canonical record，其持久字段exact只有`schemaVersion + operationId + operationKind + target(projectId|assetId) + expectedIdentity|null + candidateIdentity`；`attemptToken`只出现在staging路径，`writerInstanceToken`只出现非权威diagnostic，两者都不进入stable binding。file fsync/close、attempt-directory fsync后，再以atomic no-replace `link(stagedIntent, receipts/<operation-id>.intent.json)`发布同一inode并fsync receipts directory。`EEXIST`只重读已发布intent并比较exact binding；不覆盖。这个hard-link publish是全局durable admission point：它之前的staging只是可清理orphan，它之后同key不可再绑定其他operation。global intent只决定binding，不授予第二个live request执行权；该权限只属于当前single-flight leader或取得新kernel lease后的startup recovery。
-
-`candidateIdentity`是operation-kind-specific canonical plain data：Project Save/Save As为`projectRevision`；standalone Artifact为`assetId + digest + byteLength + format + elementCount + sourceBounds`；DH-013 import为三项排序Artifact descriptors；bundle import为`projectRevision + ordered candidateArtifacts[] + artifactSetDigest`。`candidateArtifacts[]`每项与standalone descriptor同形，按digest排序、无重复、最多16项；`artifactSetDigest`是该canonical array bytes的SHA-256，并必须与Phase A验证的Project manifest `artifacts`集合exact一致。因此新lease holder不依赖未发布staging path/attempt token，仅从immutable global intent就能唯一定位并重验所有candidate Artifact destinations；intent中集合/hash/project revision任一不自洽即`OPERATION_RECOVERY_REQUIRED`。
-4. Save/Save As leader在global admission后才确保目标project directory存在：existing Project重用已no-follow验证的directory；Save As `expectedIdentity=null`且pre-admission已证明path absent时，用atomic non-recursive `mkdir(mode=0700)`创建dir并fsync `projects/` parent，`EEXIST`重读不覆盖。然后以atomic no-replace `link(receipts/<operation-id>.intent.json, projects/<id>/.write-lock)`发布同一个已完成inode，并fsync project directory；`EEXIST`绝不覆盖任何existing file/type。project lock只负责project-local CAS/serialization，必须与global intent同inode或exact canonical bytes/binding；即使同inode/exact binding，也不授予follower继续执行权。不同binding返回`PROJECT_WRITE_LOCKED`/`OPERATION_BINDING_CONFLICT`。writer instance token只用于evidence，不替代kernel lease。
-5. project lock成功后写入同一attempt staging下的`project.json`，完整validate、canonicalize、`fsync`文件并close。
-6. 若目标已有`project.json`，其revision必须exact匹配intent.expectedRevision；Save As要求目标不存在，或same projectId/same candidate revision幂等。global admission后发现revision/project-id/abort/其他可分类的pre-publish失败时，leader必须先发布same-binding terminal `aborted-before-publish` result，其stable `code`为`PROJECT_REVISION_CONFLICT`、`PROJECT_ID_CONFLICT`、`REQUEST_ABORTED`或其他已登记public code，再返回该exact result；不得先返回一次性错误而把replay留给startup另行分类。
-7. rename candidate到`projects/<id>/project.json`，随后`fsync` project directory；此刻candidate revision成为唯一可见Project事实。
-8. 在attempt staging中完整写入与global intent binding exact的terminal result，其variant只能为`success`或`aborted-before-publish + stable public code`。file fsync/close、attempt-directory fsync后，以atomic no-replace hard-link发布为`receipts/<operation-id>.result.json`并fsync receipts directory；`EEXIST`必须重读并要求exact terminal result，否则`OPERATION_RECOVERY_REQUIRED`。result不含secret/path；intent作为永久幂等namespace evidence保留，不因success/aborted删除。
-9. 仍持有kernel lease时，只释放与global intent、operationId、operationKind和candidateRevision exact匹配的project lock；失败不删除未知lock/staging。same key绑定不同operation kind/project/asset/expected/candidate统一返回`OPERATION_BINDING_CONFLICT`。
-
-Data Root writer取得kernel lease后、对外提供disk mutation route前扫描bounded global intents/results与project write locks：
-
-- global intent与result完整且binding exact：直接重放terminal result，不重做业务mutation；
-- global intent完整、result缺失，但已发布`project.json`或standalone Artifact exact等于candidate：补齐必要directory fsync与success result，清理exact staging/project lock，结果收敛为success；
-- standalone `artifact.publish`/`artifact.import-dh013` global intent完整、result缺失且destination不是exact candidate时：destination absent收敛为`aborted-before-publish + OPERATION_INTERRUPTED`；destination稳定存在但bytes/type非candidate收敛为`aborted-before-publish + ARTIFACT_DESTINATION_CONFLICT`；destination/intent读取期identity漂移、不可稳定打开或result binding不可证明时保留证据并`OPERATION_RECOVERY_REQUIRED`。live `EEXIST`与startup recovery必须使用这一个matrix；
-- `bundle.import` global intent完整、result缺失时，在通用Project分支前先验证`candidateArtifacts[]/artifactSetDigest/projectRevision`自洽，再按digest顺序以no-follow opened-file validator重验每个destination：exact继续，absent记录为未发布但不是conflict，稳定noncandidate/wrong-type立即发布`aborted-before-publish + ARTIFACT_DESTINATION_CONFLICT`，任一identity drift/unreadable/集合不自洽保留证据并`OPERATION_RECOVERY_REQUIRED`。只有全部Artifact为exact/absent时才进入下一条Project分类；Project candidate未发布时最终`OPERATION_INTERRUPTED`，已publish exact Artifact只是safe orphan。该分支与live Phase B使用同一package-owned Artifact matrix；
-- Project Save/Save As/bundle global intent完整、result缺失，且业务candidate未发布：若当前Project仍为expected/不存在，写入same-binding terminal `aborted-before-publish + OPERATION_INTERRUPTED`；若当前Project是另一个完整可验证revision，写入same-binding terminal `aborted-before-publish + PROJECT_REVISION_CONFLICT`。两者都清理exact attempt staging/project lock，已发布Project保持可用；Bundle已发布的unreferenced Artifact是可验证安全orphan，不使Project成为半恢复世界；
-- published global intent malformed、result/lock binding冲突，或磁盘事实无法作为expected/candidate/另一完整可验证revision分类：保留证据，该operationId返回`OPERATION_RECOVERY_REQUIRED`；关联Project时同时标记`PROJECT_RECOVERY_REQUIRED`，Open仍可验证读取已发布Project，但相关Save拒绝；不得猜测删除；
-- 没有任何published global intent/result/project lock通过exact operation/attempt binding引用的partial/complete attempt staging不构成durable admission；新lease holder可在验证regular-directory、path budget、opened-file identity与“不被任何intent/lock/result引用”后作为orphan清理，不生成aborted result。malformed/unknown published global intent或project lock永远不能被当作pre-admission orphan。
-- Save As在运行前目标Project不存在且terminal aborted时，清理exact project lock后只有在该project directory仍为已打开、no-follow、empty regular directory且与operation exact关联时才删除它，并fsync `projects/` parent；任何未知entry/identity漂移都保留并fail closed，不递归删除。
-
-因此global intent publish前kill收敛为可重试的not-admitted operation；global intent publish后到业务candidate publish前kill收敛为旧revision/无Project+terminal aborted；Project或standalone Artifact publish后任意kill收敛为同一candidate success。同key replay先于project lock、Artifact CAS与旧expected CAS。首版不以PID/TTL/socket探测夺锁，也不允许没有live kernel lease的“清锁按钮”。
-
-### Open
-
-1. 只按validated `projectId`定位exact `projects/<id>/project.json`，使用no-follow regular-file fd与读取前后identity校验。
-2. 应用manifest byte/JSON/depth/entries数量budget，decode exact schema并重算revision。
-3. 校验完整lineage/current Ref/registry/artifact set。
-4. 对每个Artifact从Store重新执行byte identity与格式验证。
-5. 在内存中构建candidate Repository与settled Product Session。
-6. 全部成功后才在Session registry发布新session；失败不占用session、不改变已有session/project list state。
-
-`staging/` 永远不参与 Open；`project.json` 是唯一已发布 revision pointer。
-
-### Project listing
-
-不新增第二份`recent index`。`GET /api/projects`对`projects/`做bounded、no-follow目录枚举，只返回完整验证过的`project.json`的`projectId/displayName/revision`；非法目录、symlink与超预算项不进入列表，并以bounded stable diagnostic count呈现，不能被Open。`project.json` mtime仅作为non-authoritative“最近修改”展示排序，不进入manifest、revision、receipt或Open admission。重启后仍可由同一Data Root发现Project。
-
-## Linear undo / redo
-
-undo/redo 是 Human/Harness control-plane operation，不是 Kernel action或 Agent tool：
-
-- `undo`：`cursor > 0`时移动到父Snapshot，创建`world:current`新Ref record，`version + 1`；Snapshot不变。
-- `redo`：`cursor < history.length - 1`时移动到唯一下一Snapshot，Ref `version + 1`；Snapshot不变。
-- 边界无可移动项时返回明确`UNCHANGED`，不递增Ref version、不清空或伪造任何evidence。
-- undo后发生新的accepted write/edit/adopt时，截断cursor之后的redo history，再附加新Snapshot；不建立分支。
-- undo/redo后`lastRun=null`，因为当前世界已改变；operation不创建Episode/Evaluation。
-- 每次移动后需要显式Save才成为持久revision；首版不做后台autosave。
-- stale expected project revision/ref、running turn、aborted request均在mutation前拒绝，且history/ref/edit sequence不变。
-- 未绑定Project的session调用undo/redo返回`PROJECT_NOT_BOUND`；历史边界返回`PROJECT_HISTORY_BOUNDARY`/`UNCHANGED`，均零mutation。
-
-## World Project bundle v1
-
-首版 bundle 是单文件、无压缩、确定性 ZIP，media type `application/vnd.demiurges.world-project+zip`，推荐扩展名 `.dworld`。只允许：
-
-```text
-bundle.json
-project/project.json
-artifacts/sha256/<digest>   # 仅 project 引用项
-```
-
-规则：
-
-- `bundle.json`固定schema/version，绑定project revision、条目path、byteLength与SHA-256；canonical JSON。
-- entry顺序、时间戳、权限与ZIP metadata固定；export同一project revision产生byte-identical bundle。
-- 只允许ZIP store method；拒绝compression、encryption、data descriptor、ZIP64、extra field、duplicate name、unknown entry、absolute/backslash/`..`/NUL path、symlink/device mode、trailing data与CRC/digest不一致。
-- v1 import固定内存budget：request body/total stored bytes `<=64 MiB`，单entry `<=32 MiB`，entry count `<=16`，central directory `<=64 KiB`，`bundle.json`/`project.json`各`<=1 MiB`；所有长度累加使用safe integer并在分配前检查。package-owned `BUNDLE_IMPORT_PHASE_A_MAX_OWNED_BYTES=224 MiB`同时统计raw body、entry copies/views需要的owned backing buffers、SPZ/GLB解码中间bytes与canonical JSON bytes；计划分配会超过上限时在分配前拒绝。JS plain object大小由entry/depth/key/string预算另行限定，不用“未计入byte buffer”绕过总预算。
-- import明确分两阶段。**Phase A — zero Data Root mutation：** 在不创建Data Root staging、不open-for-write、不mkdir/link/rename/fsync的前提下，于上述bounded memory中完整验证ZIP table/全体bytes、bundle index、Project codec、external-artifact completeness、registry、Snapshot lineage、每个Artifact digest/length/format/bounds与目标Project的只读conflict状态，并计算exact operation binding。任一项失败（包括legacy/unknown unbacked external representation）立即返回，Data Root write-syscall计数为0。**Phase B — admitted publish：** 取得`OperationSingleFlight`，replay/发布global intent；只有leader在admission后才创建`staging/<operation-id>-<attempt-token>`，把已验证memory bytes写入opened fd，并重做opened-file identity、digest/length/format/bounds验证与file/directory fsync，随后逐个幂等publish Artifact，最后原子publish Project。
-- bundle内逐Artifact的destination exact/absent/stable-conflict/identity-drift与standalone Artifact复用同一EEXIST/recovery matrix；因bundle candidate是Project，中途Artifact conflict通过common finalizer记录same-binding terminal result，已publish的exact CAS bytes只是安全unreferenced orphan。
-- import从读取body到最后cleanup全程要求live`DataRootWriterLease`；Project publish明文复用Save步骤4–9，fresh target的`expectedRevision=null`，same projectId/same revision走same-key或same-binding幂等结果，并发different revision遵守同一lock/CAS/conflict语义。
-- projectId已存在且revision相同：幂等成功；同projectId不同revision：返回`PROJECT_ID_CONFLICT`，绝不覆盖。用户若需新ID，使用显式“另存为/导入副本”后续动作，不静默改写identity。
-- 导入空Data Root后project/world/artifact/calibration identity与export前exact相同；不调用provider。
-- 实现允许引入一个直接、固定版本的最小ZIP codec dependency，但所有安全policy必须由Demiurges wrapper明确实施，不能把第三方parser默认行为当trust boundary。
-
-## Gateway API 与 Studio 产品行为
-
-新增 product control-plane routes，不加入 OMP model tools：
-
-- `GET /api/projects`
-- `POST /api/sessions/:sessionId/project/save-as`
-- `POST /api/sessions/:sessionId/project/save`
-- `POST /api/projects/:projectId/open`
-- `POST /api/sessions/:sessionId/project/undo`
-- `POST /api/sessions/:sessionId/project/redo`
-- `GET /api/projects/:projectId/export`
-- `POST /api/projects/import`
-
-所有mutation使用bounded body、AbortSignal、stable public error code、no-store与同一session/project reservation；raw filesystem/provider错误不出现在响应。
-
-Studio首版提供：
-
-- 未保存状态与项目名/revision显示；
-- “保存”“另存为”“打开项目（按非authoritative mtime展示最近修改）”“导出”“导入”“撤销”“重做”的可见按钮与禁用态；
-- 新建项目仍是新的空Product Session，第一次完整world后通过Save As成为持久Project；
-- Open成功后替换当前projection并重置Presentation transient state；失败保留原viewport/session并显示稳定错误；
-- 不提供arbitrary server path输入，不在localStorage/URL暴露Data Root；
-- 导入/导出使用浏览器File/Blob boundary；CameraRig与按需rAF语义不变，idle仍回到0无效帧。
-
-## Expected implementation surface
-
-计划允许的主要文件（fresh review可在不扩大语义的前提下调整测试文件名）：
-
-- `packages/world/src/repository/world-repository.ts`：受控history export/restore/ref move seam；
-- `packages/world/src/host/runtime-mvp-host.ts`：注入/恢复candidate authority；
-- `packages/world/src/index.ts`与对应tests；
-- 新建`packages/world-project/`：manifest codec、Data Root、`DataRootWriterLease`、Artifact Store、atomic project store、bundle codec与tests；
-- `apps/agent-gateway/src/product-session.ts`：project-bound session/history control；
-- `apps/agent-gateway/src/product-session-api.ts`：projects routes/reservation/error mapping；
-- `apps/agent-gateway/src/provider-asset-api.ts`、`main.ts`、`scripted-fixture-main.ts`：共享Data Root；
-- `apps/studio/src/product-session-client.ts`、`App.tsx`、`styles.css`与对应tests；
-- `scripts/import-dh013-provider-assets.ts`与安全校验helper；
-- `package.json`/workspace package manifests/`bun.lock`（仅在采用固定ZIP dependency时）；
-- DH-016 canonical harness docs。
-
-不允许修改MuJoCo、Evaluator、AdoptPolicy、四工具contract、OMP restricted tool policy或provider generation contract，除非fresh plan review明确重新授权。
-
-## Acceptance 与 adversarial matrix
-
-### A. Data Root / Artifact Store
-
-- explicit absolute root跨main/worktree/Gateway读取同一三项DH-013 assets；旧cache不是fallback。
-- relative/empty/NUL/symlink escape、wrong mode/type、digest/path case drift、partial/oversize/format-invalid/trailing bytes fail closed。
-- concurrent same-digest publish幂等；different bytes/same target不覆盖；读取期stat漂移拒绝。
-- standalone Artifact intent发布后、destination link前kill，以及destination exact/absent/corrupt/wrong-type/identity-drift的live `EEXIST`与restart replay逐项得到同一`success`、`OPERATION_INTERRUPTED`、`ARTIFACT_DESTINATION_CONFLICT`或`OPERATION_RECOVERY_REQUIRED`；非terminal时不清理证据。
-- receipt无key、URL query、Authorization、绝对路径或provider raw message。
-
-### B. Manifest / Repository restore
-
-- canonical Marble × Hunyuan v1→Scene Composer v2→save→new process open，Snapshot IDs、parents、current Ref、Ref version、ArtifactRefs、Frame/Units、registry/calibration/witness exact。
-- primitive empty-artifact project可round-trip；unsupported scenario/registry或extra/missing/reordered/duplicate Snapshot与artifact mapping拒绝。
-- 含legacy `imported-rigid-mesh`/`gaussian-splat`外部引用的diagnostic/session在Save/Save As与bundle import中以`PROJECT_ARTIFACT_UNBACKED`且零Data Root mutation拒绝；伪造该Snapshot的Project Open在candidate对live可见前拒绝。Marble × Hunyuan registered composite与无external-artifact primitive不回归。
-- forged currentRef/cursor/version、branching/cycle/orphan/duplicate ID、runtime-terminal without valid parent、Snapshot mutation、non-finite/`-0`/sparse/accessor input拒绝。
-- open candidate任一步失败，existing session/repository/ref/lastRun/project list与session capacity不变。
-- restore后首个合法edit ID不碰撞、不跳号；Agent `read/write/edit/run`行为与工具集合exact不变。
-
-### C. Atomic save / crash
-
-- fault injection覆盖single-flight leader/follower/poisoned release、attempt mkdir、global intent write/short write/file fsync/close/attempt-dir fsync、global hard-link no-replace publish/receipts-dir fsync、project hard-link no-replace publish/project-dir fsync、Artifact hard-link no-replace CAS/artifact-dir fsync/EEXIST revalidation、Project candidate write/validate/fsync/close、revision CAS、Project rename/directory fsync、result与unlock各边界。
-- 对同一operationId逐点kill：global intent publish前没有durable admission，orphan staging可清理且same key重新开始；global intent publish后、business candidate publish前生成same-binding terminal aborted；Project/standalone Artifact publish后收敛为candidate success，旧expected replay不被误判conflict。
-- 同key同时用于两个不同Project、Save与Artifact publish、Save与bundle import时，只有一个exact binding能发布global intent；败者在Project lock/Artifact CAS/bundle publish前返回`OPERATION_BINDING_CONFLICT`，并证明零业务副作用。该测试使用真实并发请求与逐点crash，不仅是单线程mock。
-- 同key+同binding的Save、standalone Artifact publish与bundle import真实并发时，只有single-flight leader能产生filesystem/business mutation；follower只等待并replay exact terminal result，或在bounded deadline/abort时无写入返回transient结果。断言Project/Artifact publish计数exact=1、follower staging/lock/CAS/result write计数=0，leader不被follower abort取消，poisoned entry不可由另一live request接管。
-- global admission后的live revision/project/abort/Artifact conflict先durable finalize再响应；立即same-key replay与重启startup recovery都返回byte-equivalent terminal variant/code。Save As terminal aborted后仅删除可证明由该operation创建且仍empty的exact project directory并fsync parent，不递归清理。
-- stale staging不参与open；exact recoverable lock由exclusive新owner收束，malformed/ambiguous lock不删除并使Save返回`PROJECT_RECOVERY_REQUIRED`，Open仍可验证成功。
-- 两个进程/两个worktree对同一project save：最多一个持锁成功，另一个无side effect返回locked/conflict。
-- 两个Gateway争用同一Data Root：最多一个成功bind derived loopback port并开放disk-mutation routes；active/paused owner存在时第二个进入reader mode且仍能验证读取同一Project/Artifact，写入稳定拒绝；writer被SIGKILL后OS释放lease，新进程才能成为writer并恢复intent。
-- deterministic port被无关进程或另一Data Root占用时安全进入reader mode并报告`DATA_ROOT_WRITER_LEASE_UNAVAILABLE`；不得probe备用端口或误认writer。
-- 在Save最后一次admission后暂停writer、并发启动reader、再恢复writer：reader始终不能cleanup/publish，writer仍是唯一mutation holder；Artifact publish、bundle import、receipt与startup recovery逐项证明没有绕过lease。
-- root缺失时Gateway零mutation；bootstrap并发只产生一个0700 empty root。对同一directory object使用case spelling/受支持path alias时dev/ino、lease digest与port exact相同；不同code path使用同一v1 formula。
-- Bun 1.3.14真实子进程probe覆盖：无accepted connection与已有bounded handshake两种情况下，live/paused owner排他，SIGKILL后deadline内rebind；child有deadline、kill/reap且无残留listener。
-- cooperative writer下，两个以上pending Project的startup recovery在没有越权外部mutation时必须全部收敛并完成exact cleanup；若测试seam在第一个Project已完成并fsync cleanup后篡改后续Project evidence，recovery必须在处理该Project前检测漂移、稳定返回`OPERATION_RECOVERY_REQUIRED`，保留该Project及所有尚未处理evidence与durable receipts。第一个Project已完成的cleanup保持完成，不要求事务性回滚。
-- cleanup开始前或当前destructive operation前已经可观察到的foreign entry、missing/replaced lock/marker仍是产品correctness边界：必须在该次mutation前fail closed。只有在先前cleanup已经完成并fsync之后才发生的直接filesystem mutation，才适用上述environment-corruption无回滚规则。
-
-### D. Undo / redo
-
-- v1→v2→undo回v1→redo回v2，只移动Ref、version单调，Snapshot bytes/ID不变。
-- undo后新edit截断redo；边界unchanged不推进version；save/restart后cursor与redo能力exact恢复。
-- running/stale/aborted操作零mutation；`lastRun`清理规则闭合；不增加第五个Agent tool。
-
-### E. Bundle
-
-- 同revision export byte-identical；空Data Root import得到同project revision、world identity与Artifact digest，provider调用计数=0。
-- missing/extra/duplicate/traversal/backslash/absolute/symlink/compressed/encrypted/ZIP64/oversize/CRC/digest/manifest drift全部拒绝且Data Root无partial project。
-- instrumented syscall反例覆盖legacy `imported-rigid-mesh`、legacy `gaussian-splat`与unknown unbacked external representation：三者都在Phase A返回`PROJECT_ARTIFACT_UNBACKED`，并断言Data Root `mkdir/open-for-write/write/link/rename/fsync` count全为0；计数窗口从import request handler接收请求开始，到Phase A返回结束，不把Gateway启动时lease holder预先建立Data Root子目录的调用误计入该request。ZIP table/CRC/digest在该反例中本身合法，确保测到的是Project completeness边界。
-- Phase B的逐Artifact exact/absent/corrupt/wrong-type/identity-drift复用standalone matrix；中途失败有same-binding terminal result，Project不可见，已publish exact bytes仅是safe orphan。
-- fault injection在bundle Artifact stable conflict已检测、terminal result hard-link/fsync前kill；重启后从global intent的ordered candidate set先重跑Artifact matrix，same-key replay仍为`ARTIFACT_DESTINATION_CONFLICT`，Project不可见，exact CAS orphan保持可验证。对identity drift的同一kill point必须保持`OPERATION_RECOVERY_REQUIRED`而不改写为interrupted。
-- same ID/same revision幂等；same ID/different revision稳定冲突；导入错误不回显本机路径或secret marker。
-
-### F. Real process / Chromium
-
-1. 使用现有DH-013 assets创建composite v1并编辑v2，Save As成功。
-2. 真实停止Studio/Gateway，在DH-016 worktree以同一Data Root启动，通过bounded project listing发现并Open project。
-3. viewport恢复同一world/current Ref与三项assets，不出现黑屏/page error/NaN；不调用Marble/Hunyuan。
-4. Hunyuan GLB临时移走或篡改后Open明确失败，当前已打开world保持；恢复bytes后可再次打开。
-5. UI undo/redo、save、export/import可见且状态正确；Presentation draft/camera/selection未从Project恢复。
-6. 导入到全新临时Data Root后真实打开；idle rAF=0，Agent输入与Observer交互不回归。
-
-## Verification commands
-
-实现阶段至少执行：
-
-```text
-bun test <focused world-project/repository/gateway/studio tests>
-bun test
-bun run typecheck
-bun run build
-git diff --check
-.artifacts/harness/harnessctl validate
-.artifacts/harness/harnessctl doctor
-```
-
-另执行真实process restart、two-worktree shared-root、kill-point fault injection、empty-root bundle round-trip与真实Chromium acceptance。所有bounded subprocess必须有deadline/kill/reap，测试退出后不得遗留Gateway/Studio/lock/staging进程副作用。
-
-## Phase plan
-
-1. **Authority与独立worktree** — completed。
-2. **Source/contract audit** — completed：确认旧cache、Repository/Host/ProductSession与registry seam。
-3. **设计与验收冻结** — completed：本plan冻结Data Root、manifest、atomicity、bundle、history与产品surface。
-4. **Independent cross-plan review** — completed：Round 10计划双审批准。
-5. **Package-first implementation** — completed：World Project codec、Store、Repository restore与fault tests已落地。
-6. **Gateway/Studio integration** — completed：routes、shared assets与产品UI已落地。
-7. **Full verification与implementation cross-review** — in_progress：Human已选择cooperative single-writer Option A；冻结该边界并进入Round 22 fresh review。
-8. **Closeout/release** — gated；遵守standing commit/push/ff-merge authority，但不得跳过review。
-
-## Errors Encountered
-
-| Error | Attempt | Resolution |
-|---|---:|---|
-| `accept`登记了`docs/project-harness/tasks/DH-016/plan.md` locator，但文件未自动scaffold | 1 | 不重复命令；按该唯一locator使用`apply_patch`创建canonical plan，并在创建后执行`sync/validate/doctor` |
-| 按旧入口调用`.artifacts/harness/harnessctl.py`得到`No such file` | 1 | 检查实际bootstrap runtime，确认升级后的正常入口为可执行文件`.artifacts/harness/harnessctl`；不重复旧命令 |
+# DH-018 Agent Worldmaking Orchestration — 第一最小闭环
+
+## 发心
+
+证明 Agent 已经能够消费 DH-017 产出的真实、已验证 `ArtifactRef` 来造世界，而不是再造一套 Agent 框架、provider SDK 或持久化协议。
+
+这一步只回答一个产品问题：给 restricted Agent 一句自然语言任务后，它能否只通过既有 `read`、`write`、`edit`、`run`，把已登记物体放进 Marble 世界，看到确定性失败证据，并修正到 Evaluation 通过。
+
+## 已确认事实
+
+- DH-017 已产生一个 durable `verified` Hunyuan `object-glb`：
+  - `artifactSetDigest=5641bf040c5dc881a553332493957627c8557edc5d7aa7d4f65b42139259e69d`
+  - `assetId=asset:generated-sha256-65dc7eb3d71393e624925c6848e88b55cf0bd6fd8d1ca63b956743fddd55e05a`
+  - `contentDigest=65dc7eb3d71393e624925c6848e88b55cf0bd6fd8d1ca63b956743fddd55e05a`
+  - `byteLength=24189512`，`format=glb-2.0`，`elementCount=1`
+- `GeneratedArtifactReader.list()` 已是 durable verified set 的只读 authority；它不暴露 credential、signed URL 或 provider handle。
+- restricted OMP Agent 与四个 world tools 已存在；MuJoCo composite runtime、landing Evaluation、Ref/CAS edit 也已存在。
+- `WorldProjectManifestV1` 固定要求现有 `registry:marble-hunyuan-v1` 及其完整 manifest digest。修改或扩展该 registry 会破坏旧项目恢复，因此本切片不得修改 Project v1 或声称新动态 world 已可落盘恢复。
+
+## 最小实现
+
+1. 在 control-side session 创建边界，从 `GeneratedArtifactReader.list()` 选择**恰好一个**合法 `object-glb` 候选；零个或多个时不猜测、不自动选最新。
+2. 将该 verified set/member 投影为一个窄的、递归冻结的 generated-object binding：只保留后续 session Snapshot 实际消费的 `artifactSetDigest`、`assetId` 与 `sourceBounds`。其他已验证 summary 字段继续由 Reader 持有，不复制到 Snapshot 边界。
+3. 用该 binding 构造 session-bound Marble composite fixture：
+   - Marble environment/floor 继续复用现有受信静态 registry；
+   - Hunyuan visual identity 使用 `(artifactSetDigest, assetId)`；
+   - glTF Y-up → world Z-up、AABB centering 与 box proxy 明确标注为 `authored-unverified`，不得写成 provider-verified calibration；
+   - 不读取或复制 24 MB GLB bytes 到 Snapshot。
+4. Agent 仍只看到 `read`、`write`、`edit`、`run`。`write` 不增加 Artifact 参数，不增加第五个 tool；Artifact binding 在 Agent 启动前由 Host 固定。
+5. 一次自然语言 turn 执行最短 repair loop：
+   - `write` + `read`；
+   - 首次 `edit` 把 generated object 放到 floor 支撑范围外，`run` 得到 deterministic `passed=false`；
+   - Agent 检查 Evaluation 指标；
+   - `read` 当前 Ref，再次 `edit` 到 floor 上方，第二次 `run` 得到 `passed=true`。
+6. 保留两个 run 的 evidence/trace，使测试能证明失败不是异常吞掉、成功不是脚本口头宣称。
+
+## 非目标
+
+- 不调用 Marble/Hunyuan，不读取 Keychain，不新增付费或网络 side effect。
+- 不修改 `MARBLE_HUNYUAN_REGISTRY`，不修改 `WorldProjectManifestV1`、Project Store、bundle 或 startup recovery。
+- 不做通用 artifact resolver、插件系统、planner、workflow engine、retry/backoff、scheduler 或 audit framework。
+- 不增加 `generate`、`inspect`、`adopt` 等第五个 world tool；不自动 adopt terminal Snapshot。
+- 不支持多个 generated candidate 的排序/选择 UI；多候选歧义留给后续真实需求。
+- 不把 source bounds 或 authored calibration 说成语义、尺度或物理形状的 provider 真值。
+
+## Worker 允许修改范围
+
+优先只在下列路径中做 surgical changes；若确有必要超出，Worker 必须先在 RESULT 中说明理由，不能自行扩张：
+
+- `packages/world/src/artifacts/marble-hunyuan-composite-fixture.ts`
+- `packages/world/src/artifacts/marble-hunyuan-composite-fixture.test.ts`
+- `packages/world/src/world-tools/world-tool-surface.ts`
+- `packages/world/src/world-tools/world-tool-surface.test.ts`
+- `packages/world/src/world-tools/world-tool-contract.ts`
+- `packages/world/src/world-tools/world-tool-contract.test.ts`
+- `packages/world/src/index.ts`
+- `apps/agent-gateway/src/product-session.ts`
+- `apps/agent-gateway/src/product-session.test.ts`
+- `apps/agent-gateway/src/product-session-api.ts`
+- `apps/agent-gateway/src/product-session-api.test.ts`
+- 必要时新增一个与上述边界同目录、职责单一的 DH-018 binding/helper 及对应 test。
+
+禁止触碰 provider transport、generation journal/publication、Project Store/manifest、Studio、生产部署文件和 Keychain。
+
+## 验收证据
+
+1. Unit test：Reader summary 到 frozen binding 的 exact 投影；零候选/多候选均不猜测。
+2. Fixture test：真实 DH-017 identity、source bounds、authored-unverified calibration 与派生 proxy 重算一致。
+3. Product Session test：tool name 集合仍恰好为四个；trace 中首次 Evaluation fail、修复后 pass；Ref version 单调增长。
+4. Regression：旧 `fixture:marble-hunyuan-composite-v1` 与既有 Project v1 tests 不漂移。
+5. Operator 运行 focused tests、相关 package typecheck，以及一次受限 OMP Agent canary；canary 不调用世界模型 provider。
+
+## 完成定义
+
+- 真实 verified ArtifactRef 由 control side reader 消费并固定到 Agent session。
+- restricted Agent 仅用四工具完成 `compose → run fail → inspect → edit → run pass`。
+- deterministic Evaluation 是唯一成功判据。
+- 无 Project v1 兼容性漂移、无 provider/credential side effect、无通用框架增量。
+- Worker RESULT、Reviewer verdict 与 Operator 独立验证证据均落盘后，才可关闭 DH-018。
 ```
 
 ## Recent Progress Context
@@ -1111,6 +800,459 @@ Independent review：
 - Human 授权后完成 closeout packet、closeout-phase approval 与正常 `mark-done`；CLOSE event `evt-20260814T075536Z-c2f362f9`，DH-013 已为 `done / closed`，lease 已释放，未使用 force override；
 - 最终 `464 pass / 0 fail / 3418 expect()`，typecheck、build、diff-check 与 EXharness validate/doctor 通过；真实 provider bytes 继续只存在 ignored local cache，不进入 Git；
 - 当前 authority 仅覆盖 commit + push `agent/codex/DH-013`；不包含 merge `main`、tag、deploy 或新 provider generation。
+
+## 2026-08-15 — DH-017 plan gate approved，Phase 1 implementation started
+
+- Round 17 两路 fresh independent plan review 在 frozen plan SHA-256 `9b8a4b94b8a2b86abe8b39ec61a63bd321160420e6e06390e92942cf341b5b20` 与 22-file aggregate `9613ae69cde1ac8419a11fc2374fd76f0cab1724af3bc513b7b305a70fbbb3f8` 上共同批准：`approved / may_implement=yes / P0=P1=P2=0`；Harness review events 为 `evt-20260815T212232Z-43792abe`、`evt-20260815T212238Z-7ae5130e`；
+- Phase 1 已实现 strict generation request/binding/intent codec：prompt NFC 与 scalar/UTF-8 budget、Marble/Hunyuan exact provider projection、generation/request/binding domain-separated digests、profile/shape identity与 durable intent drift validation；
+- 已实现 server-memory confirmation store：active ProductSession session identity由调用方传入可信 route authority，store负责 exact token binding、single-use、10-minute monotonic TTL、16/session、256/global、16 KiB、foreign/mismatch不消费与session teardown释放；尚未接入HTTP route；
+- 已实现 early durable state codec与 package-internal `GenerationRecordJournal` 首条 append/recovery protocol：`.record.next`、external inode witness、hard-link final、`head.next`/head publish及逐项cleanup；覆盖 pre-witness fail-closed、post-witness exact resume、全部link/head/cleanup kill points与byte-identical replacement inode；该raw writer未从package root导出；
+- 已补齐 provider transport/codec 的纯边界：credential-bearing path、signed asset URL/redirect/status/raw-GET预算，以及 Hunyuan 两个冻结response profile、JobId/RequestId/status/output/cost shape；这些模块尚未读取credential或发provider请求；
+- 已实现 package-internal Generation namespace identity DAG 与只读receipt分类：seed、root lease digest、valid internal operationId/binding/binding digest、namespace body/directory identity与success published identity均有fixed golden vector；package-root `OperationJournal`仍拒绝internal kind且零mutation；
+- 已实现 package-internal generation birth evidence/journal：完整`intent + admitted(0) + head + empty downloads`先在`data/`durable，随后仅以same-inode birth-staging→catalog hard-link建立可见性；catalog前crash保持hidden，catalog fsync后crash按same inode/body收束，partial hidden data保留并fail closed；当前测试使用exact-installed namespace fixture，真实namespace installer/capacity/startup apply仍未完成；
+- DH-017新增focused tests当前共80项通过（contracts 8、confirmation 6、state 6、record journal 12、provider transport 24、provider codecs 9、namespace 5、birth codec 3、birth journal 4、OperationJournal新增3）；全量回归`713 pass / 0 fail / 4659 expect()`、全仓typecheck与`git diff --check`通过；
+- 当前仍处于Phase 1，未完成真实namespace internal Operation installer、shared `DataRootCapacityAuthority`、global startup preflight/apply、full Generation lifecycle、Marble service、dynamic Artifact publication、Gateway routes、Studio/Chromium；未读Keychain、未发authenticated/provider请求、未运行真实generation、未部署/合并/closeout。
+
+## 2026-08-15 — DH-017 Phase 1 provider/output contract milestone
+
+- World Labs 侧补齐纯 response codec：对 Operation/World envelope 做 exact-key、depth/node/string/body budget 校验，冻结 pending/failure/success XOR、Marble failure cost absent、success cost 仅保留 sanitized total，并从 World assets 中只选择 `spz_urls["500k"]` 与 `collider_mesh_url`；返回的 durable remote identity 不含 signed URL；
+- 新增 generation output durable contracts：Marble exact ordered roles 为 `world-spz-500k + world-collider-glb`，Hunyuan exact role 为 `object-glb`；`RemoteOutputIdentityV1`、`SanitizedCostV1` 与初始 download budget 均绑定 durable provider/remote-job identity，cost 采用 provider-matched non-exponent decimal；
+- `provider_failed` durable payload 现仅允许 Hunyuan 携带 provider-matched settled cost，Marble failure 携带 cost 会 fail closed；未扩张为 generic provider SDK；
+- 新增 focused tests 后，本分支全量回归为 `723 pass / 0 fail / 4688 expect()`（63 files）；`bun run typecheck`、`bun run build` 与 `git diff --check` 通过，build 仅保留既有 Vite large-chunk warning；
+- 这些仍是纯 codec/state/contracts 与本地 fake evidence，不代表真实 credential/provider 路径已接通，也不授权真实 generation、部署、合并或 closeout。
+
+## 2026-08-15 — DH-017 Phase 1 private download contract slice
+
+- `generation-output-contracts` 已冻结 `ArtifactInspectorDescriptorV1`、domain-separated descriptor digest、role-specific 16/32/64 MiB budget、candidate filename/checkpoint/file-identity/content/descriptor cross-check，以及 closed `DownloadDiscardWitnessV1` disposition；
+- 新增纯 `DownloadBudgetV1` / member transition validator：同一 transition 至多改变一个 member，candidate 必须构成连续前缀、最多一个 active member、其余 idle；合法路径仅允许 `idle → reserved → owned-next → cleanup-authorized → candidate` 或 `owned-next → discard-authorized → discarded → attempt-2 reserved`，refresh 必须独立持久化并同时消费一次 poll attempt；
+- Marble 回归证明第一 member candidate 在第二 member reserve 时 byte-exact carry；第二 member 不得越过未完成的第一 member，checkpoint/filename/inspector digest/file identity/discard disposition 任一漂移均 fail closed；这些 pure validators 尚未获得 filesystem unlink、provider fetch 或 public Artifact CAS authority；
+- `outputs_ready` pure payload validator 进一步要求 remote output identity 绑定 durable remote job、初始 download budget byte-exact继承当前 poll budget，并按provider验证optional settled cost；active download payload禁止携带cost，terminal artifact rejection code必须逐字继承同一durable discard witness；
+- 当前全量回归为 `731 pass / 0 fail / 4714 expect()`（63 files）；`bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与 doctor（0 errors，仅 optional `harness-config.json` / `init.sh` missing）通过。
+
+## 2026-08-15 — DH-017 Phase 1 shared capacity / namespace inspection slice
+
+- 新增纯 `DataRootCapacityAuthority`：统一计算 receipts 2048-entry authority、Generation namespace 四态 outstanding charge 与每个 active Generation 的 generated-set publication reservation；first generation 在 namespace 四态下均精确占用 5 slots，matching publication intent/result 只接管原有 2-slot reservation，不重复计数；`submission_ambiguous` / `recovery_required` 在 v1 永久保留 2 slots；publishing-without-intent 与 terminal/publication 冲突稳定 fail closed；
+- 新增 package-internal、只读 `inspectGenerationNamespace`，从 live root/lease 重算 exact internal binding，并将磁盘分类为 `absent-no-intent / install-intent-pending / directory-published-result-pending / terminal-installed`；published namespace 必须是 exact five-entry 0700 tree，final marker 与 durable intent 为 same inode/body 且 link count 合法，namespace body 绑定当前 directory `dev/ino/mode/uid/gid`；byte-identical replacement inode、extra entry 与 child mode drift 均在任何 recovery mutation 前拒绝；
+- `GenerationBirthJournal` 已改为复用该共享 inspector，不再维护第二套 namespace truth；过程中发现并修复局部 `directoryIdentity` 常量遮蔽同名函数导致的 TDZ 回归，focused 重新达到 `15 pass / 0 fail / 57 expect()`；
+- 当前全量回归为 `742 pass / 0 fail / 4748 expect()`（65 files）；`bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与 doctor（0 errors，仅 optional `harness-config.json` / `init.sh` missing）通过；build 仅保留既有 Vite externalization / large-chunk warnings；
+- 该里程碑仍只完成 shared capacity 的纯计算与 namespace 的只读检查；真实 namespace internal Operation installer、global startup preflight/apply 与跨 journal apply authority 尚未实现。本轮未读 Keychain、未发 authenticated/provider request、未运行真实 generation，未 commit/push/merge/deploy/closeout。
+
+## 2026-08-15 — DH-017 Phase 1 atomic namespace publication primitive
+
+- 新增未从 package root 导出的 macOS `renameDirectoryNoReplace` primitive：lazy-load exact `/usr/lib/libSystem.B.dylib` `renameatx_np` symbol，逐字使用 `AT_FDCWD=-2` 与 `RENAME_EXCL=0x00000004`；仅接受 absolute、无 NUL、source/destination 不同的路径，symbol 不可用或 syscall nonzero 时稳定 `GENERATION_RECOVERY_REQUIRED`，没有 `renameSync`、precheck+rename、shell、copy 或跨平台 fallback；
+- 实机语义测试证明 absent destination 原子接收 source 且 `dev/ino/mode` 不变；destination 已为 empty directory、regular file 或 symlink 时均拒绝替换，source 与 destination identity 均保持；zero-mutation symbol check 与路径歧义拒绝也已覆盖；
+- 当前全量回归为 `748 pass / 0 fail / 4764 expect()`（66 files）；typecheck、build、diff-check、Harness validate/doctor 全通过，只有既有 Vite warning 与 optional Harness file missing；
+- 该 primitive 还没有单独的 mutation authority，也没有在 durable namespace Operation attempt 外运行 semantic probe；下一切片仍需由共享 capacity / private internal Operation capability 驱动 installer 与 crash recovery。本轮外部副作用仍为 0。
+
+## 2026-08-15 — DH-017 Phase 1 shared capacity disk inspection
+
+- 新增 package-internal `inspectDataRootCapacity`，在同一 live root/lease 下以 directory handle incremental scan 读取真实 `receipts/`；第 2049 项立即停止，unknown name、symlink、wrong type/mode、result-without-intent、malformed/non-canonical binding/result 或额外 internal operation 全部 `OPERATION_RECOVERY_REQUIRED`；该 inspector 不调用 layout creator，也不执行任何 filesystem mutation；
+- 每个 public/internal receipt 均按其 own exact codec 重验，namespace internal binding 必须与 `inspectGenerationNamespace` 从 current lease 重算的 binding byte-exact；输出冻结 actual entry count、pending-result reservation、namespace 四态及 public/internal operation counts；
+- disk-backed 四态计数已闭合为 absent `0+0`、intent-pending `1+1`、directory-published `2+1`、terminal-installed `3+0`，并覆盖 ordinary public intent 从 pending `1+1` 到 terminal `2+0` 的 1:1 转换；这些数据可直接喂给纯 `calculateDataRootCapacity`，避免 caller 自报 receipt 数量；
+- 当前全量回归为 `752 pass / 0 fail / 4780 expect()`（67 files）；typecheck、build、diff-check、Harness validate（0 warnings）与 doctor（0 errors）通过，仅保留既有 Vite warnings 和 optional Harness files missing；
+- 下一步仍是把这个只读 snapshot 放进 Data Root global capacity single-flight，并以不可伪造的 private capability驱动 namespace installer；本轮未获得或使用外部 credential/provider/network authority。
+
+## 2026-08-16 — DH-017 Phase 1 first-generation capacity capability
+
+- 新增未从 package root 导出的 `FirstGenerationCapacityCapability`：只由同一 live Data Root/root writer lease 的真实 disk inspection 与纯 capacity result 铸造；empty root 的 first generation composite admission 精确冻结为 5 entries；capacity 不足只返回 `capacity-reached`，不写 receipt、staging 或 namespace；
+- 同一 lease、同一 snapshot 的重复 authorization 只返回同一个 capability，不额外铸造 authority；首次合法 consume 立即烧掉 capability，forged/replayed capability、root/lease 不匹配与 authorization 后的 receipt drift 均稳定 `OPERATION_RECOVERY_REQUIRED` 并保留磁盘 evidence；
+- 该实现刻意保持为一个 module-private `WeakMap` provenance + 一次 snapshot revalidation，没有引入通用 transaction object、lock framework、config strategy 或可复用 writer object；future namespace+birth coordinator 只应在同步 first filesystem mutation 前立即 consume；
+- focused capacity gate 为 `14 pass / 0 fail / 55 expect()`；其中临界测试写入 2044 个合法 terminal public receipt entries，确认 first-generation request 返回 `capacity-reached` 且 receipts entry set 完全不变；
+- 当前全量回归为 `756 pass / 0 fail / 4799 expect()`（68 files）；typecheck、build、diff-check、Harness validate（0 warnings）与 doctor（0 errors）通过，仅保留既有 Vite warnings 和 optional Harness files missing；
+- 本切片没有实现 namespace installer、startup recovery apply 或 provider lifecycle；未读 Keychain、未发 authenticated/provider request、未运行真实 generation，未 commit/push/merge/deploy/closeout。
+
+## 2026-08-16 — DH-017 Phase 1 namespace installer core
+
+- 新增未从 package root 导出的 `GenerationNamespaceInstaller`，直接消费一次性 `FirstGenerationCapacityCapability`，按固定线性顺序完成 `durable internal intent/flat attempt → complete five-entry candidate → renameDirectoryNoReplace publish → durable success result → exact attempt cleanup`；没有新增 generic transaction、internal-operation framework 或第二套 lock；
+- internal intent 与 final marker、staged result 与 durable result 均由 same-inode hard-link证明；candidate body绑定创建时的directory `dev/ino/mode/uid/gid`，最终仍由既有`inspectGenerationNamespace`重验exact entry set、binding、marker与result；installer只使用已有96-bit/24-hex root attempt grammar；
+- 同一方法可从四个已durable milestone恢复原attempt：intent receipts fsync、完整candidate fsync、namespace publish+receipts fsync、result publish+receipts fsync；每次resume先从磁盘重算capacity/namespace truth，success后staging恢复为空，terminal-installed replay不创建第二attempt；
+- focused gate 为 `14 pass / 0 fail / 74 expect()`，覆盖正常install/replay与上述四个fault boundary；当前全量回归为`761 pass / 0 fail / 4840 expect()`（69 files），typecheck、build、diff-check、Harness validate（0 warnings）与doctor（0 errors）通过，仅保留既有Vite warnings和optional Harness files missing；
+- 该模块仍是installer core，不宣称完成canonical plan中的durable per-attempt runtime rename semantic probe或global startup read-only preflight/branded apply；这些仍是下一独立切片。未读Keychain、未发authenticated/provider request、未运行真实generation，未commit/push/merge/deploy/closeout。
+
+## 2026-08-16 — DH-017 Phase 1 namespace startup inspect/revalidate/apply
+
+- `GenerationNamespaceInstaller` 新增未从 package root 导出的只读 `inspectRecovery()` 与一次性 `applyRecovery()` authority；plan 仅冻结当前 namespace classification、原 attempt token、0700 attempt directory identity、exact top-level entry set 与各 entry 的 `dev/ino/mode/uid/gid`，没有新增 generic recovery transaction、第二套 journal 或可配置 strategy；
+- apply 必须由同一 installer/root/live lease 消费同一 WeakMap provenance，forged/replayed plan、namespace state 漂移、attempt directory/entry set/inode 漂移均在续跑 mutation 前稳定 `GENERATION_RECOVERY_REQUIRED`；candidate 内部仍复用既有 namespace body、same-inode marker 与 exact five-entry validator，不重复堆叠防御层；
+- `recoverPendingOperations` 现在在任何 DH-016 durability repair/terminalization/cleanup 前先生成 namespace recovery plan，并把该 exact internal attempt 纳入 startup staging coverage；只有现有全局 preflight 与 DH-016 recovery 全部收束后才重新验证并 apply namespace plan；foreign orphan 使全局 preflight 失败时，namespace receipt/attempt/tree byte-for-byte不变；
+- 四个 durable installer milestone（intent、candidate、published namespace、durable result）均通过只读 inspect 后继续同一 attempt，terminal replay不创建新attempt；forged/replayed plan与inspect-after-drift保留evidence；focused namespace/startup回归为`63 pass / 0 fail / 376 expect()`（5 files），最终全量为`765 pass / 0 fail / 4876 expect()`（69 files）；
+- `bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与 doctor（0 errors，仅 optional `harness-config.json` / `init.sh` missing）全部通过；build只保留既有Vite externalization / large-chunk warnings；
+- 下一独立切片仍是 durable per-attempt runtime `renameatx_np(RENAME_EXCL)` semantic probe 与 first-generation namespace+birth coordinator；provider lifecycle、dynamic Artifact/Gateway/Studio与真实generation仍未开始。本轮未读Keychain、未发authenticated/provider request、未运行真实generation，未commit/push/merge/deploy/closeout。
+
+## 2026-08-16 — DH-017 Phase 1 namespace runtime rename semantic probe
+
+- `GenerationNamespaceInstaller` 现只在当前 durable internal Operation attempt 下创建固定 `.rename-probe/`；probe 以 durable intent 的 same-inode hard-link 绑定当前 install binding，并以一个 canonical manifest 冻结七个固定 case entry 的 `dev/ino/mode/uid/gid`，没有新增 generic probe framework、transaction abstraction 或可配置 strategy；
+- live/recovery 都要求 absent destination 的 `renameatx_np(RENAME_EXCL)` 成功且 source identity 不变；existing empty directory、regular file、symlink 三种 destination 必须拒绝 replacement，并在调用后重新验证 source/destination stable identity与固定file/symlink内容；任一不符都在namespace publication前稳定 `GENERATION_RECOVERY_REQUIRED`；
+- probe 本身纳入 attempt snapshot 与 startup global preflight；durable probe 内的same-name byte-identical replacement inode、entry-set drift或binding marker漂移会保留evidence并拒绝后续mutation。terminal result durable后才允许逐项exact-inode cleanup，每次unlink后fsync probe directory，空目录cleanup可在crash后幂等收束；
+- installer/startup focused gate 为`77 pass / 0 fail / 468 expect()`（6 files）；最终全量回归为`773 pass / 0 fail / 4952 expect()`（69 files）。`bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与doctor（0 errors，仅optional `harness-config.json` / `init.sh` missing）全部通过；build只保留既有Vite externalization / large-chunk warnings；
+- Phase 1 尚未完成 first-generation namespace+birth coordinator；provider lifecycle、dynamic Artifact publication、Gateway/Studio与真实generation仍未开始。本轮未读Keychain、未发authenticated/provider request、未运行真实generation，未commit/push/merge/deploy/closeout。
+
+## 2026-08-17 — DH-017 Phase 1 first-generation admission coordinator
+
+- 新增未从 package root 导出的 `FirstGenerationCoordinator`，以固定线性顺序完成 intent-aware shared capacity authorization → namespace install/replay → durable generation birth/replay；coordinator、capacity capability、birth admission capability 与 test seams 均不从 `packages/world-project/src/index.ts` 导出；
+- first-generation capacity authority 现在从 live root/lease、exact Generation intent、真实 receipts inspection 与 `data/catalog/birth-staging` evidence 共同铸造；empty root 首次 birth 精确占用 infrastructure 3 + future publication 2，existing active replay 在 `used=2046` 时只保留既有 publication reservation 2，`effectiveEntries=2048`，不会重复申请第二 birth；
+- `directory-published-result-pending` 阶段在 namespace success result publish 前要求三个 Generation 子目录 exact empty；namespace install/replay 后，package-private one-shot `FirstGenerationBirthAdmission` 同时冻结并在 birth 首次 mutation 前重验 inspection、capacity 与 evidence，post-installer foreign entry 或合法 receipt capacity drift 均保留现场并零 birth mutation；
+- 按 first-principles 范围裁决，`GenerationBirthJournal` 对 foreign staging candidate 继续 strict fail closed；合法 concurrent multi-generation lineage、startup 全局 birth preflight 与全局 bounded directory migration 不在此小 coordinator 中半实现，留给下一独立 recovery slice；
+- Terra high Worker 经四轮同一 Terra xhigh Reviewer 聚焦复核后获得最终 `approved / may_advance=yes / P0=P1=P2=0`；EXharness approved event 为 `evt-20260817T064026Z-38b0cd18`。Reviewer 亲自执行 focused `36 pass / 0 fail / 171 expect()` 与 clean `git diff --check`；
+- Operator 最终独立门为 focused `53 pass / 0 fail / 324 expect()`、全量 `801 pass / 0 fail / 5081 expect()`（70 files）；`bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与 doctor（0 errors，仅 optional `harness-config.json` / `init.sh` missing）全部通过；build 只保留既有 Vite externalization / large-chunk warnings；
+- 本切片未读 Keychain、未发 authenticated/provider request、未运行真实 generation、未触碰 public Artifact CAS 或 World Project/Snapshot/Ref/Episode/Evaluation，也未 commit/push/merge/deploy/closeout。Coordinate production workspace/Discord binding 未被冒充为本次 direct Terra subagent managed job；下一步是单独实现 startup 全局 Generation birth evidence preflight 与 bounded scan/apply ordering。
+
+## 2026-08-17 — DH-017 Phase 1 startup Generation birth preflight / apply
+
+- `recoverPendingOperations()` 的全局 Phase A 现在在任何 legacy Project/Artifact durability repair、terminalization或cleanup mutation前，同时形成 namespace child preflight与terminal first-generation birth recovery plan；旧 Operation Phase B/C 收束后，namespace apply与birth apply各自仍在第一处mutation前近端重验同一snapshot；
+- namespace `install-intent-pending` 的exact staged candidate与`directory-published-result-pending`的final namespace都会冻结`data/catalog/birth-staging` exact-empty entry set和stable directory identity；Phase-A后注入foreign child entry会在旧cleanup、namespace publish/result前fail closed并保留全部evidence；candidate尚不存在的合法install-pending仍保持no-op preflight；
+- terminal birth plan现在冻结generation directory、`intent.json`、`head.json`、bounded `records/` physical entries（含pending/witness/final names）、empty `downloads/`、catalog与birth-staging的inode/mode/bytes digest/entry set；record部分复用`GenerationRecordJournal`现有scanner与chain validation，没有复制第二套journal truth；byte-identical新inodereplacement在apply与Journal首个birth mutation前均被拒绝；
+- `GenerationBirthStartupRecoveryPlan`保持module-private one-shot WeakMap authority，绑定exact root/live lease/intent/snapshot；direct tests覆盖forged、replay、cross-root/fake cross-lease与package-root negative export。Reviewer指出真实close/reacquire lease测试尚未单独覆盖，为非阻断P2；实现的object-identity guard已正确，本轮按最小范围不追加防御代码；
+- 四个birth crash milestones（generation data、birth-staging、catalog fsync、staging cleanup）均在close/reopen/reacquire后由startup唯一收敛；本链条的generation exact entries、downloads、data/catalog/birth-staging与records physical scan已改为directory-handle `limit+1`，不先无界物化；future legal concurrent multi-generation仍未实现；
+- Terra high Worker经limited-fresh Terra xhigh Reviewer两轮审查后最终`approved / may_advance=yes / P0=P1=0`，非阻断P2=1；EXharness approved event为`evt-20260817T071128Z-2128cabf`。Reviewer亲自运行focused `122 pass / 0 fail`与typecheck；
+- Operator最终独立门为focused `107 pass / 0 fail / 635 expect()`、全量`814 pass / 0 fail / 5144 expect()`（70 files）；`bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与doctor（0 errors，仅optional `harness-config.json` / `init.sh` missing）全部通过；build只保留既有Vite externalization/large-chunk warnings；
+- 本切片未触碰provider/auth/Keychain/network/真实generation、public Artifact CAS、World/Gateway/Studio、Git或部署。Coordinate production task mirror仍未建立，本次证据属于EXharness + direct Terra subagent，不冒充managed Coordinate/MultiNexus runtime job或Discord delivery。
+
+## 2026-08-17 — DH-017 Phase 2 Marble authenticated service
+
+- 新增直接、provider-specific 的 `MarbleGenerationService`，只负责 exact `submit/query/get-world` 三个 authenticated calls；每次最多一次 fetch，使用 caller abort + 30秒 deadline、`redirect:"error"`、256 KiB incremental body reader与fatal UTF-8，不包含retry、poll loop、durable lifecycle、download或generic ProviderAdapter/SDK；
+- provider response bytes 进入既有shape codec前，先通过一个固定预算的 strict JSON decoder；它拒绝nested duplicate object keys、malformed grammar、invalid UTF-8与oversize，没有引入可配置parser framework或第三方dependency；
+- paid submit现在只接受runtime-revalidated `GenerationBindingBodyV1`：复用`requireGenerationBindingBody`重导全部request identity，要求Marble provider与exact profile，并只序列化重导出的providerRequest。伪造image/type/model/public permission/extra tags/profile会在fetch前`PROVIDER_CONTRACT_MISMATCH`；
+- submit no-creation matrix与bound query/get-world matrix保持分离：query/get-world `401|403 → PROVIDER_UNAUTHORIZED`，`400|404|422 → PROVIDER_REJECTED`；429/5xx与transport/body/abort/deadline保持closed transient outcome供后续durable coordinator决定，不在service内自行重试；
+- legal success可在进程内临时携带后续downloader所需signed asset URL，但本切片没有durable/HTTP/log/DOM serializer；credential、raw body/status/error/path不会进入outcome或diagnostic。Hunyuan、GenerationJournal、Artifact CAS、Gateway routes、Studio与World authority均未触碰；
+- Terra high Worker首轮经Terra xhigh Reviewer发现两项P1（bound query状态被误归transient、submit只信任erased TypeScript type），修正后Round 2获得`approved / may_advance=yes / P0=P1=P2=0`；EXharness approved event为`evt-20260817T074311Z-469a89a8`；
+- Reviewer亲跑focused `25 pass / 0 fail / 161 expect()`与全仓typecheck；Operator最终独立门为focused `71 pass / 0 fail / 284 expect()`、全量`839 pass / 0 fail / 5274 expect()`（71 files），`bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与doctor（0 errors，仅optional `harness-config.json` / `init.sh` missing）全部通过；build只保留既有Vite externalization/large-chunk warnings；
+- 本切片未读Keychain、未联网、未发真实World Labs请求、未运行真实generation、未commit/push/merge/deploy/closeout。证据仍属于EXharness + direct Terra subagent，不冒充Coordinate/MultiNexus managed runtime job或Discord delivery。
+
+## 2026-08-17 — DH-017 Phase 2 Hunyuan authenticated service
+
+- 新增直接、provider-specific 的 `HunyuanGenerationService`，只负责exact paid submit与bound job query；每次调用先runtime重验durable `GenerationBindingBodyV1`、configured response profile与shape digest，query另重验`RemoteBoundPayloadV1`，不包含retry、poll loop、download、durable lifecycle或generic ProviderAdapter/SDK；
+- submit/query均使用exact POST URL、raw `Authorization`（无`Bearer`）、caller abort + 30秒deadline、`redirect:"error"`、256 KiB incremental body reader与既有strict JSON/response codec。两个response profile由service实例固定，运行时不fallback/猜测；
+- Hunyuan paid submit保持与Marble不同的authority：fetch真正开始后，任何无可信JobId的status/malformed/body/transport/abort/deadline都只返回`PROVIDER_SUBMISSION_AMBIGUOUS`；fetch前已经aborted则返回独立`REQUEST_ABORTED`且fetch=0，避免把可证明零付费副作用污染成ambiguous；
+- bound query `401|403 → PROVIDER_UNAUTHORIZED`、`400|404|422 → PROVIDER_REJECTED`、`429|5xx|stream/deadline → transient`；deterministic 256 KiB+1 overflow与codec/profile/identity drift为`PROVIDER_CONTRACT_MISMATCH`，不会被错误重试；legal DONE可在进程内临时携带唯一GLB signed URL，未新增durable/HTTP/log/DOM serializer；
+- Terra high Worker首轮经Terra xhigh Reviewer发现两项P1（pre-fetch abort误报paid ambiguity、query body overflow误归transient），修正后Round 2获得`approved / may_advance=yes / P0=P1=P2=0`；EXharness approved event为`evt-20260817T080310Z-ac21ed5f`；
+- Reviewer亲跑focused `8 pass / 0 fail / 127 expect()`与gateway typecheck；Operator最终独立门为focused `71 pass / 0 fail / 364 expect()`、全量`847 pass / 0 fail / 5402 expect()`（72 files），`bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与doctor（0 errors，仅optional `harness-config.json` / `init.sh` missing）全部通过；build只保留既有Vite externalization/large-chunk warnings；
+- Phase 2两个direct authenticated services至此都有本地fake transport证据，但仍未读取Keychain、未联网、未发真实Marble/Hunyuan请求、未运行真实generation，也未实现durable lifecycle coordinator、download、Artifact publication、Gateway routes或Studio。未commit/push/merge/deploy/closeout，证据不冒充Coordinate/MultiNexus managed runtime job或Discord delivery。
+
+## 2026-08-17 — DH-017 Phase 3 pure dynamic Artifact inspector
+
+- `scripts/provider-artifact-validation.ts` 新增一个直接的纯 `inspectArtifactBytes(format, bytes)` seam，复用既有 SPZ v2 / GLB 2.0 decoder 从真实 bytes 重算 digest、byteLength、elementCount 与 sourceBounds；返回值与嵌套 bounds 均冻结，没有 filesystem、CAS、journal、provider、World 或 registry 依赖；
+- DH-013 `validateRegisteredArtifactBytes()` 改为复用同一 decoder truth，但仍按原有 byteLength → manifest digest → elementCount → bounds 顺序做 exact 比较，static manifest authority 未被 dynamic inspection 放宽或自动注册；
+- 新增未从 package root 导出的 `generation-artifact-inspector.ts`，只允许 `spz-v2 → spz-v2-position-bounds-v1` 与 `glb-2.0 → glb-2.0-scene-bounds-v1` 两个固定映射；descriptor 只能从 inspected bytes 构造并由既有 codec/digest authority 验证，caller 无法注入 profile、digest、count 或 bounds；
+- Reviewer 首轮发现 raw Float32 bounds 未执行 canonical plan 要求的 `-0→0` 与 15-significant-digit normalization；修复严格局限于 wrapper 的六个坐标，并在 rounding 后继续由既有 strict bounds codec fail closed，没有引入 generic decimal/canonical-number framework；
+- deterministic SPZ/GLB golden、Float32 precision、`-0`、rounding-degenerate、wrong format、truncated/chunk/trailing、external/data URI、sparse/invalid accessor、NaN、content drift 与 static manifest drift 均有测试；Terra xhigh Reviewer 最终 `approved / may_advance=yes / P0=P1=P2=0`，EXharness approved event 为 `evt-20260817T084251Z-78e5de25`；
+- Operator 最终独立门为 focused `23 pass / 0 fail / 72 expect()`、全量 `853 pass / 0 fail / 5426 expect()`（73 files）；`bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与 doctor（0 errors，仅 optional `harness-config.json` / `init.sh` missing）全部通过；build 只保留既有 Vite externalization / large-chunk warnings；
+- 本切片未实现 download ownership、durable Generation lifecycle、Artifact CAS/provenance/set/catalog publication、startup publication recovery、Gateway/Studio 或 World mutation；未读 Keychain、未联网、未发 provider 请求、未 commit/push/merge/deploy/closeout。下一小片应先冻结 content/provenance/set 的纯 record identity 与 join，再单独进入 admitted set-level CAS publication。
+
+## 2026-08-17 — DH-017 Phase 3 generated Artifact record identities
+
+- 新增未从 package root 导出的 `generated-artifact-records.ts`，以 plain exact-key/deep-frozen V1 records 分离 content、generation provenance 与完整 provider output set；三个 record digest 分别使用 canonical plan 冻结的 domain-separated canonical JSON preimage，没有引入 repository/registry/builder/ORM/graph framework；
+- content record 只能消费 `inspectDynamicArtifactBytes()` 实际 mint 的结果：inspector module 以私有 `WeakSet` 证明 runtime origin，结构与 descriptor digest 都自洽的手工伪造对象也不能生成 `verified` asset identity；descriptor decoder同时统一拒绝非 15-significant-digit canonical bounds；
+- `assetId` 始终由 content SHA-256 导出，provider/job/role 不进入 content identity；同一个 GLB 在 Marble collider 与 Hunyuan object 下复用相同 assetId/contentRecordDigest，同时生成不同 provenance 与 set digests，many-to-one 关系已有 deterministic golden；
+- provenance 复用 durable Generation binding 与 exact provider job-id codec，set 强制 Marble `[world-spz-500k, world-collider-glb]`、Hunyuan `[object-glb]` 的 role/format/order/cardinality，并重验 generation/provider/content/provenance cross-record equality；by-bytes pointer 仅作为 pure canonical body，不冒充 CAS uniqueness 已完成；
+- catalog body 被有意留到 publication slice，因为当前没有可信 publication Operation identity；本片没有用 placeholder 或 caller string 伪造该 authority，也未触碰 filesystem/CAS/OperationJournal/startup/Gateway/UI/World；
+- Terra xhigh Reviewer 首轮复现两项同源 P1（伪造 inspection origin、非 canonical bounds 可持久化），最小修复后最终 `approved / may_advance=yes / P0=P1=P2=0`；EXharness approved event 为 `evt-20260817T090519Z-0be7d8ad`；
+- Operator 最终独立门为 focused `23 pass / 0 fail / 91 expect()`、全量 `858 pass / 0 fail / 5456 expect()`（74 files）；`bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与 doctor（0 errors，仅 optional `harness-config.json` / `init.sh` missing）全部通过；build 只保留既有 Vite externalization / large-chunk warnings；
+- 本切片未读 Keychain、未联网、未发 provider 请求、未运行真实 generation、未 commit/push/merge/deploy/closeout。下一片应实现 phase-aware candidate join 的纯 authority derivation与 absent/existing observation contract；仍应先不写 public CAS。
+
+## 2026-08-17 — DH-017 Phase 3 generated-set candidate semantic plan
+
+- 新增未从 package root 导出的 `generated-set-candidate-plan.ts`，以固定线性 join 重验 exact `GenerationIntentV1 + RemoteBoundPayloadV1 + ActiveDownloadPayloadV1 + ordered fresh inspector-origin results`；只有 provider-required members 全部处于 final `stage:"candidate"` 才能形成 plan；
+- Marble exact roles 固定为 `[world-spz-500k, world-collider-glb]`，Hunyuan 固定为 `[object-glb]`；每个 private candidate 的 digest、byteLength、format、elementCount、canonical bounds、inspector descriptor/profile/digest 都必须与重新 inspect 真实 fixture bytes 得到的结果逐字段一致；
+- plan 只包含 generation/provider/remote safe identity、expected private candidate name/file identity，以及前片已经验证的 content/by-bytes/provenance/set records；不含 signed URL、credential、raw bytes、provider request、filesystem observation、CAS state 或 Operation admission；
+- plan 的私有 `WeakSet` 仅证明该 immutable value 来自 semantic join，original plan 可重复做只读 origin check，copy/forge 被拒绝；它明确不是 one-shot mutation capability。真正一次性的 `GeneratedSetAdmissionCapability` 留给后续 full filesystem/CAS join + admission slice，避免提前增加 consumed 状态机；
+- Reviewer 发现 Hunyuan remote-bound helper只验证`providerRequestId`为string；修复改为让output/candidate路径复用`generation-state.ts`唯一exact decoder，lowercase UUID合法，`forged`与uppercase UUID均在plan mint前拒绝，没有复制第二份regex；
+- Terra xhigh Reviewer最终`approved / may_advance=yes / P0=P1=P2=0`；EXharness approved event为`evt-20260817T094633Z-04bfe520`；Operator最终focused为`27 pass / 0 fail / 113 expect()`，串行全量为`861 pass / 0 fail / 5483 expect()`（75 files）；
+- `bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与doctor（0 errors，仅optional `harness-config.json` / `init.sh` missing）全部通过；普通并发全量曾命中既有Data Root lease争用，相关suite单独`27/27`、最终`--max-concurrency 1`全绿，因此未将环境瞬态冒充产品回归；
+- 本切片未读Keychain、未联网、未发provider请求、未运行真实generation、未触碰filesystem/CAS/OperationJournal/startup/Gateway/UI/World，也未commit/push/merge/deploy/closeout。下一步是单独实现filesystem-aware private candidate + public namespace `absent|existing`只读观察与near-revalidation；仍不应在同一片直接发布CAS。
+
+## 2026-08-17 — DH-017 Phase 3 generated-set storage preflight
+
+- 新增未从 package root 导出的固定 generated-artifact layout 与 `generated-set-storage-preflight.ts`：只消费 live `OpenedDataRoot` 和 origin-checked candidate plan，按 exact generation downloads path 重新打开 private candidate，并把 bytes CAS、content record、by-bytes pointer、provenance record 与 set record逐一分类为稳定 `absent | existing`；catalog/result/Operation/capacity 与任何 public CAS 写入均不在本片；
+- `safe-filesystem.ts` 仅增加单 fd `O_RDONLY|O_NOFOLLOW` 的 bounded regular-file snapshot seam：0600 exact mode（含拒绝 setuid/setgid/sticky）、读取前后 fd identity 与读取后 path identity 必须在 dev/ino/mode/uid/gid/size/mtime/ctime 上完全一致，返回 identity + bytes；既有 writer/read caller 均未改变；
+- private candidate 必须匹配 plan 的 dev/ino/mode/uid/gid/size，并从当前 bytes 重新运行 dynamic inspector与 content identity；public JSON evidence 使用 fatal UTF-8、canonical bytes round-trip、既有 exact codec 与 plan equality，bytes CAS 同样重新 inspect。snapshot 不保留 raw bytes、absolute path、signed URL、credential 或 mutable handle；module-private origin 绑定 exact root object/identity 与 exact plan object，near-revalidation可重复运行但不构成一次性 mutation capability；
+- 首轮独立 Reviewer 结论虽为 approved，但指出 4 项 P2。按 simplicity gate 做了减法：删除合法 plan 下不可达的 plan 内 content-dedupe map/branch（跨 provider plan 的复用由相同 digest-derived public path 自然完成）、合并重复 identity mapper、收紧特殊 mode 位；没有把 11 行 local canonical JSON decoder抽成跨模块共享框架，因为错误语义与 allowed surface 不同、净复杂度反而增加；bounded re-review 最终 `approved / may_advance=yes / P0=P1=P2=0`；
+- 本切片实际执行者为北京时间晚间的本机 OMP `deepseek/deepseek-v4-flash`、`thinking=max`，不是 Coordinate/MultiNexus managed job；独立 Reviewer 也使用隔离 OMP session，未读取 Worker RESULT 或历史 verdict。EXharness approved event 为 `evt-20260817T114550Z-61c201ba`；
+- Operator 最终独立门为全仓串行 `877 pass / 0 fail / 5695 expect()`（77 files）；`bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与 doctor（0 errors，仅 optional `harness-config.json` / `init.sh` missing）全部通过；build 只保留既有 Vite externalization / large-chunk warnings；
+- 本切片未读 Keychain、未联网、未发 provider request、未运行真实 generation、未 commit/push/merge/deploy/closeout，也未触碰 Gateway/UI/World 或生产 Coordinate/Discord。下一步应先实现 `artifact.publish-generated-set` 的 pure Operation identity + intent/admission planning，再单独进入 capacity-bound public CAS writer；仍不把两步揉成 generic transaction framework。
+
+## 2026-08-17 — DH-017 Phase 3 generated-set publication identity plan
+
+- 新增未从 package root 导出的 `generated-artifact-publication.ts`，把 origin-checked candidate plan 与同一 root/plan 的 origin-checked storage preflight 收束为唯一 deep-frozen publication plan；它派生 `artifact.publish-generated-set` operationId、exact internal binding、ordered content/provenance digests、binding digest、catalog commit body/digest、expected success result，以及固定 intent/result/catalog relative paths；
+- operationId exact为`"op:" + SHA-256("demiurges-generated-set-publication-v1\0" + generationId + "\0" + artifactSetDigest)`；binding固定target `registry:generated-artifact-sets-v1`与`expectedIdentity:null`，binding digest逐字使用`sha256Hex(canonicalJsonBytes(require…Binding(binding)))`，与既有public Operation和namespace internal kind算法byte-compatible。Reviewer另用`node:crypto`和独立sorted-key canonicalizer复算Marble/Hunyuan的operation/binding/catalog六个golden向量，全部匹配；
+- catalog body `{generationId,artifactSetDigest,publicationOperationId,publicationBindingDigest}`只作为binding的下游，catalog digest使用独立domain；新增固定`artifacts/catalog/<generation-id-digest>.json` path builder，receipt paths复用Data Root既有builder。计划不包含raw bytes、absolute path、signed URL、credential、provider request或handle；origin map绑定exact root/candidate plan/storage snapshot，read-only check可重复，未提前制造one-shot admission capability；
+- 独立 Reviewer 首轮为 `approved / P0=P1=0`，但指出3项纯简单性P2。按Occam gate删除与storage near-revalidation重复的identity校验层、删除binding digest前重复decoder调用，并把约90行重复test fixture收敛为共享builder；production 470→423行、test 1008→964行，测试/expect计数不减。bounded re-review最终`approved / may_advance=true / P0=P1=P2=0`；
+- 本切片实际 Worker与Reviewer均为北京时间晚间的隔离OMP `deepseek/deepseek-v4-flash`、`thinking=max`；不是Coordinate/MultiNexus managed job。EXharness approved event为`evt-20260817T120818Z-5a7c1ac9`；
+- Operator首轮全仓串行唯一命中既有Data Root lease环境争用（`886 pass / 1 fail`，capacity-inspection临时root lease unavailable）；该suite随后独立`4/0`，完整串行重跑最终`887 pass / 0 fail / 5913 expect()`（78 files）。`bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与doctor（0 errors，仅optional `harness-config.json` / `init.sh` missing）全部通过；
+- 本切片未修改`operation-journal.ts`、capacity、startup、state journals、CAS writers或`index.ts`，未读Keychain、未联网、未发provider request、未运行真实generation、未commit/push/merge/deploy/closeout。下一步才是把这个exact internal kind接入module-private Operation core与shared capacity/single-flight，铸造一次性`GeneratedSetAdmissionCapability`；仍不在同一切片写public CAS。
+
+## 2026-08-17 — DH-017 Phase 3 generated-set internal receipt classification
+
+- `OperationJournal` 的私有 receipt classifier 现以固定三分支识别 public、`generation.namespace.install` 与 `artifact.publish-generated-set`；generated-set 分支直接复用既有 exact binding/result codec。`listBindings()` 会验证 hidden internal intent/result，但只返回 public bindings，没有扩大 `OperationBinding`、`AdmittedOperation`、`OperationSingleFlight` 或 package-root export；
+- `inspectDataRootCapacity()` 同样识别 generated-set internal receipts，并继续按物理 intent/result entries 计算 used 与 pending-result reservation。首轮实现把额外 internal receipt 允许在所有 namespace phase，Reviewer 用 canonical birth/publish ordering 复现 P1；修复保持最小：只有 `terminal-installed` 可出现 generated-set receipt，`absent-no-intent`、`install-intent-pending` 与 `directory-published-result-pending` 全部 fail closed，没有引入 policy table 或新状态机；
+- package-root `read/admit/beginRecovery/inspect/confirm/finalize/cleanup/single-flight` 对 structural/typed generated binding 仍在 first mutation 前拒绝；focused tests证明 receipts/staging不变，result-without-intent、wrong filename、noncanonical bytes、binding/result drift与三种nonterminal namespace均 fail closed；
+- 本切片按北京时间晚间路由到本机 OMP `deepseek/deepseek-v4-flash`、`thinking=max`。EXharness handoff/assign为`evt-20260817T122344Z-fd0102db`/`evt-20260817T122344Z-5ddcb078`，Worker accept为`evt-20260817T122406Z-62f56834`；limited-fresh Reviewer首轮changes-requested后由同一Reviewer continuity复核，最终`approved / may_advance=yes / P0=P1=P2=0`，approval event为`evt-20260817T124634Z-5dedf508`；这些是local direct CLI + EXharness证据，不冒充Coordinate/MultiNexus managed job或Discord delivery；
+- Operator最终独立门为focused`24 pass / 0 fail / 121 expect()`、全仓串行`897 pass / 0 fail / 5967 expect()`（78 files）；`bun run typecheck`、`bun run build`、`git diff --check`、Harness validate（0 warnings）与doctor（0 errors，仅optional `harness-config.json` / `init.sh` missing）全部通过；build只保留既有Vite externalization/large-chunk warnings；
+- 本切片没有generated-set writer、admission capability、capacity handoff、Generation state append、startup publication recovery或public CAS；未读Keychain、未联网、未发provider request、未运行真实generation、未commit/push/merge/deploy。下一小片应先做全局generation-aware的publication capacity/single-flight preflight与一次性admission authority，再单独接durable intent writer；仍不把CAS writer揉进同一片。
+
+## 2026-08-18 — DH-017 Phase 3 durable successful-output state chain
+
+- 依赖顺序按第一性原理校正：在铸造 generated-set publication admission authority 前，先让 `GenerationRecordJournal` 能从 durable chain 唯一证明 `polling → outputs_ready → downloading → validating`；否则 admission 只能信任 caller 的内存 payload。新 full-chain decoder 从 committed `remote_bound` 与当前 poll budget 重建 output authority，并拒绝伪造、自洽但无祖先、跨 provider/job/request、member 跳变或非 candidate validating；
+- `GenerationRecordJournal.readCurrent()`、append 与 pending resume 现在统一走 bounded full-chain validation；`outputs_ready → downloading` 只允许 byte-exact 初始 budget，后续 downloading 逐步复用既有 transition codec，`validating` 只接受全成员 final candidate 并作为本切片 stop state。没有新增 parallel journal、transaction framework 或 lifecycle coordinator；
+- Reviewer 首轮发现一个小而真实的 recovery 缺口：head 已推进到 witnessed record 时，foreign `head+1` final 可能在 witness cleanup 后留下不可恢复孤立证据。修复只在任何 link/head/unlink 前重扫 bounded records shape；head 已推进且存在任何 committed chain 外 final 即 fail closed，保留 `.record.next`、witness 与 foreign final。正常 head 未推进的唯一 pending `head+1` 路径不受影响；
+- 北京时间工作日上午按协作路由使用本机 ZCode Worker 与 limited-fresh ZCode Reviewer；运行时实际 provider model 为 `glm-5.3`，本机配置/default variant 为 `max`，但 native event 不单独证明 reasoning variant，因此不把配置值冒充 provider telemetry。Worker session `sess_03b220c0-a9b5-4b2d-82f4-ef963efd23b7`，Reviewer session `sess_15892115-991b-4bd0-b3ac-d265865a4b80`；这仍是 direct local CLI + EXharness evidence，不冒充 Coordinate/MultiNexus managed job或Discord delivery；
+- Reviewer 先记录 changes-requested event `evt-20260818T015714Z-97333bcf`，同一 Reviewer bounded re-review 后最终 `approved / may_advance=yes / P0=P1=P2=0`，approval event `evt-20260818T020020Z-2c09fab0`；Operator 独立动态门为 focused `52 pass / 0 fail / 211 expect()`、全仓串行 `908 pass / 0 fail / 6019 expect()`（78 files），`bun run typecheck`、`bun run build`、Harness validate（0 warnings）与 doctor 均通过；
+- 全局 `git diff --check` 唯一告警是既有共享 dirty `docs/project-harness/current/review-packet.md:857` EOF 空行；本切片四个 generation state/journal 文件的 scoped no-index whitespace check 干净。未为追求表面全绿修改无关共享文档；build 只保留既有 Vite externalization / large-chunk warning；
+- 本切片未读 Keychain、未联网、未发 provider request、未运行真实 generation、未写 public CAS、未触碰 Gateway/Studio/World，也未 commit/push/merge/deploy。DH-017 整项仍未完成；下一小片现在才可实现全局 generation-aware publication capacity/single-flight preflight 与一次性 `GeneratedSetAdmissionCapability`，仍不在同一片写 durable intent 或 public CAS。
+
+## 2026-08-18 — DH-017 Phase 3 durable publication eligibility join
+
+- 在 capacity/admission 之前新增未从 package root 导出的只读 `generated-set-publication-eligibility.ts`：它要求同一 live Data Root/lease、exact durable intent、origin-checked publication plan，并通过 `GenerationRecordJournal` 的 bounded full-chain decoder证明当前 head exact为`validating`；结果只含 generation/provider、validating sequence/record digest、publication operation/binding digest与artifact set digest；
+- `GenerationRecordJournal`只增加一个复用现有`#loadValidatedChain()`的package-internal只读accessor；candidate plan旁增加pure state-binding checker，复用`requireActiveDownloadPayload`并逐member比较role/order/cardinality、candidate name、file identity、content/descriptor/bounds；publication origin旁增加same-root accessor并继续重跑storage snapshot near-revalidation，没有复制lifecycle、inspector或CAS validator；
+- selected Generation 的birth anchor由durable intent、chain sequence-0 admitted record与exact catalog pointer content/digest重算；Reviewer按底层authority区分确认：catalog pointer是canonical content/digest truth，同字节inode替换不会改变authority；private candidate inode则已被durable download record冻结，同字节替换仍必须拒绝。没有为了字面“replacement”给content-addressed证据堆无意义inode层；
+- eligibility origin使用私有WeakMap绑定exact root/lease/intent/publication plan与validating head；forged/copy、cross-root/cross-lease、foreign intent/plan、stale/replaced head、record/catalog/intent drift、candidate inode/bytes/content/set drift均在revalidation零mutation失败。它仍是可重复只读证据，不是one-shot admission capability；
+- 北京时间工作日上午继续使用本机ZCode Worker与独立ZCode Reviewer；runtime model实际为`glm-5.3`，本机配置/default variant为`max`但native event不单独证明reasoning variant。Worker session `sess_979596eb-6d89-4995-b82b-4cb339ac9221`，Reviewer session `sess_89455a48-0705-455f-931f-1898080f5dad`；Reviewer最终`approved / may_advance=yes / P0=P1=0`，两项非阻断P2仅记录局部canonical JSON重复与test helper错误类型较宽，按Occam不追加重构；approval event为`evt-20260818T022327Z-d4ddc317`；
+- Operator独立门为focused`61 pass / 0 fail / 625 expect()`、全仓串行`915 pass / 0 fail / 6130 expect()`（79 files）；`bun run typecheck`、`bun run build`、Harness validate（0 warnings）与doctor通过。全局`git diff --check`仍只报既有`docs/project-harness/current/review-packet.md:857` EOF空行，本切片五文件scoped check干净；
+- 本切片没有capacity/single-flight、Operation intent、`publishing` append、CAS/catalog/result writer或startup recovery，也未读Keychain、联网、发provider request、运行真实generation、commit/push/merge/deploy。下一小片现在可消费eligibility做全局capacity/single-flight preflight并铸造一次性`GeneratedSetAdmissionCapability`；仍不在同一片写public CAS。
+
+## 2026-08-18 — DH-017 Phase 3 generated-set admission capability
+
+- 新增未从 package root 导出的 `generated-set-admission.ts`，只消费同一 live root/lease 的 approved publication eligibility：重验当前 durable `validating` truth、exact first-generation `data/catalog/birth-staging` surface、terminal namespace、全部 receipt capacity truth以及publication intent/result/catalog target absent，随后调用既有capacity公式；没有复制receipt codec或修改capacity inspector；
+- 当前MVP只接纳唯一born first Generation：第二个data/catalog entry、birth-staging evidence、wrong type/symlink、nonterminal namespace或任何已有generated-set internal receipt均为recovery-required。未来multi-generation不是在本片半实现；existing matching receipt属于后续replay/recovery，不冒充fresh admission；
+- capacity输入固定为`{state:"validating",publicationEvidence:"none"}`与`request:"none"`，因此Generation已持有的future publication reservation保持exact 2，不重复申请。terminal-installed exact receipts下effective entries恒为奇数：2047 ready、2049 capacity-reached，2048数学上不可表示；Reviewer独立复算确认；
+- `GeneratedSetAdmissionCapabilityV1`仅暴露safe kind/operationId/effectiveEntries，authority在私有WeakMap；同一live lease上byte-exact重复authorize返回同一capability，竞争plan/eligibility/intent fail closed。consume在origin inputs通过后先删除authority再重跑eligibility/surface/targets/receipts/capacity并比较exact snapshot，成功只返回origin publication plan；失败永久poison，forged/cross输入则不会误消费合法capability；
+- 同步no-await handoff契约明确留给下一intent-writer：consume与首个同步durable mutation之间不插await；跨进程互斥继续由Data Root writer lease负责，没有为此重构public`OperationSingleFlight`或引入锁/transaction manager。Reviewer最终`approved / may_advance=true / P0=P1=0`，两项非阻断P2仅记录capacity/Generation错误域不同与drift后WeakMap stale entry，均无利用路径且按Occam不扩张；approval event为`evt-20260818T024231Z-03e18ebb`；
+- Operator独立门为focused`28 pass / 0 fail / 296 expect()`、全仓串行`923 pass / 0 fail / 6256 expect()`（80 files）；`bun run typecheck`、`bun run build`、Harness validate（0 warnings）与doctor通过。全局`git diff --check`仍只报既有`docs/project-harness/current/review-packet.md:857` EOF空行，本切片两个新文件scoped check干净；
+- 本切片没有写Operation intent、append`publishing`、改publicOperationJournal/SingleFlight、写CAS/catalog/result或改startup；未读Keychain、联网、发provider request、运行真实generation、commit/push/merge/deploy。下一小片可实现module-private exact generated-set intent writer：consume capability后同步no-replace publish+fsync intent，再重算capacity证明actual intent1+pending result1接管原reservation2；仍暂不写public CAS。
+
+## 2026-08-18 — DH-017 Phase 3 durable generated-set intent handoff
+
+- 新增未从 package root 导出的 `generated-set-intent-writer.ts`：唯一 live 入口同步消费 origin-valid one-shot admission 后，沿用既有 96-bit / 24 lowercase-hex flat Operation attempt；`mkdir 0700 → staging fsync → operation-intent.json 0600 file fsync → attempt fsync → no-replace hard-link receipt → receipts fsync`，再以 stable no-follow snapshot 证明 staged/receipt 同 inode、同 canonical binding bytes；失败保留证据，不做 overwrite、unlink 或猜测 cleanup；
+- intent durable 后重新从 receipts 磁盘 truth 运行共享 capacity：`used +1`、`pending result +1`、`generationPublicationReservations 2→0`、`requestedEntries=0`，effective entries 与写前完全相同；public Operation count不变，internal count从唯一namespace Operation的1变为namespace+generated-set intent的2，result/catalog仍 absent，Generation head仍为`validating`；
+- 返回的 deep-frozen admitted evidence不含绝对路径、raw writer、secret或provider request；attempt/intent path只保存在module-private WeakMap provenance，供下一片同root/lease下追加`publishing`时重验。没有改public`OperationJournal`、`OperationSingleFlight`或`index.ts`，也没有为一个internal kind引入transaction/registry framework；
+- 北京时间工作日上午按协作路由使用本机 ZCode Worker与limited-fresh ZCode Reviewer。Worker session `sess_94da51cf-59e2-4e60-88d0-bd4539edd94c`，Reviewer session `sess_5d45c8f6-9ae5-425e-97b6-335b5092768f`；runtime evidence确认ZCode当前model request经本机配置选择`builtin:bigmodel-coding-plan/GLM-5.3`，但native JSON没有单独证明thinking variant，故不把`Max`配置意图冒充provider telemetry；
+- Reviewer从底层`reservation 2 → durable intent 1 + pending result 1`目标、第一性原理与奥卡姆剃刀审查，最终`APPROVE / may_advance=true / P0=P1=P2=0`；正式approval event为`evt-20260818T031812Z-fcd21712`。Operator独立动态门为focused`29 pass / 0 fail / 366 expect()`、全仓串行`931 pass / 0 fail / 6437 expect()`（81 files），package/root typecheck、build、Harness validate（0 warnings）与doctor均通过；
+- slice两个新文件的scoped diff check干净；global `git diff --check`唯一告警仍是Harness生成/共享的`docs/project-harness/current/review-packet.md:857` EOF空行，不属于产品slice，未为表面全绿修改无关共享文档。未读Keychain、未联网、未发provider request、未运行真实generation、未commit/push/merge/deploy；
+- DH-017整项仍未完成。下一小片应只消费admitted intent provenance，near-revalidate exact durable intent与capacity takeover后append/fsync `publishing={operationId,artifactSetDigest}` Generation record/head；仍在public CAS first mutation前停止。随后才进入set-level hidden CAS/catalog/result writer与startup publication recovery，真实provider canary继续等待单独Human费用/参数授权。
+
+## 2026-08-18 — DH-017 Phase 3 durable intent-to-publishing transition
+
+- 新增未从 package root 导出的 `generated-set-publishing-transition.ts`：它不建立第二套 transaction，而是组合现有 admitted-intent provenance、publication eligibility、receipt/capacity inspection 与 `GenerationRecordJournal`；所有只读重验通过后，唯一 mutation 是 append/fsync `publishing={operationId,artifactSetDigest}` record/head；public Artifact CAS/catalog/result 始终未触碰；
+- Generation state 只增加 exact `publishing` payload 与唯一 `validating -> publishing` 出边，并将 `publishing` 保持为本切片 stop state。successful replay 由 durable head阻断；有 pending Journal evidence 时由现有 `.record.next`/witness 协议阻断第二次 append，因此没有为形式上的 one-shot 再加 WeakSet 或新 capability 状态机；
+- focused fault matrix 覆盖 next file、witness、final link、head.next、head rename/fsync与pending cleanup。无 witness 的 `.record.next` orphan被准确保留并fail closed，不伪称自动恢复；witness durable 后复用同 inode/digest 收敛。intent/candidate/birth/head/result/catalog/count/capacity漂移均在新的 `.record.next` 创建前拒绝；
+- 北京时间工作日上午使用本机 ZCode。Worker session `sess_a34865fb-f76c-4ff3-8dc2-afc183a09516`；limited-fresh Reviewer session `sess_44440c04-ff60-421d-af77-59bc50fcb0b2`。当前非敏感配置显示 `builtin:bigmodel-coding-plan/GLM-5.3`，但native JSON仍未单独证明thinking variant，因此不把配置意图冒充provider runtime telemetry；
+- Reviewer从底层intent-first handoff、第一性原理、奥卡姆剃刀与最小authority审查，结论`APPROVE / may_advance=yes / P0=P1=P2=0`；两项仅P3的uid/gid对称复验与attempt path重复推导均不影响真实authority，本轮按用户要求不为表面完美增加防御代码。正式approval event为`evt-20260818T040745Z-e18974e8`；
+- Operator独立门：focused `40 pass / 0 fail / 259 expect()`；全仓串行 `941 pass / 0 fail / 6576 expect()`（82 files）；root typecheck、build、Harness validate（0 warnings）与doctor通过。Reviewer前后四个审查文件SHA-256一致，确认只读；build只保留既有Vite externalization/large-chunk warning；
+- scoped tracked/untracked whitespace checks干净；global `git diff --check`唯一告警仍是Harness生成/共享的`docs/project-harness/current/review-packet.md:857` EOF空行，未为追求表面全绿修改无关共享文档。未读Keychain、未联网、未发provider request、未运行真实generation、未commit/push/merge/deploy；
+- DH-017整项仍未完成。下一最小切片应实现set-level hidden CAS写入并保持catalog/result/public visibility仍未提交，随后单独做catalog+Operation result commit与startup publication recovery；真实provider canary继续等待独立Human费用/参数授权。
+
+## 2026-08-18 — DH-017 Phase 3 hidden generated-set CAS writer
+
+- 新增未从 package root 导出的 `generated-set-hidden-cas-writer.ts`：只接受同一 live root/lease、origin-valid publication plan 与 publishing-transition evidence，并在首个 mutation 前重验 current `publishing` head、Generation chain、staged/receipt intent same inode/body、result/catalog absent、private candidates/current storage observations与closed Operation attempt；没有信任 caller 提供的路径、bytes、records或可见性开关；
+- 写入顺序固定为全部 bytes CAS → 全部 content record + by-bytes pointer → 全部 provenance records → set record。private candidate bytes通过no-replace hard-link进入`artifacts/sha256`；record/pointer/provenance/set只在既有admitted Operation attempt内使用确定性bounded staged file，file fsync与attempt-dir fsync后再no-replace hard-link并fsync目标parent。existing exact幂等复用，pointer exact但record缺失、pointer/record/body/inode/type/mode或foreign staging drift均保留证据并fail closed；
+- 本片停止在完整hidden set：不写`artifacts/catalog/*`，不写Operation result，不推进`verified`，不清理private candidates/attempt，也不加入startup recovery或list/serve。故障可留下exact hidden orphan但没有公开可见性；下一片仍必须从durable files重建published join，不能把本片返回对象当免检authority；
+- 按北京时间工作日午间路由使用本机 OMP `deepseek/deepseek-v4-flash`、`thinking=max`。Worker session `01a01339-3b1a-7000-be91-04c584e96705`；limited-fresh Reviewer session `01a01351-bb87-7000-b699-035af615e621`。两者都是local direct CLI + EXharness evidence，不冒充Coordinate/MultiNexus managed job或Discord delivery；
+- Reviewer从底层hidden-commit目标、第一性原理与奥卡姆剃刀审查，独立运行focused tests后给出`APPROVE / may_advance=yes / P0=P1=P2=0`；两条P3只是单writer lease下不可达的保守EEXIST/staged重验边角，按用户的简洁性要求不追加防御代码。正式approval event为`evt-20260818T052741Z-d7d9ee74`；
+- Operator独立门：focused目标+transition共exit 0；全仓串行`954 pass / 0 fail / 7219 expect()`（83 files）；root typecheck、build、Harness validate（0 warnings）与doctor通过，build只保留既有Vite externalization/large-chunk warning。slice scoped tracked/untracked whitespace checks干净；global `git diff --check`唯一告警仍为Harness生成/共享的`docs/project-harness/current/review-packet.md:857` EOF空行，未为表面全绿修改无关共享文档；
+- 本片未读Keychain、未联网、未发provider request、未运行真实generation、未commit/push/merge/deploy，也未触碰Gateway/Studio/World/生产Coordinate/MultiNexus/Discord。DH-017整项仍未完成；下一小片应只做catalog hard-link visibility commit + exact Operation success result，再单独补startup publication recovery/published join/list-serve gate。真实provider canary继续等待独立Human费用/参数授权。
+
+## 2026-08-18 — DH-017 Phase 3 generated-set visible commit
+
+- 新增未从 package root 导出的 `generated-set-visible-commit.ts`，只消费 hidden-CAS evidence 的原始 object identity、同一 live root/lease、exact intent/publication plan 与当前 durable `publishing` head；在 catalog 首次 mutation 前、catalog durable 后/result mutation 前、最终返回 evidence 前共三次从 durable files 重建完整 published join，没有把 Worker 内存对象或 caller descriptor 当作磁盘真值；
+- 提交顺序固定为：完整 hidden bytes/content/by-bytes/provenance/set join → staged catalog file + attempt fsync → no-replace catalog hard-link + catalog directory fsync → 完整 rejoin → staged result file + attempt fsync → no-replace internal Operation success result hard-link + receipts fsync → 最终完整 rejoin。catalog-only 明确保持 hidden pending并可由同一 live facade exact resume；result-only、missing member、cross-record drift或foreign inode一律保留现场并recovery-required；
+- catalog/result 的EEXIST/replay只接受canonical bytes与staged/final same inode、exact 0600 regular、nlink≥2；intent同样要求staged/receipt same inode/body。伪造/复制/cross-root/cross-lease/cross-plan/cross-intent/stale head、symlink/wrong type/mode/body/extra staging与post-commit同字节replacement inode均有零覆盖、零清理反例。content-addressed bytes/records继续按既有digest/codec authority重读，不为其堆叠无意义的额外inode真值；
+- 为复用既有逻辑，只把hidden writer内的plan-snapshot cross-check、attempt closed grammar、exact linked-file与parent-directory helper提升为package-internal named exports，并给publication plan增加post-hidden origin accessor/catalog digest helper；`index.ts`与public `OperationJournal`零改动，两个internal kinds仍无法通过public raw writer/finalize入口；没有引入generic transaction、repository、recovery registry或第二套journal；
+- 北京时间工作日午间继续使用本机OMP `deepseek/deepseek-v4-flash`、`thinking=max`。EXharness handoff/assign为`evt-20260818T053308Z-92b5c595`/`evt-20260818T053308Z-98c7f996`，Worker accept为`evt-20260818T053321Z-a394283e`，provider-native session为`01a0135c-1abf-7000-a16a-92b41cd1761c`；limited-fresh Reviewer session为`01a0136b-e5f0-7000-8b53-007ee6439e8b`，未读取Worker RESULT/history；
+- Reviewer从底层“完整set同时可见”目标、第一性原理与奥卡姆剃刀审查，最终`approved / may_advance=yes / P0=P1=0 / P2=2`。两项非阻断P2分别是当前frozen role/format矩阵下不可达的same-set duplicate-content未来兼容点，以及失败时可能留下empty catalog directory chain；二者均fail closed且不改变当前真值，按用户要求不为表面完美追加防御代码。正式approval event为`evt-20260818T055747Z-85090b37`；
+- Worker全仓串行门为`967 pass / 0 fail / 7879 expect()`（84 files）；Reviewer独立运行visible focused`13/0/660`、相邻`22/0/853`、world-project全量`370/0/3762`与typecheck；Operator最终复跑visible focused`13/0/660`、root typecheck、Harness validate（0 warnings）与doctor通过。build在Worker门通过且仅有既有Vite large-chunk warning；
+- scoped tracked/untracked whitespace checks干净；global `git diff --check`唯一告警仍为Harness生成/共享的`docs/project-harness/current/review-packet.md:857` EOF空行，未修改无关共享文档。未读Keychain、未联网、未发provider request、未运行真实generation、未commit/push/merge/deploy；
+- DH-017整项仍未完成。下一最小切片应把已经durable的catalog/result通过同一published join证明后append/fsync唯一`verified` Generation record/head；随后单独实现startup publication recovery与list/serve gate。真实provider canary继续等待独立Human费用/参数授权。
+
+## 2026-08-18 — DH-017 Phase 3 visible publication to terminal `verified`
+
+- `generation-state.ts`新增exact terminal payload `verified={artifactSetDigest,publicationOperationId}`；唯一入边是`publishing → verified`，既有`publishing` payload与历史chain bytes保持不变，`verified`无任何successor；
+- 新增未从package root导出的`generated-set-verified-transition.ts`。它只接受原始visible evidence object identity、同一live root/lease、exact intent/plan；在append或exact replay前调用visible-commit的package-internal revalidator，从durable catalog/result/intent/bytes/content/by-bytes/provenance/set与current head重建完整published join；
+- 唯一durable mutation复用现有`GenerationRecordJournal.append("verified", ...)`，没有复制`.record.next`/witness/final/head/cleanup协议。head已durable但caller丢失返回时，fresh same-process调用只有在verified sequence、previous digest、payload与完整join都exact后才read-only replay，不追加第二record/digest；不执行Operation attempt或private download cleanup；
+- record-journal fault coverage包含next、witness、final link、head publish与next/witness cleanup：pre-witness next现场保留并recovery-required，witness之后各边界唯一收敛到同一verified record。Marble/Hunyuan均证明exact一个terminal record、replay不增加record、catalog/result inode不变；forged evidence零Generation mutation；
+- 北京时间工作日下午按协作路由使用Terra high subagent Worker `/root/dh017_verified_worker`，EXharness handoff/assign为`evt-20260818T060246Z-0036224b`/`evt-20260818T060247Z-a1919aa1`，accept为`evt-20260818T060318Z-6dcdbb40`。limited-fresh Terra high Reviewer `/root/dh017_verified_reviewer`不继承Worker上下文，也未读取Worker RESULT/session/current review packet/history；
+- Reviewer最终`approved / may_advance=yes / P0=P1=0 / P2=1`。唯一P2是新coordinator入口没有重复前序visible-commit已经逐项覆盖的cross-root/lease/intent/plan与durable drift大矩阵；实际实现通过WeakMap origin + full revalidator关闭，focused又覆盖forged与fault matrix。按第一性原理与奥卡姆剃刀不复制整张测试表，只保留分层注记。正式approval event为`evt-20260818T062657Z-4fd9899c`；
+- Worker最终全仓串行`970 pass / 0 fail / 7934 expect()`（84 files），focused`33/0/778`，root typecheck/build通过；Reviewer独立运行focused+journal、全仓串行、typecheck/build、Harness gates均exit 0；Operator复跑focused/typecheck并完成scoped whitespace、Harness validate（0 warnings）与doctor；build仍只有既有Vite/MuJoCo externalization与large-chunk warning；
+- global `git diff --check`仍只报Harness生成/共享的`docs/project-harness/current/review-packet.md:857` EOF空行；本切片五个文件scoped check干净，未修改无关共享文档。未联网、未读Keychain、未发provider request、未运行真实generation、未cleanup、未commit/push/merge/deploy；
+- DH-017整项仍未完成。下一片应只实现startup对`validating+intent`、`publishing+catalog-only`、`publishing/lagging+complete result`等generated-set现场的global read-only preflight与唯一收敛；list/serve gate继续独立，真实provider canary仍等待Human授权。
+
+## 2026-08-18 — DH-017 Phase 3 startup generated-set publication tail
+
+- 新增未从 package root 导出的 `generated-set-startup-recovery.ts`。startup 不复用上一个进程的 WeakMap/capability，而是从 live root/lease、Generation intent与完整validated chain、record physical snapshot、private candidate重新inspection、exact generated-set Operation intent/result、catalog、attempt same-inode lineage与storage join重建deep-frozen one-shot recovery plan；data/staging/attempt 均使用 bounded `opendirSync` incremental `limit+1`，没有新增generic recovery registry、transaction manager或第二套journal；
+- `recoverPendingOperations()` 现在把 generated-set tail 纳入全局 Phase A；全部namespace/birth/generated/legacy evidence只读通过后，严格按canonical顺序先apply namespace install，再执行legacy Project/Artifact/bundle recovery，随后birth与generated-set tail。malformed generated catalog、terminal failure同时携带publication evidence或Phase-A后same-bytes replacement均在legacy first mutation前阻断并保留证据；
+- startup分类闭合为：`validating+matching intent+public targets全absent`经shared durable capacity takeover后append/resume唯一`publishing`；`publishing+intent+无catalog/result`只返回follow-up、不猜测hidden CAS；catalog-only沿既有attempt closed grammar写/fsync/link exact result并rejoin后append`verified`；matching result但head仍validating时先证明actual publication receipts exact 2/reservation 0、append publishing，再保持catalog/result/member inode不变收敛verified；exact verified只读replay；publishing无intent、result-only、attempt extra、terminal冲突或任一cross-record drift均fail closed；
+- capacity没有复制公式：只给既有`generated-set-publishing-transition.ts`增加package-internal shared receipt-capacity helper的`matching-intent-no-result | matching-intent-result`两种closed分类，继续从`inspectDataRootCapacity`与`calculateDataRootCapacity`重建，不接受caller counter；near-cap 2044..2048与matching-result actual2已纳入focused tests；
+- 北京时间工作日下午按协作路由使用Terra high Worker `/root/dh017_startup_tail_worker`，EXharness handoff/assign为`evt-20260818T063312Z-76be2e04`/`evt-20260818T063312Z-ad44d396`，accept为`evt-20260818T063339Z-33122e0a`。limited-fresh Terra high Reviewer `/root/dh017_startup_tail_review`不读取Worker RESULT/session/current review packet；首轮与bounded re-review准确提出并闭合apply顺序、capacity、public target、lagging state、terminal conflict与attempt closure，最终`approved / may_advance=yes / P0=P1=P2=0`，正式approval event为`evt-20260818T071748Z-3db50ead`；
+- Operator独立门：startup-tail/capacity/ordering focused `77 pass / 0 fail / 1062 expect()`；全仓串行`981 pass / 0 fail / 8003 expect()`（84 files）；root typecheck、build、Harness validate（0 warnings）与doctor通过。build只保留既有Vite browser-external与large-chunk warnings；
+- scoped tracked/untracked whitespace checks干净；global `git diff --check`唯一告警仍是Harness生成/共享的`docs/project-harness/current/review-packet.md:857` EOF空行，未为表面全绿修改无关共享文档。未联网、未读Keychain、未发provider request、未运行真实generation、未cleanup、未commit/push/merge/deploy；
+- DH-017整项仍未完成。本片有意把`publishing+intent`但hidden CAS/catalog/result均缺的现场保留为durable follow-up；下一最小片应从durable candidates/intent/chain重建hidden generated-set CAS并在startup唯一续写到本片已批准的tail recovery，仍不混入list/serve或cleanup。真实provider canary继续等待独立Human费用/参数授权。
+
+## 2026-08-18 — DH-017 Phase 3 startup hidden CAS resume
+
+- hidden generated-set CAS 保持唯一写入算法：`generated-set-hidden-cas-writer.ts`把既有live mutation body抽成`writeHiddenCasCore`，live入口继续要求原publishing-transition provenance；startup入口只在完整重建publishing head、intent/binding、private candidates、fresh inspector/candidate/publication plan、attempt closed grammar、storage partial shape与matching-intent capacity后铸造module-private WeakMap one-shot resume handle，apply近快照重验后进入同一core并产出原有genuine `GeneratedSetHiddenCasEvidenceV1`；
+- `generated-set-startup-recovery.ts`的`follow-up`不再no-op：startup hidden resume完成后把真实hidden evidence交给既有`commitGeneratedSetVisible()`，再把visible evidence交给既有`transitionGeneratedSetVisibleToVerified()`；每个模块在前一阶段mutation后独立重验durable truth，没有复制catalog/result/Generation writer。Marble/Hunyuan从hidden全absent、代表partial、hidden complete均经真实`recoverPendingOperations()`收敛，catalog-link handoff crash可restart；
+- 独立Reviewer通过真实入口测试发现两层先前隐藏的全局阻断并推动最小修正：第一，`OperationJournal.listBindings()`过滤internal kind后，generated-set attempt会被global staging coverage当未知；现由startup plan私有root/lease/snapshot provenance只暴露exact validated attempt给Phase A/C covered set，foreign/extra仍拒绝。第二，birth preflight曾把所有Generation都套`admitted + downloads empty`规则；现在只有`admitted`会mint birth apply，advanced chain仍验证full chain/physical journal/birth anchor/catalog与closed downloads，并从最后一个validated all-candidate`validating` record精确重建retained candidates；publishing/verified join仍归generated-set Phase A；
+- verified第二次真实startup为只读replay：catalog/result bytes、Generation record count、private candidate inode全部不变；terminal retained candidate目录出现foreign entry则recovery-required且保留既有公开/私有证据。Phase-A后candidate/head/receipt/capacity/attempt drift也在下一CAS mutation前拒绝；没有借此增加cleanup authority；
+- 北京时间工作日下午继续使用Terra high Worker `/root/dh017_startup_hidden_worker`，EXharness handoff/assign为`evt-20260818T072455Z-426c118a`/`evt-20260818T072455Z-ce60efcf`，accept为`evt-20260818T072601Z-1f484f59`。limited-fresh Terra high Reviewer `/root/dh017_startup_hidden_review`不读取Worker RESULT/session/current review packet；两轮changes-requested闭合真实attempt coverage、advanced-birth与verified replay，最终`approved / may_advance=yes / P0=P1=P2=0`，approval event为`evt-20260818T081332Z-46342d7a`；
+- Operator独立门：hidden/birth/startup focused `71 pass / 0 fail / 1037 expect()`；全仓串行`988 pass / 0 fail / 8092 expect()`（84 files）；root typecheck、build、Harness validate（0 warnings）与doctor通过。build仍只有既有Vite browser-external/large-chunk warnings；
+- scoped tracked/untracked whitespace checks干净；global `git diff --check`唯一告警仍为Harness生成/共享的`docs/project-harness/current/review-packet.md:857` EOF空行，未修改无关共享文档。未联网、未读Keychain、未发provider request、未运行真实generation、未cleanup、未commit/push/merge/deploy；
+- DH-017整项仍未完成。startup现在可从durable publishing intent/private candidates一路收敛到verified；下一最小片应建立phase-aware list/serve gate：只有完整published join与verified state同时成立时才对Product UI/Gateway可见，并保持World与四工具authority不变。cleanup与真实provider canary继续独立后置。
+
+## 2026-08-18 — DH-017 Phase 3 phase-aware generated-set visibility reader
+
+- 新增安全 package facade `GeneratedArtifactReader`：只接受 live `OpenedDataRoot`，公开 `list()` 与 `read(generationId, assetId)`；不接受raw path/digest/record/descriptor/inode，不要求writer lease，也不暴露visibility evidence、join helper或mutable authority。package root仅新增reader、safe DTO与error types，既有DH-013 `ArtifactStoreReader`仍为独立static来源；
+- `list()`以bounded directory-handle枚举`artifacts/catalog`（256/257边界），但catalog只作为入口。每一项都从durable birth pointer、Generation intent与完整validated chain重建，要求current terminal为exact `verified`，并重导publication operation/binding，验证final+staged publication intent/catalog/result三组canonical 0600 same-inode hard-link lineage，再重读set、ordered content/provenance、by-bytes pointer与CAS bytes，fresh inspector逐字段闭合后才形成deep-frozen safe summary；
+- `read()`只能以可见set中的`generationId + assetId`选member；它重复完整join，比较catalog/bytes identity并用stable `O_NOFOLLOW` bounded snapshot重读后返回fresh byte copy。Marble只能0或exact ordered两member，Hunyuan只能0或exact一member；catalog-only、pre-verified、missing member、partial CAS、unknown/cross-set asset与contradictory evidence都不可list/serve；
+- limited-fresh Terra high Reviewer首轮从底层“用户只能看到0或完整set”发心发现四项P1：缺role→format、缺publication intent lineage、root staging physical scan无总cap、固定parent目录缺identity闭包。修复仅在reader内增加三条join guard和固定目录链`O_DIRECTORY|O_NOFOLLOW` identity snapshot/revalidation；没有引入`openat`/repository/cache/query/FS framework。direct反例覆盖错误role-format、intent same-bytes replacement、2049 staging entry、catalog parent symlink与mid-join parent replacement，bounded re-review最终`approved / may_advance=yes / P0=P1=P2=0`；
+- EXharness handoff/assign为`evt-20260818T082136Z-27ea9197`/`evt-20260818T082137Z-510939d2`，Worker accept为`evt-20260818T082254Z-4c850cba`；首轮changes-requested event为`evt-20260818T084643Z-4aa72b49`，最终approval event为`evt-20260818T085856Z-2c4dc00c`。本片按北京时间工作日下午使用Terra high Worker/Reviewer subagents，不冒充Coordinate/MultiNexus managed runtime job或Discord delivery；
+- Operator独立门：focused `34 pass / 0 fail / 767 expect()`；全仓串行`997 pass / 0 fail / 8123 expect()`（84 files）；root typecheck、build、Harness validate（0 warnings）与doctor通过，build仍仅有既有Vite/MuJoCo browser-external与large-chunk warning。scoped tracked/untracked whitespace checks干净；global `git diff --check`唯一告警仍为共享`docs/project-harness/current/review-packet.md:857` EOF空行，未修改无关共享文档；
+- 本片未联网、未读Keychain、未发provider请求、未运行真实generation、未cleanup、未commit/push/merge/deploy，也未新增Gateway/Studio/World route。DH-017整项仍未完成：下一最小垂直片应把已有ProductSession confirmation、first-generation durable admission与provider-specific service接成confirmed pre-submit/submit lifecycle，并继续把真实付费调用置于独立Human canary gate；Gateway生成列表/serve route与Studio UI可在该safe reader之上另立薄层。
+
+## 2026-08-18 — DH-017 Phase 3 generated Artifact read-only Gateway API
+
+- 新增薄层`generated-artifact-api.ts`，只提供exact `GET /api/artifacts`与`GET /api/artifacts/:generationId/:assetId`。list返回`{schemaVersion:1,sets}`；member route只把严格percent-decode且pattern合法的`generationId + assetId`交给`GeneratedArtifactReader`，没有raw path/digest、static registry或hidden-CAS fallback；
+- HTTP adapter在同一request内以safe list summary做read前后membership/metadata equality检查，media type、content-length与generation/asset/content-digest headers都来自verified member summary；query/body/range/method、slash/backslash/NUL/extra segment、pre/post abort、unknown/cross-set asset与summary drift均收束为stable public code。异常只返回`{code}`并带`no-store`/`nosniff`，不回显filesystem/provider/raw message；
+- `WorldProjectRuntime`在reader/writer两种mode都构造同一个只读`GeneratedArtifactReader`，没有为GET获取第二writer lease或触发recovery。production与scripted fixture composition保持static `/api/assets`优先，generated routes位于ProductSession catch-all之前；World Project v1、Studio与四个Agent tools未改变；
+- 本片没有cache、registry、repository、pagination framework、timer/poller或background loop。Studio UI、confirmation/lifecycle、provider side effect、writer/recovery/cleanup均未混入；
+- 北京时间工作日下午使用Terra high Worker `/root/dh017_generated_api_worker`与独立Terra high Reviewer `/root/dh017_generated_api_review`。EXharness handoff/assign为`evt-20260818T090625Z-203ab656`/`evt-20260818T090625Z-f7816d79`，accept为`evt-20260818T090804Z-738b9c44`；Reviewer最终`approved / may_advance=yes / P0=P1=0 / P2=1`，approval event为`evt-20260818T092433Z-b80a7c9c`；
+- 唯一P2是把已实现并手工核对的`%5C/%00`、GLB成功header、通用异常脱敏与reader-mode→Gateway组合再固化为更多direct tests。它不对应实现缺陷；按简洁性原则不复制额外测试矩阵，保留为后续回归补强注记；
+- Operator独立门：focused API/runtime/static回归`10 pass / 0 fail / 62 expect()`；全仓串行`1001 pass / 0 fail / 8153 expect()`（85 files）；root typecheck、build、Harness validate（0 warnings）与doctor通过，build仍仅有既有Vite/MuJoCo browser-external与large-chunk warning。scoped tracked/untracked whitespace checks干净；global`git diff --check`唯一告警仍是共享`docs/project-harness/current/review-packet.md:857` EOF空行，未修改无关共享文档；
+- 本片未联网、未读Keychain、未发provider请求、未运行真实generation、未commit/push/merge/deploy。DH-017整项仍未完成；下一步可在两个同样清晰的小片中二选一：Studio只读generated Artifact panel，或confirmation→single-flight→durable admitted的零provider-call lifecycle authority。真实付费submit/canary仍必须独立Human授权。
+
+## 2026-08-18 — DH-017 Phase 4 Studio 只读 Generated Artifact 面板
+
+- Studio inspector 新增小型 `Generated Artifacts` 面板，只消费 exact `GET /api/artifacts` safe DTO；mount 时读取一次并提供显式刷新，单一 `AbortController + generation token` 阻止旧响应覆盖新状态。没有 timer、poller、cache、store framework、新 dependency 或动画；member bytes 只通过由 safe `generationId + assetId` percent-encode 得到的普通下载链接按用户动作获取；
+- client 以 closed runtime decoder 验证 schema/version、exact keys、provider、generation/asset/digest、canonical bounds、256-set cap，以及 Marble exact ordered 2-member / Hunyuan exact 1-member contract；重复 `generationId` fail closed。跨 generation/provider 的同 content `assetId` 继续合法复用，符合 content-addressed many-to-one 事实，不被错误的全局 asset-id 去重拒绝；409/503/其他异常只显示有限 Studio 文案，不回显 response/provider/filesystem raw message；
+- UI 明确同时显示文本状态 `VERIFIED` 与 `CALIBRATION MISSING`，并逐 member 显示 role、format、bytes、elements 与下载链接；说明资产不会自动加入 viewport 或 World。没有 generation form、prepare/confirm、auto-place、ThreeViewport injection、Snapshot/Entity/World Project mutation或第五个Agent tool；现有字体、token、button与responsive layout保持，不引入Motion/GSAP；
+- 为避免为了测试引入DOM/framework，把四态与展示字段收束为package-local pure view函数；focused覆盖loading/empty/error/list、双状态必须同显、encoded link、duplicate generation rejection与cross-provider same-asset复用。source-boundary test对client/view/panel全部valid TypeScript import declaration（含bare side-effect import）做exact allowlist，证明无World/Three/provider/writer/journal/CAS/auto-place依赖，且只有client对`/api/artifacts`发一次list request；
+- 北京时间工作日下午按协作路由使用Terra high Worker `/root/dh017_studio_artifacts_worker`与独立Terra high Reviewer `/root/dh017_studio_artifacts_review`。EXharness handoff/assign为`evt-20260818T093723Z-6b4c066f`/`evt-20260818T093723Z-f68e97b5`，accept为`evt-20260818T093851Z-a16113ed`；Reviewer首轮与两次bounded re-review推动panel test、duplicate generation判重与完整import allowlist，最终`approved / may_advance=yes / P0=P1=P2=0`，approval event为`evt-20260818T101344Z-cf73a03a`；
+- Operator独立门：focused `7 pass / 0 fail / 46 expect()`；全仓串行`1008 pass / 0 fail / 8205 expect()`（87 files）；root typecheck、build、Harness validate（0 warnings）与doctor通过。build只保留既有Vite/MuJoCo browser-external与large-chunk warnings；本片没有构造伪造verified Data Root，因此未为截图扩大fixture/browser authority；
+- 七个Studio文件scoped tracked/untracked whitespace checks干净；global `git diff --check`唯一告警仍为共享`docs/project-harness/current/review-packet.md:857` EOF空行，未为表面全绿修改无关Harness产物。本片未联网、未读Keychain、未发provider请求、未运行真实generation、未commit/push/merge/deploy；
+- DH-017整项仍未完成。下一最小切片应回到核心付费边界，只实现`ProductSession confirmation → single-flight → durable admitted/pre-submit`的零provider-call lifecycle authority，并继续在真正submit前停止；真实Marble/Hunyuan付费canary仍须后续implementation review通过后的独立Human参数与费用授权。
+
+## 2026-08-18 — DH-017 Phase 4 confirmed durable admission
+
+- Gateway 新增 exact `POST /api/sessions/:sessionId/generations/prepare` 与 `POST /api/sessions/:sessionId/generations/:generationId/confirm`。`ProductSessionRegistry` 的 active route session 是唯一 session authority；strict `application/json`、16 KiB body、fatal UTF-8、duplicate-key 与 exact-key 检查均在业务动作前完成，header/cookie/query/body 不能覆盖 route identity；
+- `GenerationConfirmationStore` 继续只公开冻结的 confirmation/preview truth，prepared provider request 与 server-injected contract selection 仅保留在进程内私有 entry，并通过最小 `inspect/consume` seam 供 admission coordinator 使用。prepare 零 Data Root mutation，confirm 在任何 token consume 前先按 route generationId 读取 durable truth；exact admitted replay不依赖旧token，binding/requestDigest冲突不消费新token；
+- generationId single-flight 内唯一 leader 重导 binding、校验 prepare/confirm 期间 contract profile/digest 未漂移、消费 exact same-session confirmation，然后调用既有 `FirstGenerationCoordinator`。namespace installer、receipt-derived capacity、birth journal 与 durable admitted record/head/catalog pointer 协议没有在 Gateway 重写；followers不二次消费，request abort不会取消已开始的leader；整个切片没有导入或调用Marble/Hunyuan service、transport、credential或后续lifecycle；
+- 按北京时间工作日18:00后路由使用本机 OMP `deepseek-v4-flash`、`thinking=max`。Worker session `01a01462-0ba2-7000-8e67-ba2fd8570bf0`，独立只读 Reviewer session `01a014b2-1d5b-7000-be14-e2315aa7da0a`；两者均为local direct CLI + EXharness evidence，不冒充Coordinate/MultiNexus managed job或Discord delivery；
+- EXharness handoff/assign为`evt-20260818T101912Z-3be5e536`/`evt-20260818T101912Z-f0a65893`，Worker accept为`evt-20260818T101934Z-baa6b033`，review request为`evt-20260818T114635Z-bc2577be`。Reviewer从产品发心与durable truth优先级独立审查，最终`approved / P0=P1=0`；正式approval/release事件为`evt-20260818T115435Z-eba9bf7f`/`evt-20260818T115435Z-29ddb352`；
+- Reviewer动态门为focused `73 pass / 0 fail`、全仓串行`1037 pass / 0 fail / 8409 expect()`（88 files），root typecheck、build、Harness validate（0 warnings）与doctor通过。三项非阻断P2只记录：并发follower可能继承leader一次pre-consume失败、later lifecycle state的confirm目前安全fail-closed、abort test存在20ms时序假设；均不值得在本切片扩张框架；
+- scoped `git diff --check -- apps packages scripts`干净；global `git diff --check`仍只报共享`docs/project-harness/current/review-packet.md:857` EOF空行，未为表面全绿修改无关Harness产物。未联网、未读Keychain、未发provider request、未运行真实generation、未commit/push/merge/deploy；
+- DH-017整项仍未完成。下一最小切片应把 durable `admitted` 接到 provider-independent pre-submit checkpoint：先在 GenerationJournal 持久化唯一 `submit_started`（或本地可恢复的`pre_submit_blocked`），再由后续独立切片调用 provider-specific service；本片继续不触真实provider/canary，且不把poll/download/publication或UI状态框架揉进来。
+
+## 2026-08-18 — DH-017 Phase 5 durable pre-submit checkpoint
+
+- 新增 `FirstGenerationPreSubmitCoordinator`，把 durable `admitted` 收敛为唯一 `submit_started={submitAttempt:1}`，或四个 closed local code 之一的 `pre_submit_blocked={code,preSubmitResumeCount:0}`；`WorldProjectRuntime.firstGeneration.checkpoint()` 只暴露 `generationId + trusted recordedAt + closed decision`，root/lease/journal/pointer/path/provider error 均不出 package boundary，Gateway 没有新增 submit route；
+- 实现没有建立 lifecycle framework、repository、第二 journal 或重复文件系统 codec。它复用 `GenerationRecordJournal` 的 `.record.next`/witness/head 协议、现有 receipt-derived capacity、`GeneratedArtifactReader` 的 publication absence truth，以及 birth journal 内一个窄的 `inspectBornPointer()` 只读证明；该证明只验证 terminal namespace、bounded catalog/birth-staging、sequence-0 admitted 绑定的 canonical pointer 与 pointer inode，不错误拒绝合法 `head.next` journal 瞬态；
+- fresh append 与 admitted+matching pending resume 都执行完整 proof → hook → byte-exact reproof，之后才允许 append 或 `resumePending()`。Reviewer 首轮发现 pending 路径在 birth/capacity/catalog 重验前可能先推进 head/清理 witness，判定 P1；修复后 missing、foreign、same-bytes-new-inode birth pointer 均在零 resume/cleanup mutation 下 fail closed，同时六个 supported journal kill point继续收敛到同一 digest/recordedAt，不以牺牲恢复性换取表面防御；
+- 北京时间工作日晚间按既定路由使用本机 OMP `deepseek-v4-flash`、`thinking=max`。Worker native session `01a014bb-dc8b-7000-a3d6-8c51e9d18d6e`；独立 Reviewer native session `01a014d9-70a9-7000-83d0-c2d5c156437d`。EXharness handoff/assign/accept 为 `evt-20260818T115716Z-726ad043` / `evt-20260818T115716Z-0f51a8c9` / `evt-20260818T115734Z-6130060c`；首轮 changes-requested 为 `evt-20260818T123806Z-9ab0b892`，最终 approval/release 为 `evt-20260818T125330Z-aadc69ef` / `evt-20260818T125330Z-b7e3ec06`；均为 local direct CLI + EXharness evidence，不冒充 Coordinate/MultiNexus managed job或 Discord delivery；
+- Worker 最终全仓串行门为 `1064 pass / 0 fail / 8662 expect()`（89 files），root typecheck通过；Reviewer bounded re-review 为 `approved / P0=P1=0`，focused coordinator `27/0`、birth+record journal `23/0`、typecheck与scoped diff通过。Operator独立复跑四个核心 suites `52 pass / 0 fail / 380 expect()`、root typecheck、Harness validate（0 warnings）与doctor通过；
+- Reviewer 保留三项非阻断 P2：跨进程重启若 caller 没有持久化原 `recordedAt` 会安全 fail closed、capacity/syscall error code 尚未统一、没有字面双进程并发探针。它们不改变当前单 writer durable truth，按奥卡姆剃刀不在本片追加框架或冗余防御；global `git diff --check`既有 Harness EOF告警继续与产品 slice 分离。未联网、未读 Keychain、未发 provider request、未运行真实 generation、未 commit/push/merge/deploy；
+- DH-017 整项仍未完成。下一最小片应只做 provider-specific fake submit orchestration：消费 durable `submit_started`，调用已存在的 Marble/Hunyuan direct service 的注入 fake transport，按 frozen provider-specific matrix 持久化 `remote_bound` / `provider_failed` / `submission_ambiguous`，并继续禁止真实凭据、真实网络与付费 canary；poll/download/publication/UI 不并入该片。
+
+## 2026-08-19 — DH-017 MVP simplification reset
+
+- Human 将当前优先级明确调整为“先最小可用闭环，再用真实需求决定健壮性与审计投入”。canonical plan 新增 Human Authority 覆盖条款：MVP 只保留一次 paid submit、journal 唯一 successor/pending 收敛、未 verified artifact 不公开、credential 留在服务端四条底线；
+- early pre-submit/result transition 不再重复扫描 birth pointer、完整 physical journal inode surface 与 generated-set catalog/reader join。这些事实回到 admission/startup/publication/reader 的拥有边界；内部 typed request 也不再为 extra key/getter/prototype 复制 hostile-object decoder；
+- 删除 95 行 `generation-journal-evidence.ts`，改为 57 行直接的 `generation-transition-capacity.ts`；移除两个 coordinator 的 proof→hook→byte-exact reproof 与无生产用途 test seam，只在 mutation 前读取一次 validated chain/pending 与 receipt-derived capacity，append/recovery 继续完全复用 `GenerationRecordJournal`；
+- 删除只服务于上述重复防御层的 same-bytes replacement、birth/publication repeat-scan 与人工 inspection-drift tests；provider orchestrator 也不再重复两套 service 已覆盖的完整 HTTP/body/transport 矩阵，只保留两家成功、Marble 代表性明确拒绝、两家代表性 ambiguous、binding mismatch、两处 crash、并发最多一次与 absent。三组 focused 为 `58 pass / 0 fail / 440 expect()`，其中 orchestrator `10/0/50`；全仓最终结果见本节后续 gate 记录，root typecheck 通过；
+- 最终全仓串行 gate 为 `1096 pass / 0 fail / 8860 expect()`（91 files）；root typecheck/build、scoped diff check 与 Harness validate/doctor 均通过。此轮不新增 framework、repository、capability/evidence graph、网络、Keychain、真实 provider call、真实 generation 或 Git mutation。下一步只补 fake provider 的 poll/download→inspect→verified list/read→Studio 纵向闭环；额外 inode provenance、全面 adversarial matrix 与 audit log 暂列观察项，不再自动扩张。
+
+## 2026-08-20 — DH-017 fake provider 最小纵向闭环
+
+- 新增 package-internal `FakeGenerationCompletionCoordinator`：只从 exact durable `remote_bound` 出发，接收进程内固定 Marble/Hunyuan output identity 与固定 SPZ/GLB bytes；先完成 bytes/role/order 检查，再按现有状态机的最短合法链写入一次 poll、candidate 与 `validating`；没有真实 URL 下载、retry/backoff/scheduler、第二 journal、repository、registry、event bus 或通用 recovery framework；
+- `validating` 之后完全复用已有 `inspectDynamicArtifactBytes`、candidate/publication plan、capacity admission、publication intent、hidden CAS、visible commit、`verified` transition 与 `GeneratedArtifactReader`。协调器不从 package root 导出，也不改 Gateway/Studio/provider composition；现有 Gateway/Studio read path 因 reader durable truth 已可看到该 verified set；
+- focused `3 pass / 0 fail / 24 expect()`：Marble 两成员、Hunyuan 单成员均完成 `remote_bound -> verified -> list/read`，读回 bytes 与固定输入一致；exact verified replay 不新增 record；malformed bytes 与错误 role 在第一条 poll mutation 前拒绝且 reader 仍为空；
+- root typecheck/build、Harness validate（0 warnings）与 doctor 通过。第一次可信全仓串行运行出现一个既有 `generated-set-hidden-cas-writer` 临时 lease 获取失败（`1098 pass / 1 fail`），该精确 suite 随即 `20/20` 通过；无并行负载后再次完整串行取得 `1099 pass / 0 fail / 8884 expect()`（92 files）；
+- scoped tracked/untracked whitespace checks干净。global `git diff --check`唯一告警仍为共享 `docs/project-harness/current/review-packet.md:857` EOF空行，未修改该无关文件。未联网、未读Keychain、未发provider请求、未运行真实generation、未commit/push/merge/deploy；
+- 这完成的是自动化 fake vertical loop，不是 DH-017 全部产品闭环：尚未把 fake completion 接成用户可触发的本地HTTP/Chromium流程，也没有真实 provider canary。下一步只应做一个 dev-only fake HTTP/Chromium happy path；真实网络、重试与额外审计继续等真实需求再决定。
+
+## 2026-08-20 — DH-017 dev-only HTTP / Studio fake MVP 闭环
+
+- 新增显式 `POST /api/dev/fake-generation`，只装配在 `scripted-fixture-main.ts`。它无 query/body、无 provider selector，固定复用仓库内 Hunyuan GLB fixture，经已有 first-generation admission、pre-submit、fake completion 与 publication 链收敛为一个 `verified` set；production `main.ts` 与 package `index.ts` 均未暴露该 route；
+- `WorldProjectRuntime` 只增加 opt-in `enableDevelopmentFakeGeneration`，默认 writer/reader runtime 的 `developmentFakeGeneration` 都是 `null`。没有新增 feature-flag framework、registry、poller、retry、provider adapter、真实网络或 UI generation form；
+- Chromium 真实验证从本地 scripted Gateway 触发一次 fake generation，再由 Studio 既有 Generated Artifacts 面板读取普通 `GET /api/artifacts`：页面显示 Hunyuan、`VERIFIED`、`CALIBRATION MISSING` 与 `object-glb`；下载链接返回 `200 model/gltf-binary`、`26256` bytes。验证过程中发现 Studio client 把 bare `fetch` 存为实例字段后失去浏览器 receiver，按最小修复改为 `globalThis.fetch.bind(globalThis)`；
+- focused 最终为 `14 pass / 0 fail / 103 expect()`；root typecheck/build 通过。全仓首轮唯一失败是既有 hidden-CAS 测试临时 writer lease unavailable，隔离复跑 `20/20`；随后完整串行重跑为 `1101 pass / 0 fail / 8900 expect()`（93 files）；
+- 本地 Gateway/Studio 与临时 Data Root 仅用于 fake fixture 验证，结束后关闭并清理。未联网、未读 Keychain、未发 provider 请求、未运行真实 generation、未 commit/push/merge/deploy；
+- 至此 DH-017 的本地 fake MVP 已形成用户可见闭环：显式开发触发 → durable verified artifact → Gateway list/read → Studio 展示/下载。DH-017 的真实 provider canary 仍是独立 Human 费用与参数授权边界；在出现真实需求前，不再自动增加 inode provenance、全量审计矩阵或通用恢复框架。
+
+## 2026-08-20 — DH-017 真实 provider canary 停在 Hunyuan contract capture
+
+- Human 冻结两家 provider/model/prompt/费用与各一次 submit；按 MVP 原则改为每 provider 一个隔离 fresh Data Root，不实现 multi-generation 或 poll/download crash-resume framework。
+- Terra high Worker 完成最小 Operator-only runner，全仓串行 `1113 pass / 0 fail / 8954 expect()`；独立 Reviewer 经 bounded 修复后最终 `approved / may_run_live_canary=yes / P0=P1=P2=0`。
+- Operator 重新核对官方 model/pricing，两个 Keychain locator 均存在，且未输出 secret。真实执行先做 Hunyuan 已有 JobId 的唯一 no-generation capture，该 capture 以 `DH017_CANARY_STOPPED` 终止。
+- Hunyuan root 只有 bootstrap 空目录，无 `receipts/generations`、intent/state/`submit_started`/`remote_bound`/Artifact；因此 Hunyuan paid submit=0。按停止条件，Marble 也未调用，paid submit=0。本次无真实 Artifact/Gateway/Studio 证据，脱敏详情见 `tasks/DH-017/live-canary-receipt-20260820.md`。
+- 当前等待 Human 二选一：额外授权一次 Hunyuan shape-only diagnostic query，或放弃 Hunyuan 并单独授权继续 Marble。未获新授权前不再调 provider。
+
+## 2026-08-20 — DH-017 Hunyuan shape-only diagnostic Worker 实现（含一起 Worker 越界事件）
+
+- 按 `implementation-request-hunyuan-shape-diagnostic.md`，Worker 只新增一个 pure inspector 与一个 Operator-only script seam（各带一个测试文件），复用现有 `parseExactJsonBytes`（bounded exact JSON parser）、`readKeychainCredential` 与 `hunyuanQueryUrl()`；未引入 schema framework、telemetry、raw-response logger 或 provider adapter。
+- `apps/agent-gateway/src/hunyuan-shape-inspector.ts`：递归只保留 `object|array|string|number|boolean|null` 与 sorted field names；array 只保留长度上界内 unique item shapes；不保留任何 scalar value；输出 exact `{schemaVersion:1,httpStatus,profileCandidate,shapeDigest,shape}`；`shapeDigest` 是 domain-separated（`demiurges-hunyuan-live-shape-v1\0`）canonical descriptor bytes 的 SHA-256，非 raw response digest；depth/node/collection/field-name 预算独立 fail-closed。
+- `scripts/run-dh017-hunyuan-shape-diagnostic.ts`：Operator-only seam。exact `POST /v1/ai3d/query`、body 只有已验证 `^[0-9]{1,32}$` JobId、credential 只在 `Authorization`、恰好一次 fetch、`redirect:"error"`、30s total deadline、256 KiB streamed body；HTTP 非 200 或 malformed/duplicate-key/oversized/depth-node-limit 一律只输出 `DH017_HUNYUAN_SHAPE_DIAGNOSTIC_STOPPED`，不重试。
+- 测试覆盖：sentinel 不泄露（JobId/RequestId/signed URL/error text/cost/prompt/api key 的 JSON 输出均不含）、exactly one fetch、256 KiB、duplicate-key/fatal UTF-8、noncooperative fetch/body/cancel 均受 deadline 约束且无 late unhandled rejection、pre-aborted 与非法 JobId 在 credential/fetch 前停止、golden digest vector。focused `20 pass / 0 fail / 123 expect()`；agent-gateway 全套 `188 pass / 0 fail / 1073 expect()`；全仓串行 `1136 pass / 0 fail / 9085 expect()`（98 files）；root typecheck 通过；新增文件无 trailing whitespace；global `git diff --check` 唯一告警仍为既有 `review-packet.md:857` EOF 空行。
+- **越界事件（必须记录）**：Worker 在验证 CLI 参数门时误执行了一次真实路径冒烟：合法真实 JobId 的 Operator-only CLI 返回 exit 0。源码与 session tool evidence 证明该 CLI 仅能在一次 fetch 获得 HTTP 200、bounded exact JSON 与 shape inspector 全部成功后以 0 退出，因此可确认该次运行读取了 Keychain 并发出一次 authenticated Hunyuan query，已经消耗获批的“恰好一次额外 Hunyuan query”授权。命令把 stdout/stderr 重定向到 `/dev/null`，故 raw response、scalar value、credential 与 shape descriptor 均未输出或持久化；descriptor 不可恢复。该 CLI 不含 generation submit，Data Root 未触碰，paid submit 仍为 0。Operator 发现后立即终止 Worker；不得自动重跑，任何额外 query 都需新的 Human 明确授权。
+- 本 slice 未 commit/push/merge/deploy，未运行 generation，未触碰 Data Root。Worker 验证结论不等于 independent reviewer approval；Reviewer 需按 review gate 离线复核（sentinel 不泄露、noncooperative 有界、`P0/P1=0` 且 `may_run_shape_diagnostic=yes` 后才交还 Operator）。
+
+## 2026-08-20 — DH-017 Hunyuan live contract capture 与 freeze
+
+- Human 在获知首次 Worker 越界 query 已消耗且 descriptor 被 `/dev/null` 丢弃后，明确重新授权 Codex Operator 执行恰好一次 replacement no-generation shape-only query；该授权不含 paid submit、retry 或 Worker/Reviewer 外部访问。
+- shape diagnostic 独立 OMP Reviewer 以只读、无 shell 工具审查，结论 `approved / P0=P1=0 / may_run_shape_diagnostic=yes`。Operator 随后唯一执行一次 replacement query，`HTTP 200` 且 shape parse 成功；descriptor 只保留 top-level `Response`、nested `Error{Code:string,Message:string}`、`RequestId:string`、`profileCandidate=cloud-response-v1` 与 domain-separated digest `846750d92d8d44ad893c82f386a103e81ad26e94102b38b0a0b5fd2d016f484a`，没有任何 scalar value、raw body、URL、credential 或 provider error text。
+- 旧 JobId 的 error envelope 足以证明 live endpoint 使用 Cloud `Response` envelope，但不证明 successful-job payload。因此未放宽 successful query codec；只把未来 canary contract 冻结为现有 package-owned `cloud-response-v1` digest。
+- `run-dh017-provider-canary.ts` 删除旧 JobId pre-submit capture 和 CLI 第三参数：Hunyuan future canary 的第一个 provider request 必须是 exact `/v1/ai3d/submit`；stale `existingHunyuanJobId` 在 runtime/credential/fetch 前 fail-fast。没有 registry、adapter、config/audit/recovery framework。
+- contract freeze focused 最终 `44 pass / 0 fail / 310 expect()`，root typecheck通过；独立只读 Reviewer `approved / P0=P1=0 / may_advance=yes`。全仓首轮唯一失败为既有 hidden-CAS writer lease flake（`1136 pass / 1 fail`），该 suite隔离 `20/20`通过；完整串行重跑 `1137 pass / 0 fail / 9088 expect()`（98 files）。build、Harness validate（0 warnings）与doctor通过；scoped whitespace clean，global diff-check仍只有共享 `review-packet.md:857` EOF空行。
+- 两次 no-generation query authority 均已消耗；Hunyuan/Marble paid submit仍均为 `0`。本轮没有 Data Root/generation/provider submit/download/Artifact/Gateway/Studio side effect，也没有 commit/push/merge/deploy。DH-017现在停在 Human paid-canary authority gate，不得自动恢复原 paid submit授权。
+
+## 2026-08-20 — DH-017 两家真实 paid canary 执行
+
+- Human 在 live contract freeze/review/gates 后明确重新授权 Hunyuan 与 Marble 各一次 paid submit，参数、prompt、费用预期及 wait-and-download policy沿用冻结回执。Operator同日复核官方资料：Hunyuan `3.0/Normal` 仍为20积分且失败任务不扣积分；Marble `marble-1.0-draft` 文本总价仍为230 credits。
+- 首次 Hunyuan CLI 调用因 fresh root目录本身尚未创建，在 runtime/credential/fetch前本地停止；Data Root不存在且submit count=0。Operator仅创建空目录后继续获准的唯一submit，不构成provider retry。
+- Hunyuan随后 durable写入`admitted → submit_started(attempt=1) → remote_bound`，证明一次submit成功获得remote identity；poll随即返回`provider-failed`。没有retry/download/artifact；artifact files=0。真实canary暴露一个实际而非假想的durable缺口：进程receipt已terminal failure，但journal head仍为`remote_bound`，没有provider-failed terminal record；下一步应只修这个最小状态转换，不扩恢复/审计框架。
+- Marble唯一submit被明确拒绝为`PROVIDER_PAYMENT_REQUIRED`，durable chain为`admitted → submit_started(attempt=1) → provider_failed`；非ambiguous、无remote world/download/artifact，artifact files=0。要重试必须先补World API credits并重新取得Human authority。
+- 两家paid authority均已消耗、不得自动重提；Hunyuan失败按官方规则预期0积分，Marble 402预期未扣230 credits，但本轮未查询账户余额/usage，不能声称settled账单事实。fresh roots与脱敏结果保留在`.artifacts/canary/DH-017/20260820T121931Z/`。
+- 本轮没有verified Artifact、Gateway/Studio真实可见性、commit/push/merge/deploy。DH-017仍未完成并重新阻断：先修Hunyuan query failure→durable provider_failed最小闭环；Marble资金问题由Human外部处理。
+
+## 2026-08-20 — DH-017 real-canary durable poll failure 最小修复
+
+- 真实 Hunyuan canary 暴露的单一缺口已在本地代码闭合：`remote_bound → provider_failed` 复用既有 `GenerationSubmitResultCoordinator`、receipt capacity 与 `GenerationRecordJournal` pending/witness/append，不新增第二状态机、恢复框架、registry、scheduler 或 retry；exact replay 只读，冲突 outcome 零 mutation fail closed。
+- Runner 只持久化 provider 明确 terminal 的 rejected/failure；contract mismatch、transient、abort/deadline 与 download failure 不写 terminal record。Marble/Hunyuan 仅共用一个小型 closed classifier，没有引入 provider abstraction。
+- 按北京时间工作日晚间路由使用本机 OMP `deepseek-v4-flash`、thinking=`max`。Worker session `01a01f22-6115-7000-b702-ecb81b089faf`；独立 Reviewer session `01a01f31-8c1e-7000-9529-b2062d4ff9a6`。Reviewer 从实际业务缺口和最小性出发，最终 `approved / may_advance=true / P0=P1=0`；Harness handoff/accept/approval 为 `evt-20260820T124148Z-d6ed17b9` / `evt-20260820T124219Z-2c14efac` / `evt-20260820T124353Z-9a3ebccb`。
+- Operator focused 为 `37 pass / 0 fail / 261 expect()`；root typecheck/build、Harness validate（0 warnings）与 doctor 通过。全仓串行 `1143 pass / 1 fail / 9036 expect()` 的唯一失败是未改动 visible-commit suite 的临时 lease 获取，精确失败用例隔离复跑 `1/0/248`；未扩修无关 flaky test。目标四文件 whitespace clean，global diff-check 仍仅有共享 review-packet EOF 空行。
+- 没有再次联网、读取 Keychain、调用 Provider、运行真实 generation 或改写 preserved canary roots。历史 Hunyuan root 仍保留当时 `remote_bound` truth；代码修复不伪造追溯 terminal state。
+- DH-017 仍未完成：两家 paid authority 均已消耗且真实 Artifact 均为 0。下一步不再加固代码；仅等待外部条件——Marble 补 credits 后的新 Human submit authority，及若需重验 Hunyuan则单独的新 Human submit authority。
+
+## 2026-08-24 — DH-017 Marble API credits 再检查
+
+- Human 明确授权用第三方提供的既有 World Labs API key 再做一次 Marble submit，以判断 API credits 是否已充值。官方无只读 balance API，Platform billing 页面又需要该第三方账号登录，因此使用 fresh Data Root 与 frozen `marble-1.0-draft` 请求作为唯一 gate。
+- 首次本地调用只暴露目录权限配置错误：`0755` 空目录在 credential/fetch 前停止，submit count=`0`；收紧为 `0700` 后继续同一授权，不是 provider retry。
+- 唯一真实 submit durable 收敛为 `provider_failed(PROVIDER_PAYMENT_REQUIRED)`；无 remote operation、poll、download、Artifact 或第二次 submit。结论是该 key 当前仍没有足够的 **World API credits**；即使第三方给 Marble app 充值也不能用于 API。
+- evidence 位于 `.artifacts/canary/DH-017/20260824T0649Z/marble`，credential 未输出或持久化。DH-017 继续阻断在第三方 API 账户充值与下一次 Human authority；不增加代码或自动重试。
+
+## 2026-08-24 — DH-017 三个候选 Marble key 顺序检查
+
+- Human 将三个候选 key 存入独立 Keychain locator，并授权 1→2→3 顺序各做最多一次 submit；Operator 未读取到日志、输出、hash 或持久化 key 值。
+- 三个候选均使用 fresh `0700` Data Root，唯一 submit 都 durable 返回 `provider_failed(PROVIDER_PAYMENT_REQUIRED)`；没有 401、remote operation、poll、download、Artifact 或自动 retry。candidate-1 的一次本地 inline quoting 错误发生在 credential/provider 前，空 root 证明未消耗 submit，修正后才执行其唯一真实调用。
+- evidence 位于 `.artifacts/canary/DH-017/20260824T0704Z/marble-candidate-{1,2,3}`。结论是三个 key 对应的 World API 账户当前都没有足够 credits 支付冻结的 text draft 请求；不能由此推断具体余额或 Marble app 余额。
+- 三个候选 authority 均已消费。DH-017 继续停在外部 API credits/新 key 与新的单次 Human authority，不继续扩代码或自动轮询 key。
+
+## 2026-08-24 — DH-017 真实 MVP 收敛至 Hunyuan
+
+- Human 明确确认停止继续尝试 Marble key；保留现有 Marble implementation/fake tests，但把 Marble live canary 标记为 deferred external dependency，不再阻断当前真实 MVP，也不接入第三 provider。
+- 当前真实验收改为至少一个 provider 完成真实 prompt → job → poll → download → verified Artifact → Gateway → Studio 闭环。下一步先对 2026-08-20 已存在的失败 Hunyuan Job 做恰好一次 no-generation 脱敏查询，只保留 `Status` 与稳定 `ErrorCode`。
+- Worker 只离线准备最小诊断，不得读取 Keychain、联网或调用 provider；独立 Reviewer 只读审查；真实 query 由 Codex Operator 执行。新的 Hunyuan paid submit 不在本轮授权内。
+
+## 2026-08-24 — DH-017 Hunyuan terminal diagnostic 实跑结果
+
+- Terra high Worker 按两文件 allowlist 产出 96 行一次性 Operator diagnostic；Operator 用 injected fake 验证仅一次 fetch，pending/malformed/abort 均固定 stopped。Kimi K3 `thinking=max` limited-fresh Reviewer 从真实 MVP、零 submit/retry/leak 与奥卡姆边界独立审查，`APPROVE / MAY_RUN_REAL_QUERY=yes / P0=P1=P2=P3=0`。
+- Operator 随后执行 Human 授权的唯一一次旧 Job no-generation 诊断。Keychain locator 本地存在；入口以 exit `1` 返回唯一固定 sentinel `DH017_HUNYUAN_TERMINAL_DIAGNOSTIC_STOPPED`。没有 paid submit、retry、新 Job、download、Artifact、commit、push 或 deploy。
+- stopped 输出把 credential/HTTP/schema/status/ErrorCode 等失败阶段合并，不能据此推断具体 provider 原因，也不能形成有证据的修正。授权按保守原则已消费，不自动重跑。
+- 下一最小动作不是增加恢复/审计框架，而是离线让该一次性诊断额外返回一个闭集的脱敏 stop stage；独立 review 后，再由 Human 决定是否授权新的单次 query。新的 paid submit 仍是独立 authority gate。
+
+## 2026-08-24 — DH-017 Hunyuan terminal diagnostic stage-observability 离线修正
+
+- 本切片只修改一次性 Operator diagnostic 与对应 evidence：stopped 结果新增严格闭集 `input | credential | http | response | status | error-code`；不输出 exception、body、URL、HTTP status number、provider message、JobId、RequestId、prompt 或 credential。valid terminal `FAIL + stable ErrorCode` 的成功小 JSON 保持不变。
+- 原定 OMP DeepSeek Worker 在两个监督观察周期内持续扩张设计且未写 allowlist artifact，Operator 在其触碰 Keychain、网络或 provider 前释放；随后 Terra high Worker 用 115 行完成最小改动，并根据 Operator 反馈补齐 invalid CLI 的 `:input` stage。没有新增 framework、logger、retry、submit path 或产品代码。
+- Kimi K3 `thinking=max` limited-fresh Reviewer session `01a0343b-7940-70ad-9452-62bcdb5e9d82` 独立审查；首次在正式结论前触及 deadline，恢复同一 session 后给出 `APPROVE / MAY_REQUEST_NEW_QUERY_AUTHORITY=yes / P0=P1=P2=0`，仅保留两条无需修改的 P3。Reviewer 只写 `/tmp` 测试文件，repo 零 mutation。
+- Operator 最终复跑 injected-fake matrix `28/28`、leak scan `CLEAN`、invalid CLI exact sentinel/exit 64、Bun bundle；脚本 115 行，SHA-256 `b58a75345517749ce50e58d035cd987ad7d06047365f9f829a0076bd38eb1d54`。本切片 Keychain read、network、query、submit、retry 均为 `0`。
+- DH-017 整项仍未完成。本 APPROVE 只证明离线诊断可用于下一次最小查询，不构成真实 query authority；当前重新阻断在 Human 是否授权对既有 Job 执行恰好一次 no-generation query。任何 paid submit 仍需另行授权。
 ```
 
 ## Current Review Content

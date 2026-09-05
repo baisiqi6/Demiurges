@@ -68,11 +68,19 @@ export {
   FLOOR_PROXY,
   GENERATED_OBJECT_PROXY,
   GENERATED_OBJECT_REF,
+  GENERATED_SESSION_CALIBRATION_ID,
+  GENERATED_SESSION_WITNESS_ID,
   MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
   MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID,
+  MARBLE_HUNYUAN_GENERATED_SESSION_SNAPSHOT_ID,
   createMarbleHunyuanCompositeSnapshot,
   requireMarbleHunyuanCompositeSnapshot,
 } from "./artifacts/marble-hunyuan-composite-fixture";
+export {
+  createMarbleHunyuanGeneratedSessionSnapshot,
+  deriveGeneratedObjectHalfExtents,
+  type GeneratedObjectWorldBinding,
+} from "./artifacts/marble-hunyuan-generated-session";
 export {
   MARBLE_HUNYUAN_REGISTRY,
   MARBLE_HUNYUAN_MANIFEST_DIGEST,

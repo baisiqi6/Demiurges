@@ -4,8 +4,14 @@ import { resolve } from "node:path";
 import { RuntimeMvpHost } from "./host/runtime-mvp-host";
 import { BALL_VESSEL_FIXTURE_ID } from "./artifacts/ball-vessel-fixture";
 import { DIAGNOSTIC_RIGID_FIXTURE_ID } from "./artifacts/diagnostic-rigid-fixture";
+import {
+  MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID,
+  MARBLE_HUNYUAN_COMPOSITE_SNAPSHOT_ID,
+} from "./artifacts/marble-hunyuan-composite-fixture";
+import { MARBLE_HUNYUAN_GENERATED_SESSION_SNAPSHOT_ID } from "./artifacts/marble-hunyuan-generated-session";
 import { CURRENT_WORLD_REF } from "./kernel/world";
 import {
+  decodeProductSessionAuthoringTransition,
   decodeProductSessionEvent,
   decodeProductSessionProjection,
 } from "./product-session-codec";
@@ -714,5 +720,75 @@ describe("Product Session plain-data codec", () => {
         evidence: relabeled,
       }, "session:local-1", 1)).toThrow("scenario");
     }
+  });
+});
+
+describe("decodeProductSessionAuthoringTransition write snapshot ID", () => {
+  const binding = {
+    assetId: "asset:generated-sha256-65dc7eb3d71393e624925c6848e88b55cf0bd6fd8d1ca63b956743fddd55e05a",
+    artifactSetDigest: "5641bf040c5dc881a553332493957627c8557edc5d7aa7d4f65b42139259e69d",
+    sourceBounds: {
+      min: [-0.48395800590515137, -3.736129973702895e-8, -0.2797180492002527],
+      max: [0.4801819920539856, 0.574190135291325, 0.2780711007797188],
+    },
+  } as const;
+
+  function emptyProjection(sessionId: string) {
+    return {
+      sessionId,
+      world: null,
+      lastRun: null,
+      lastSequence: 0,
+      running: false,
+    } as const;
+  }
+
+  test("generated-session write transition 不再被 static snapshot ID 错拒", async () => {
+    const sessionId = "session:local-generated-write";
+    const surface = new WorldToolSurface(new RuntimeMvpHost(), binding);
+    surface.write({ fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID });
+    const returned = {
+      ...emptyProjection(sessionId),
+      world: surface.read(),
+      lastSequence: 0,
+    } as const;
+    expect(returned.world?.ref.snapshotId).toBe(MARBLE_HUNYUAN_GENERATED_SESSION_SNAPSHOT_ID);
+
+    const decoded = await decodeProductSessionAuthoringTransition(
+      returned,
+      sessionId,
+      emptyProjection(sessionId),
+      { kind: "write", input: { fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID } },
+    );
+    expect(decoded.world?.ref.snapshotId).toBe(MARBLE_HUNYUAN_GENERATED_SESSION_SNAPSHOT_ID);
+  });
+
+  test("static composite write 仍 exact，伪动态 ID 仍被拒绝", async () => {
+    const sessionId = "session:local-static-write";
+    const surface = new WorldToolSurface(new RuntimeMvpHost());
+    surface.write({ fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID });
+    const returned = {
+      ...emptyProjection(sessionId),
+      world: surface.read(),
+    } as const;
+    expect(returned.world?.ref.snapshotId).toBe(MARBLE_HUNYUAN_COMPOSITE_SNAPSHOT_ID);
+
+    await expect(decodeProductSessionAuthoringTransition(
+      returned,
+      sessionId,
+      emptyProjection(sessionId),
+      { kind: "write", input: { fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID } },
+    )).resolves.toEqual(returned);
+
+    const forged = structuredClone(returned);
+    forged.world.ref.snapshotId = "snapshot:marble-hunyuan-generated-session-forged";
+    forged.world.snapshot.id = forged.world.ref.snapshotId;
+    // 伪造的非 exact write ID 在 fixture/codec 边界都会被拒绝，不允许进入 transition authority。
+    await expect(decodeProductSessionAuthoringTransition(
+      forged,
+      sessionId,
+      emptyProjection(sessionId),
+      { kind: "write", input: { fixtureId: MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID } },
+    )).rejects.toThrow();
   });
 });

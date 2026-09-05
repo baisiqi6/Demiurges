@@ -2,6 +2,8 @@ import { createProductSessionApi } from "./product-session-api";
 import { createScriptedAgentClientFactory } from "./product-session";
 import { MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID } from "@demiurges/world";
 import { createProviderAssetApi } from "./provider-asset-api";
+import { createGeneratedArtifactApi } from "./generated-artifact-api";
+import { createDevelopmentFakeGenerationApi } from "./development-fake-generation-api";
 import {
   openWorldProjectRuntime,
   resolveDataRootConfig,
@@ -15,7 +17,9 @@ if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
 
 const dataRootConfig = resolveDataRootConfig(process.env);
 const worldProjects = dataRootConfig.status === "configured"
-  ? await openWorldProjectRuntime(dataRootConfig.absolutePath)
+  ? await openWorldProjectRuntime(dataRootConfig.absolutePath, {
+      enableDevelopmentFakeGeneration: true,
+    })
   : undefined;
 const api = createProductSessionApi(
   createScriptedAgentClientFactory(MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID),
@@ -31,10 +35,20 @@ const assets = createProviderAssetApi({
     return worldProjects.artifacts.read(entry);
   },
 });
+const generatedArtifacts = createGeneratedArtifactApi({
+  reader: worldProjects?.generatedArtifacts,
+});
+const developmentFakeGeneration = createDevelopmentFakeGenerationApi({
+  firstGeneration: worldProjects?.firstGeneration,
+  completion: worldProjects?.developmentFakeGeneration,
+});
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port,
-  fetch: async (request) => await assets.fetch(request) ?? api.fetch(request),
+  fetch: async (request) => await developmentFakeGeneration.fetch(request) ??
+    await assets.fetch(request) ??
+    await generatedArtifacts.fetch(request) ??
+    api.fetch(request),
 });
 
 console.log(`Demiurges scripted test fixture listening on ${server.url}`);

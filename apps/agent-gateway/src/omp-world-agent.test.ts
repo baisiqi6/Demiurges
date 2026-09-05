@@ -15,6 +15,7 @@ import {
   createPinnedOmpCredentialResolver,
   createOmpWorldTools,
   requireOmpModelSelector,
+  requireOmpTerminalAssistantSuccess,
   type OmpHostTool,
   type OmpAgentClientFactory,
   type OmpAgentClientPort,
@@ -114,6 +115,36 @@ describe("OMP World Agent Gateway", () => {
     expect(byName.world_write).toEqual(WORLD_TOOL_CONTRACT.write.input);
     expect(byName.world_edit).toEqual(WORLD_TOOL_CONTRACT.edit.input);
     expect(byName.world_run).toEqual(WORLD_TOOL_CONTRACT.run.input);
+  });
+
+  test("OMP parameters 是可变 deep copy，OMP in-place normalize 不会触碰 frozen contract", () => {
+    const tools = createOmpWorldTools(
+      new WorldToolSurface(new RuntimeMvpHost()),
+    );
+    for (const tool of tools) {
+      expect(Object.isFrozen(tool.parameters)).toBe(false);
+      // 模拟 OMP toolWireSchema 的 in-place normalize（normalizeArkPropertyComments
+      // 会重写 required；wire.ts in-place 变更不得落在 frozen contract 上）。
+      const parameters = tool.parameters as { required?: string[] };
+      if (Array.isArray(parameters.required)) {
+        parameters.required = [...parameters.required];
+      }
+      (tool.parameters as Record<string, unknown>).__ompWireMutation = true;
+    }
+    expect(Object.isFrozen(WORLD_TOOL_CONTRACT.read.input)).toBe(true);
+    expect(Object.isFrozen(WORLD_TOOL_CONTRACT.write.input)).toBe(true);
+    expect(Object.isFrozen(WORLD_TOOL_CONTRACT.edit.input)).toBe(true);
+    expect(Object.isFrozen(WORLD_TOOL_CONTRACT.run.input)).toBe(true);
+    expect(WORLD_TOOL_CONTRACT.read.input).toEqual(
+      { type: "object", properties: {}, required: [], additionalProperties: false },
+    );
+    const writeProperties = (WORLD_TOOL_CONTRACT.write.input as {
+      properties: Record<string, unknown>;
+    }).properties;
+    expect(writeProperties.fixtureId).not.toHaveProperty("__ompWireMutation");
+    expect((WORLD_TOOL_CONTRACT.write.input as Record<string, unknown>)).not.toHaveProperty(
+      "__ompWireMutation",
+    );
   });
 
   test("合法 nested pose 经真实 restricted tool.execute 到达 Host", async () => {
@@ -825,5 +856,59 @@ describe("OMP World Agent Gateway", () => {
     expect(surfaceWriteCalls).toBe(0);
     expect(trace).toHaveLength(3);
     expect(JSON.stringify(trace)).toContain('"__proto__"');
+  });
+});
+
+describe("requireOmpTerminalAssistantSuccess", () => {
+  test("terminal stopReason=error 且无 text 的 turn 被显式抛出而非静默为空", () => {
+    expect(() =>
+      requireOmpTerminalAssistantSuccess([
+        { role: "user" },
+        { role: "assistant", stopReason: "error" },
+      ]),
+    ).toThrow("OMP turn 以 stopReason=error 终止");
+  });
+
+  test("terminal stopReason=error 携带 bounded errorMessage", () => {
+    try {
+      requireOmpTerminalAssistantSuccess([
+        { role: "assistant", stopReason: "stop" },
+        { role: "user" },
+        {
+          role: "assistant",
+          stopReason: "error",
+          errorMessage: `provider failed ${"x".repeat(300)}`,
+        },
+      ]);
+      throw new Error("预期 requireOmpTerminalAssistantSuccess 抛错");
+    } catch (error) {
+      expect((error as Error).message).toMatch(
+        /^OMP turn 以 stopReason=error 终止：provider failed x{224}$/,
+      );
+    }
+  });
+
+  test("terminal stopReason=aborted 被显式抛出", () => {
+    expect(() =>
+      requireOmpTerminalAssistantSuccess([
+        { role: "assistant", stopReason: "aborted" },
+      ]),
+    ).toThrow("OMP turn 以 stopReason=aborted 终止");
+  });
+
+  test("正常 settle 的 terminal assistant message 通过（含空 text 的 stop turn）", () => {
+    expect(() =>
+      requireOmpTerminalAssistantSuccess([
+        { role: "user" },
+        { role: "assistant", stopReason: "stop" },
+        { role: "custom" },
+      ]),
+    ).not.toThrow();
+  });
+
+  test("无 assistant message 的 settle 被拒绝", () => {
+    expect(() =>
+      requireOmpTerminalAssistantSuccess([{ role: "user" }]),
+    ).toThrow("OMP turn 未产生 assistant message");
   });
 });

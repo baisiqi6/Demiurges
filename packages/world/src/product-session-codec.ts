@@ -30,6 +30,7 @@ import {
   MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID,
   requireMarbleHunyuanCompositeSnapshot,
 } from "./artifacts/marble-hunyuan-composite-fixture";
+import { MARBLE_HUNYUAN_GENERATED_SESSION_SNAPSHOT_ID, GENERATED_SESSION_WITNESS_ID } from "./artifacts/marble-hunyuan-generated-session";
 import {
   requireDiagnosticRigidCollision,
   requireDiagnosticRigidVisual,
@@ -511,6 +512,18 @@ function snapshot(value: unknown, label: string): Snapshot {
           throw new Error(`${label}.${FLOOR_REF}.semantic.kind 非法`);
         }
         id(semantic.witnessId, "witness:", `${label}.${FLOOR_REF}.semantic.witnessId`);
+      } else if (ref === GENERATED_OBJECT_REF && representations.semantic !== null) {
+        // session 固定的 generated-object 允许恰好 authored-unverified box-proxy semantic，
+        // witness 必须与 generated-session calibration 边界一致。
+        const semantic = record(representations.semantic, `${label}.${ref}.semantic`, [
+          "kind", "witnessId",
+        ]);
+        if (
+          semantic.kind !== "authored-box-proxy" ||
+          semantic.witnessId !== GENERATED_SESSION_WITNESS_ID
+        ) {
+          throw new Error(`${label}.${ref}.semantic 与 generated-session 边界漂移`);
+        }
       } else if (representations.semantic !== null) {
         throw new Error(`${label}.${ref}.semantic 必须为 null`);
       }
@@ -1372,12 +1385,19 @@ export async function decodeProductSessionAuthoringTransition(
     : await decodeProductSessionProjectionTrusted(value, expectedSessionId);
   if (returned.running) throw new Error("authoring transition 必须返回 settled projection");
   if (operation.kind === "write") {
+    // write Snapshot 只允许 static composite 或 session 固定的 generated-session 两种 exact ID；
+    // 二者都由 fixture/validator 完全约束，不放宽其他来源。
+    const writeSnapshotIds: Set<string> = new Set([
+      MARBLE_HUNYUAN_COMPOSITE_SNAPSHOT_ID,
+      MARBLE_HUNYUAN_GENERATED_SESSION_SNAPSHOT_ID,
+    ]);
     if (operation.input.fixtureId !== MARBLE_HUNYUAN_COMPOSITE_FIXTURE_ID ||
         trustedPrior.world !== null || trustedPrior.lastRun !== null || returned.world === null ||
         returned.world.ref.name !== CURRENT_WORLD_REF ||
-        returned.world.ref.snapshotId !== MARBLE_HUNYUAN_COMPOSITE_SNAPSHOT_ID ||
+        !writeSnapshotIds.has(returned.world.ref.snapshotId) ||
         returned.world.ref.version !== 1 ||
-        returned.world.snapshot.id !== MARBLE_HUNYUAN_COMPOSITE_SNAPSHOT_ID ||
+        !writeSnapshotIds.has(returned.world.snapshot.id) ||
+        returned.world.ref.snapshotId !== returned.world.snapshot.id ||
         returned.world.snapshot.parentId !== null ||
         returned.world.snapshot.source !== "write" ||
         returned.world.snapshot.scenarioId !== MARBLE_HUNYUAN_COMPOSITE_SCENARIO_ID ||

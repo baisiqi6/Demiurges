@@ -456,6 +456,16 @@ export function createOmpWorldTools(
       }
     };
 
+  // OMP 17.2.12 的 toolWireSchema 会在传入的 parameters 对象上做 in-place
+  // normalize（如 normalizeArkPropertyComments 重写 required），而
+  // WORLD_TOOL_CONTRACT 是 deep-frozen domain authority，因此只在 OMP 边界
+  // 交出可变 deep copy。
+  function wireParameters(
+    schema: (typeof WORLD_TOOL_CONTRACT)[keyof typeof WORLD_TOOL_CONTRACT]["input"],
+  ): Record<string, unknown> {
+    return structuredClone(schema) as Record<string, unknown>;
+  }
+
   return Object.freeze([
     Object.freeze({
       name: "world_read",
@@ -463,7 +473,7 @@ export function createOmpWorldTools(
       description: "读取 current Snapshot 与 RefRecord。",
       loadMode: "essential",
       approval: "read",
-      parameters: WORLD_TOOL_CONTRACT.read.input,
+      parameters: wireParameters(WORLD_TOOL_CONTRACT.read.input),
       execute: wrap("world_read", WORLD_TOOL_CONTRACT.read.inputBudget, (input) => {
         exactEmptyInput(input);
         return surface.read();
@@ -475,7 +485,7 @@ export function createOmpWorldTools(
       description: "创建 primitive box 或登记的 imported rigid fixture root Snapshot。",
       loadMode: "essential",
       approval: "write",
-      parameters: WORLD_TOOL_CONTRACT.write.input,
+      parameters: wireParameters(WORLD_TOOL_CONTRACT.write.input),
       execute: wrap("world_write", WORLD_TOOL_CONTRACT.write.inputBudget, (input) => surface.write(input)),
     }),
     Object.freeze({
@@ -484,7 +494,7 @@ export function createOmpWorldTools(
       description: "以 fresh RefRecord CAS 修改当前 scenario 的 dynamic Entity pose。",
       loadMode: "essential",
       approval: "write",
-      parameters: WORLD_TOOL_CONTRACT.edit.input,
+      parameters: wireParameters(WORLD_TOOL_CONTRACT.edit.input),
       execute: wrap("world_edit", WORLD_TOOL_CONTRACT.edit.inputBudget, (input) => surface.edit(input)),
     }),
     Object.freeze({
@@ -493,7 +503,7 @@ export function createOmpWorldTools(
       description: "运行显式受信 WorldProgram 并返回 Episode 与 Evaluation。",
       loadMode: "essential",
       approval: "exec",
-      parameters: WORLD_TOOL_CONTRACT.run.input,
+      parameters: wireParameters(WORLD_TOOL_CONTRACT.run.input),
       execute: wrap("world_run", WORLD_TOOL_CONTRACT.run.inputBudget, (input) => surface.run(input)),
     }),
   ]) as unknown as OmpHostTool[];
@@ -527,6 +537,38 @@ function requireRestrictedWorldToolSurface(state: {
       `OMP mounted tool surface 必须为空；实际为 ${[...state.mountedToolNames].sort().join(", ")}`,
     );
   }
+}
+
+export interface OmpTerminalAssistantView {
+  readonly role: string;
+  readonly stopReason?: string;
+  readonly errorMessage?: string;
+}
+
+/**
+ * OMP SDK 在 provider turn 失败时以 `stopReason: "error" | "aborted"` 的
+ * terminal assistant message settle（prompt/waitForIdle 不抛错），且该 message
+ * 常无 text content，`getLastAssistantText()` 因此返回 undefined。此处从
+ * messages 尾部找 terminal assistant message 并把失败显式抛出。
+ */
+export function requireOmpTerminalAssistantSuccess(
+  messages: readonly OmpTerminalAssistantView[],
+): void {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== "assistant") continue;
+    if (message.stopReason === "error" || message.stopReason === "aborted") {
+      const detail =
+        typeof message.errorMessage === "string" && message.errorMessage.length > 0
+          ? `：${boundedError(message.errorMessage)}`
+          : "";
+      throw new Error(
+        `OMP turn 以 stopReason=${message.stopReason} 终止${detail}`,
+      );
+    }
+    return;
+  }
+  throw new Error("OMP turn 未产生 assistant message");
 }
 
 class RestrictedOmpSdkClient implements OmpAgentClientPort {
@@ -670,6 +712,7 @@ class RestrictedOmpSdkClient implements OmpAgentClientPort {
       if (aborting) await aborting;
       if (signal?.aborted) throw new Error("OMP turn 已取消");
       this.#requireModelIdentity();
+      requireOmpTerminalAssistantSuccess(this.#requireSession().messages);
     } finally {
       signal?.removeEventListener("abort", abort);
     }

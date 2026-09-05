@@ -2,6 +2,7 @@ import {
   linkSync,
   lstatSync,
   mkdirSync,
+  opendirSync,
   readdirSync,
   rmdirSync,
   unlinkSync,
@@ -28,6 +29,16 @@ import {
   syncDirectory,
   writeNewSyncedFile,
 } from "./safe-filesystem";
+import {
+  requireGenerationNamespaceInstallBinding,
+  requireGenerationNamespaceInstallResult,
+  type GenerationNamespaceInstallBindingV1,
+} from "./generation-namespace";
+import {
+  requireGeneratedSetPublicationBinding,
+  requireGeneratedSetPublicationResult,
+  type GeneratedSetPublicationBindingV1,
+} from "./generated-artifact-publication";
 
 let syncReceiptsDirectory = syncDirectory;
 
@@ -425,6 +436,40 @@ function parseCanonicalJson(bytes: Uint8Array): unknown {
   return value;
 }
 
+type ClassifiedOperationBinding =
+  | { readonly visibility: "public"; readonly binding: OperationBinding }
+  | {
+      readonly visibility: "internal-namespace";
+      readonly binding: GenerationNamespaceInstallBindingV1;
+    }
+  | {
+      readonly visibility: "internal-generated-set";
+      readonly binding: GeneratedSetPublicationBindingV1;
+    };
+
+function classifyOperationBinding(value: unknown): ClassifiedOperationBinding {
+  try {
+    return { visibility: "public", binding: requireOperationBinding(value) };
+  } catch (publicError) {
+    try {
+      return {
+        visibility: "internal-namespace",
+        binding: requireGenerationNamespaceInstallBinding(value),
+      };
+    } catch {
+      try {
+        return {
+          visibility: "internal-generated-set",
+          binding: requireGeneratedSetPublicationBinding(value),
+        };
+      } catch {
+        if (publicError instanceof OperationJournalError) throw publicError;
+        throw new OperationJournalError("OPERATION_RECOVERY_REQUIRED");
+      }
+    }
+  }
+}
+
 function syscallCode(error: unknown): string | undefined {
   if (typeof error === "object" && error !== null && "code" in error) {
     return typeof error.code === "string" ? error.code : undefined;
@@ -602,17 +647,74 @@ export class OperationJournal {
     }
   }
 
+  #readClassifiedIntent(operationId: string): ClassifiedOperationBinding {
+    this.#assertLive();
+    const path = this.#path(dataRootReceiptIntentPath(operationId));
+    const classified = classifyOperationBinding(
+      parseCanonicalJson(
+        readStableRegularFile(path, WORLD_PROJECT_OPERATION_RECORD_MAX_BYTES),
+      ),
+    );
+    if (classified.binding.operationId !== operationId) {
+      throw new OperationJournalError("OPERATION_RECOVERY_REQUIRED");
+    }
+    return classified;
+  }
+
+  #validateClassifiedResult(
+    operationId: string,
+    classified: ClassifiedOperationBinding,
+  ): void {
+    const path = this.#path(dataRootReceiptResultPath(operationId));
+    let value: unknown;
+    try {
+      value = parseCanonicalJson(
+        readStableRegularFile(path, WORLD_PROJECT_OPERATION_RECORD_MAX_BYTES),
+      );
+    } catch (error) {
+      if (syscallCode(error) === "ENOENT") return;
+      throw error;
+    }
+    if (classified.visibility === "public") {
+      requireOperationTerminalResult(value, classified.binding);
+      return;
+    }
+    if (classified.visibility === "internal-namespace") {
+      requireGenerationNamespaceInstallResult(value, classified.binding);
+      return;
+    }
+    requireGeneratedSetPublicationResult(value, classified.binding);
+  }
+
   listBindings(): readonly OperationBinding[] {
     this.#assertLive();
     const receiptsPath = this.#path("receipts");
-    const names = readdirSync(receiptsPath);
-    if (names.length > WORLD_PROJECT_OPERATION_MAX_RECEIPT_ENTRIES) {
-      throw new OperationJournalError("OPERATION_RECOVERY_REQUIRED");
+    const names: string[] = [];
+    const directory = opendirSync(receiptsPath);
+    try {
+      while (true) {
+        const entry = directory.readSync();
+        if (entry === null) break;
+        names.push(entry.name);
+        if (names.length > WORLD_PROJECT_OPERATION_MAX_RECEIPT_ENTRIES) {
+          throw new OperationJournalError("OPERATION_RECOVERY_REQUIRED");
+        }
+      }
+    } finally {
+      directory.closeSync();
     }
     const intentIds = new Set<string>();
     const resultIds = new Set<string>();
     for (const name of names) {
-      if (name.endsWith(".intent.json")) intentIds.add(name.slice(0, -".intent.json".length));
+      if (name === "generations") {
+        const stat = lstatSync(join(receiptsPath, name), { bigint: true });
+        if (
+          (stat.mode & 0o170000n) !== 0o40000n ||
+          (stat.mode & 0o777n) !== 0o700n
+        ) {
+          throw new OperationJournalError("OPERATION_RECOVERY_REQUIRED");
+        }
+      } else if (name.endsWith(".intent.json")) intentIds.add(name.slice(0, -".intent.json".length));
       else if (name.endsWith(".result.json")) resultIds.add(name.slice(0, -".result.json".length));
       else throw new OperationJournalError("OPERATION_RECOVERY_REQUIRED");
     }
@@ -621,15 +723,16 @@ export class OperationJournal {
         throw new OperationJournalError("OPERATION_RECOVERY_REQUIRED");
       }
     }
-    return [...intentIds]
-      .sort()
-      .map((operationId) => {
-        const binding = this.readIntent(operationId);
-        if (binding === undefined) throw new OperationJournalError("OPERATION_RECOVERY_REQUIRED");
-        // Existing result is decoded here too, so malformed terminal evidence blocks startup.
-        this.readResult(operationId, binding);
-        return binding;
-      });
+    const publicBindings: OperationBinding[] = [];
+    for (const operationId of [...intentIds].sort()) {
+      const classified = this.#readClassifiedIntent(operationId);
+      // Existing result is decoded here too, so malformed terminal evidence blocks startup.
+      this.#validateClassifiedResult(operationId, classified);
+      if (classified.visibility === "public") {
+        publicBindings.push(classified.binding);
+      }
+    }
+    return Object.freeze(publicBindings);
   }
 
   beginRecovery(bindingInput: OperationBinding): AdmittedOperation {

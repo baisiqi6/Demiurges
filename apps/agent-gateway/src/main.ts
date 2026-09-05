@@ -4,6 +4,11 @@ import {
   requireOmpModelSelector,
 } from "./omp-world-agent";
 import { createProviderAssetApi } from "./provider-asset-api";
+import { createGeneratedArtifactApi } from "./generated-artifact-api";
+import {
+  resolveGenerationContractConfig,
+} from "./generation-admission-api";
+import { GenerationConfirmationStore } from "./generation-confirmation";
 import {
   openWorldProjectRuntime,
   resolveDataRootConfig,
@@ -22,6 +27,10 @@ const worldProjects = dataRootConfig.status === "configured"
   : undefined;
 const api = createProductSessionApi(createOmpAgentClientFactory(modelSelector), {
   worldProjects,
+  generations: {
+    confirmations: new GenerationConfirmationStore(),
+    contract: resolveGenerationContractConfig(process.env),
+  },
 });
 const assets = createProviderAssetApi({
   readArtifact: async (entry) => {
@@ -33,10 +42,13 @@ const assets = createProviderAssetApi({
     return worldProjects.artifacts.read(entry);
   },
 });
+const generatedArtifacts = createGeneratedArtifactApi({
+  reader: worldProjects?.generatedArtifacts,
+});
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port,
-  fetch: async (request) => await assets.fetch(request) ?? api.fetch(request),
+  fetch: async (request) => await assets.fetch(request) ?? await generatedArtifacts.fetch(request) ?? api.fetch(request),
 });
 
 console.log(`Demiurges Agent Gateway listening on ${server.url}`);
