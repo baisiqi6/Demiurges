@@ -1127,3 +1127,10 @@ Independent review：
 - Kimi K3 `thinking=max` limited-fresh Reviewer session `01a0343b-7940-70ad-9452-62bcdb5e9d82` 独立审查；首次在正式结论前触及 deadline，恢复同一 session 后给出 `APPROVE / MAY_REQUEST_NEW_QUERY_AUTHORITY=yes / P0=P1=P2=0`，仅保留两条无需修改的 P3。Reviewer 只写 `/tmp` 测试文件，repo 零 mutation。
 - Operator 最终复跑 injected-fake matrix `28/28`、leak scan `CLEAN`、invalid CLI exact sentinel/exit 64、Bun bundle；脚本 115 行，SHA-256 `b58a75345517749ce50e58d035cd987ad7d06047365f9f829a0076bd38eb1d54`。本切片 Keychain read、network、query、submit、retry 均为 `0`。
 - DH-017 整项仍未完成。本 APPROVE 只证明离线诊断可用于下一次最小查询，不构成真实 query authority；当前重新阻断在 Human 是否授权对既有 Job 执行恰好一次 no-generation query。任何 paid submit 仍需另行授权。
+
+## 2026-09-05 — DH-019 Offline Value Checkpoint 已关闭
+
+- 在无 provider quota、无 live OMP/Marble/Hunyuan/Keychain 的条件下，`fixture:two-joint-planar-reach-v1` 完成 `world_write → world_read → world_edit → world_run(FAIL) → evidence-derived repair → world_run(PASS)`。
+- Episode provenance、runtime profile、samples/terminal content digest 与 Evaluation 重算均已绑定；真实 Episode 篡改 fail closed。
+- Receipt 状态为 `offline-proven`，两次 fresh Host byte-identical；全量 `bun test` 为 `1173 pass / 0 fail / 9264 assertions`，typecheck/build/Harness validate 通过。
+- 决策：允许进入 bounded evidence→WorldProgram compiler；仍不宣称 predictive world model，不扩展为通用 robotics planner 或自动 adopt。

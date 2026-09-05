@@ -917,9 +917,9 @@
       "handoff": "先通过独立 plan review，再实现 measurement-only replay runner；结果只作为是否进入 data-driven authoring 的决策依据。",
       "plan_path": "docs/project-harness/tasks/DH-019/plan.md",
       "workflow": {
-        "status": "review_approved",
+        "status": "closed",
         "updated_at": "2026-09-05",
-        "branch": "agent/codex/DH-019"
+        "branch": "main"
       },
       "artifacts": {
         "plan": "docs/project-harness/tasks/DH-019/plan.md",
@@ -943,6 +943,51 @@
         "expires_at": "2026-09-05T08:33:15Z",
         "ttl_minutes": 120,
         "released_at": "2026-09-05T07:03:43Z"
+      }
+    },
+    {
+      "id": "DH-020",
+      "title": "Evidence-Derived Authoring Candidate",
+      "status": "done",
+      "priority": "p1",
+      "owner": "operator",
+      "selected_in_session": "demiurges-dh020-authoring-20260905",
+      "updated_at": "2026-09-05",
+      "dependencies": [
+        "DH-019"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "在已登记 two-joint-planar-reach-v1 fixture 内，将同一 world_read snapshot/ref 与真实 FAIL world_run Evaluation evidence 编译为唯一 deterministic actuator-sequence candidate；只返回 frozen proposal，不写 Ref、不 adopt、不调用 provider/OMP/Keychain/network；candidate 必须再经既有 world_run 与 Evaluation 证明 PASS，且 fresh Host replay byte-identical。",
+      "verification": "8 focused tests / 35 assertions across DH-019/DH-020; full bun test 1176 pass / 0 fail / 9277 assertions (before assertion-only regression additions); bun run typecheck; bun run build; Harness validate 0 warnings; scoped diff-check clean; proof offline-derived, receipt offline-proven.",
+      "handoff": "先通过独立 plan review，再实现 bounded evidence→WorldProgram compiler；结果只作为是否进入更广 authoring 的决策依据。",
+      "plan_path": "docs/project-harness/tasks/DH-020/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-09-05",
+        "branch": "agent/codex/DH-020"
+      },
+      "artifacts": {
+        "plan": "docs/project-harness/tasks/DH-020/plan.md",
+        "plan_review": "docs/project-harness/tasks/DH-020/plan-review.md",
+        "proof": "docs/project-harness/tasks/DH-020/proof-of-derivation.md",
+        "runner": "packages/world/src/authoring/derive-articulated-reach-repair.ts",
+        "tests": "scripts/dh020-evidence-derived-authoring.test.ts",
+        "progress": "docs/project-harness/tasks/DH-020/progress.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "dh019-independent-reviewer",
+        "phase": "closed",
+        "updated_at": "2026-09-05",
+        "summary": "bounded golden compiler approved; provenance digest and adversarial regression checks pass."
+      },
+      "lease": {
+        "owner": "operator",
+        "session": "demiurges-dh020-authoring-20260905",
+        "acquired_at": "2026-09-05T07:46:54Z",
+        "expires_at": "2026-09-05T09:46:54Z",
+        "ttl_minutes": 120
       }
     }
   ]

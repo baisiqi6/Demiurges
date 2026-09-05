@@ -43,7 +43,7 @@ describe("DH-019 offline value checkpoint", () => {
     expect(() => deriveCorrectedProgramFromEvidence({
       episode: { id: "episode:forged", scenarioId: "scenario:two-joint-planar-reach-v1" },
       evaluation: { passed: true, metrics: { supportSamples: 16 } },
-    } as never)).toThrow();
+    } as never, undefined as never)).toThrow();
   });
 
   test("forged real Episode provenance cannot produce a corrected Program", async () => {
@@ -58,7 +58,7 @@ describe("DH-019 offline value checkpoint", () => {
     const real = await tools.run({ runId: "run:dh019-zero", program: DH019_ZERO_PROGRAM });
     const forged = structuredClone(real) as any;
     forged.episode.explicitInputs.runId = "run:attacker";
-    expect(() => deriveCorrectedProgramFromEvidence(forged)).toThrow();
+    expect(() => deriveCorrectedProgramFromEvidence(forged, before)).toThrow();
   });
 
   test("runner structurally has no provider, Keychain, or OMP dependency", () => {

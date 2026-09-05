@@ -10,6 +10,7 @@ import {
   type WorldRunResult,
 } from "../packages/world/src/index";
 import type { EndEffectorReachEvaluationRecord } from "../packages/world/src/kernel/types";
+import { deriveArticulatedReachRepair } from "../packages/world/src/authoring/derive-articulated-reach-repair";
 
 export const DH019_TOOL_SEQUENCE = Object.freeze([
   "world_write", "world_read", "world_edit", "world_run", "world_read", "world_run",
@@ -117,9 +118,12 @@ function requireRunEvidence(result: WorldRunResult, corrected: boolean): EndEffe
   return evaluation;
 }
 
-export function deriveCorrectedProgramFromEvidence(first: WorldRunResult) {
+export function deriveCorrectedProgramFromEvidence(first: WorldRunResult, read: { ref: WorldRunResult["baseRef"]; snapshot: WorldRunResult["episode"]["terminalSnapshot"] }) {
   requireRunEvidence(first, false);
-  return CORRECTED_PROGRAM;
+  const proposal = deriveArticulatedReachRepair(read, first, CORRECTED_RUN_ID);
+  if (proposal.status !== "available") throw new Error("DH-019 evidence-derived repair unavailable");
+  const { id: _id, ...content } = proposal.program;
+  return content;
 }
 
 function tracePreimage() {
@@ -146,8 +150,8 @@ export async function runOfflineValueCheckpoint(): Promise<OfflineValueCheckpoin
     ] },
   });
   const first = await tools.run({ runId: ZERO_RUN_ID, program: DH019_ZERO_PROGRAM });
-  const corrected = deriveCorrectedProgramFromEvidence(first);
   const secondRead = tools.read();
+  const corrected = deriveCorrectedProgramFromEvidence(first, secondRead);
   if (
     written.ref.version !== 1 || edited.update.status !== "updated" ||
     edited.update.ref.version !== 2 || secondRead.ref.version !== 2 ||
