@@ -1,3 +1,4 @@
+import type { ProgramCandidate } from "./authoring-candidate";
 import { ARTICULATED_CANONICAL_MODEL_CAUSAL_DIGEST, articulatedForwardKinematics } from "../runtime-mujoco/run-articulated-reach";
 import { requireRegisteredSnapshotIdentity } from "../artifacts/diagnostic-rigid-fixture";
 import { canonicalJsonBytes, sha256Hex } from "../kernel/canonical-json";
@@ -14,7 +15,7 @@ const GOLDEN_EPISODE_ID = "episode:10-dh019-zero-6-edit-1-d77947b5f1f1344d253702
 const GOLDEN_REPAIR_BASIS = ["maxPositionErrorMeters", "maxJointSpeedRadiansPerSecond"] as const;
 
 export type ArticulatedRepairResult =
-  | { readonly status: "available"; readonly sourceEpisodeId: Episode["id"]; readonly sourceEvaluationId: string; readonly basis: typeof GOLDEN_REPAIR_BASIS; readonly program: ActuatorSequenceWorldProgram }
+  | (ProgramCandidate & { readonly status: "available" })
   | { readonly status: "unavailable"; readonly reason: "already_passed" | "unreachable" | "invalid_evidence" };
 
 function same(a: unknown, b: unknown): boolean {
@@ -60,6 +61,6 @@ export function deriveArticulatedReachRepair(
     if (Math.hypot(fk[0] - x, fk[1] - y, fk[2] - target.state.pose.position[2]) > 1e-9) return { status: "unavailable", reason: "unreachable" };
     const content = { kind: "actuator-sequence" as const, targetRef: "entity:arm" as const, durationSeconds: episode.program.durationSeconds, sampleRateHz: episode.program.sampleRateHz, steps: [{ timeSeconds: 0, commands: [{ actuatorRef: "actuator:arm-shoulder-position" as const, valueRadians: shoulder }, { actuatorRef: "actuator:arm-elbow-position" as const, valueRadians: elbow }] as const }] };
     const program = requireWorldRunInput({ runId: nextRunId, program: content }).program as ActuatorSequenceWorldProgram;
-    return deepFreeze({ status: "available" as const, sourceEpisodeId: episode.id, sourceEvaluationId: evaluation.id, basis: GOLDEN_REPAIR_BASIS, program });
+    return deepFreeze({ status: "available" as const, kind: "program" as const, sourceRef: read.ref, sourceEpisodeId: episode.id, sourceEvaluationId: evaluation.id, basis: GOLDEN_REPAIR_BASIS, program });
   } catch { return invalid(); }
 }

@@ -1134,3 +1134,18 @@ Independent review：
 - Episode provenance、runtime profile、samples/terminal content digest 与 Evaluation 重算均已绑定；真实 Episode 篡改 fail closed。
 - Receipt 状态为 `offline-proven`，两次 fresh Host byte-identical；全量 `bun test` 为 `1173 pass / 0 fail / 9264 assertions`，typecheck/build/Harness validate 通过。
 - 决策：允许进入 bounded evidence→WorldProgram compiler；仍不宣称 predictive world model，不扩展为通用 robotics planner 或自动 adopt。
+
+## 2026-09-22 — DH-022 内部候选边界实现中
+
+- 基于 main `82468a8`，在 `codex/dh-022-candidate-boundary` 独立 worktree 收敛 DH-020/021 的结果类型；两类候选仍属于固定 golden fixture 的离线证明。
+- Program 与 Pose Edit 使用显式 discriminator，并保留 sourceRef/Episode/Evaluation；Pose Edit 输出完整既有 wire input，原 Ref 随候选一起保存，避免调用端误用最新 Ref。
+- 新回归证明旧 Pose Edit 候选在世界前进后返回 stale_ref，不覆盖当前 Snapshot；推导不拥有 Host 写权限。Program sourceRef 仅作来源记录，不宣称新增 run CAS。
+- authoring helper 及脚本显式纳入根 typecheck；DH-019 历史 receipt 保持不变。验证详情及最终门禁结果见 `tasks/DH-022/result.md`。
+- 状态为实现者验证、准备独立审查；不自行批准 closeout，不修改 main，不调用 live provider。
+
+## 2026-09-28 — DH-022 独立审查与 Operator closeout
+
+- `/root/dh022_independent_review` 独立只读核对未提交 diff 与新文件，APPROVED / may_closeout=yes / P0=P1=P2=0；亲跑 focused 12/0/55、authoring typecheck 与 diff-check。9 个产品/测试/配置文件审查前后 SHA-256 一致。
+- Operator 本轮 root typecheck/build 均通过；9 月 22 日全量 1180/0/9300 日志只读核验，本轮不重复声称 fresh full suite。
+- 更正职责理解：职责分离要求独立 reviewer 提供结论，由 Operator 组织执行并关单，不意味着等待用户接手。已用 DH-022 verdict 替换 current/review 的历史内容。
+- 正式 transition：closeout requested → independent review approved → Operator mark-done；owner/session 清空、lease 释放、current pointer 清空、derived state 刷新。

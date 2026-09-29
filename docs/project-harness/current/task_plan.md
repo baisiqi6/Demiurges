@@ -2,7 +2,7 @@
 
 - Checklist item: null
 - Status: none
-- Cleared at: 2026-08-24T23:52:28Z
-- Reason: released
+- Cleared at: 2026-09-29T01:58:50Z
+- Reason: closed
 
 > No active task is currently selected. Use harnessctl state or assign/start a new item.

@@ -1,7 +1,7 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "updated_at": "2026-09-05",
+  "updated_at": "2026-09-29",
   "items": [
     {
       "id": "DH-000",
@@ -1033,6 +1033,50 @@
         "acquired_at": "2026-09-05T11:39:52Z",
         "expires_at": "2026-09-05T13:39:52Z",
         "ttl_minutes": 120
+      }
+    },
+    {
+      "id": "DH-022",
+      "title": "区分 Program 与 Pose Edit 的内部候选边界",
+      "status": "done",
+      "priority": "p1",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-09-29",
+      "dependencies": [
+        "DH-021"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "两种候选记录同一来源；pose 候选带 expected Ref 直接走既有 edit admission；过期候选拒绝；两条离线闭环、类型和回归通过。",
+      "verification": "独立 Reviewer APPROVED/P0=P1=P2=0，亲跑 focused 12/0/55、authoring typecheck；Operator 本轮 root typecheck/build 通过；产品 hash 一致；9月22日全量1180/0/9300日志已核对。",
+      "handoff": "独立审查批准，Operator 按 closeout→review-result→mark-done 完成关单；会话已有 Git 授权下衔接发布。",
+      "plan_path": "docs/project-harness/tasks/DH-022/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-09-29",
+        "branch": "codex/dh-022-candidate-boundary"
+      },
+      "artifacts": {
+        "branch": "codex/dh-022-candidate-boundary",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "dh022-independent-reviewer",
+        "phase": "closeout_requested",
+        "updated_at": "2026-09-29",
+        "summary": "独立审查 APPROVED；may_closeout=yes；P0/P1/P2=0；亲跑focused12/0/55、authoring typecheck；9文件manifest一致。",
+        "artifact": "docs/project-harness/tasks/DH-022/implementation-review.md"
+      },
+      "lease": {
+        "owner": "codex",
+        "session": "dh022-20260922",
+        "acquired_at": "2026-09-22T15:12:11Z",
+        "expires_at": "2026-09-22T17:12:11Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-09-29T01:58:50Z"
       }
     }
   ]

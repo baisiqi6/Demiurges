@@ -16,7 +16,8 @@
     "import:dh013": "bun packages/world-project/src/import-dh013-cli.ts",
     "data:init": "bun packages/world-project/src/data-init-cli.ts",
     "build": "bun --cwd apps/agent-gateway build && bun --cwd apps/studio build",
-    "typecheck": "bun --cwd packages/world-project typecheck && bun --cwd apps/agent-gateway typecheck && bun --cwd apps/studio typecheck",
-    "test": "bun test"
+    "typecheck": "bun --cwd packages/world-project typecheck && bun --cwd apps/agent-gateway typecheck && bun --cwd apps/studio typecheck && bun run typecheck:authoring",
+    "test": "bun test",
+    "typecheck:authoring": "tsc -p scripts/tsconfig.authoring.json"
   }
 }

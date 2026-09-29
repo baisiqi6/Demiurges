@@ -24,6 +24,9 @@ describe("DH-020 evidence-derived authoring candidate", () => {
     expect(proposal.status).toBe("available");
     if (proposal.status !== "available") return;
     expect(Object.isFrozen(proposal)).toBe(true);
+    expect(proposal.kind).toBe("program");
+    expect(proposal.sourceRef).toEqual(read.ref);
+    expect(host.readRefRecord()).toEqual(read.ref);
     expect(Object.isFrozen(proposal.program)).toBe(true);
     expect(proposal.program.kind).toBe("actuator-sequence");
     expect(proposal.program.steps[0]!.commands[0]!.valueRadians).toBe(0.65);

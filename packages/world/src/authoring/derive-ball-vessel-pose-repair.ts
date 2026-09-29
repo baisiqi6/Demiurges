@@ -1,3 +1,4 @@
+import type { PoseEditCandidate } from "./authoring-candidate";
 import { requireRegisteredSnapshotIdentity } from "../artifacts/diagnostic-rigid-fixture";
 import { canonicalJsonBytes, sha256Hex } from "../kernel/canonical-json";
 import { deepFreeze, isDeepFrozen } from "../kernel/world";
@@ -12,7 +13,7 @@ const normalize = (value: unknown): unknown => typeof value === "number" && Obje
 const digest = (value: unknown) => sha256Hex(canonicalJsonBytes(normalize(value)));
 
 export type BallVesselPoseRepairResult =
-  | { readonly status: "available"; readonly sourceEpisodeId: string; readonly sourceEvaluationId: string; readonly basis: readonly ["maxHorizontalOffsetMeters", "maxFloorDistanceErrorMeters"]; readonly pose: { readonly frameRef: "frame:world"; readonly position: readonly [number, number, number]; readonly rotation: { readonly x: 0; readonly y: 0; readonly z: 0; readonly w: 1 } } }
+  | (PoseEditCandidate & { readonly status: "available" })
   | { readonly status: "unavailable"; readonly reason: "already_passed" | "invalid_evidence" };
 
 export function deriveBallVesselPoseRepair(read: { readonly ref: RefRecord; readonly snapshot: Snapshot }, run: { readonly baseRef: RefRecord; readonly episode: Episode; readonly evaluation: EvaluationRecord }): BallVesselPoseRepairResult {
@@ -29,6 +30,25 @@ export function deriveBallVesselPoseRepair(read: { readonly ref: RefRecord; read
     const rim = vessel.representations.semantic.rimFrame;
     const radius = ball.representations.collision.radius;
     const position: [number, number, number] = [Number(rim.localPose.position[0].toPrecision(15)), Number(rim.localPose.position[1].toPrecision(15)), Number((rim.localPose.position[2] + radius / 2).toPrecision(15))];
-    return deepFreeze({ status: "available" as const, sourceEpisodeId: episode.id, sourceEvaluationId: evaluation.id, basis: ["maxHorizontalOffsetMeters", "maxFloorDistanceErrorMeters"] as const, pose: { frameRef: "frame:world" as const, position, rotation: { x: 0 as const, y: 0 as const, z: 0 as const, w: 1 as const } } });
+    return deepFreeze({
+      status: "available" as const,
+      kind: "pose-edit" as const,
+      sourceRef: read.ref,
+      sourceEpisodeId: episode.id,
+      sourceEvaluationId: evaluation.id,
+      basis: ["maxHorizontalOffsetMeters", "maxFloorDistanceErrorMeters"] as const,
+      edit: {
+        expected: read.ref,
+        targetRef: "entity:ball" as const,
+        change: {
+          kind: "pose" as const,
+          frameRef: "frame:world" as const,
+          pose: {
+            position: { x: position[0], y: position[1], z: position[2] },
+            rotation: ball.state.pose.rotation,
+          },
+        },
+      },
+    });
   } catch { return { status: "unavailable", reason: "invalid_evidence" }; }
 }

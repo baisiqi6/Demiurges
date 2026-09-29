@@ -2,32 +2,32 @@
 
 ## Subject
 
-- Checklist item: `DH-019`
-- Reviewer: `dh019-independent-reviewer`
-- Updated at: `2026-09-05`
-- Canonical plan path: `docs/project-harness/tasks/DH-019/plan.md`
+- Checklist item: `DH-022`
+- Reviewer: `dh022-independent-reviewer`
+- Updated at: `2026-09-29`
+- Canonical plan path: `docs/project-harness/tasks/DH-022/plan.md`
 
 ## Item Snapshot
 
-- Title: Offline Value Checkpoint 与 Authoring Decision
-- Status: done
+- Title: 区分 Program 与 Pose Edit 的内部候选边界
+- Status: doing
 - Workflow status: closeout_requested
 - Priority: p1
-- Owner: None
-- Session: None
-- Dependencies: DH-018
+- Owner: codex
+- Session: dh022-20260922
+- Dependencies: DH-021
 
 ## Acceptance
 
-复用 DH-018 已完成的 ProductSession/WorldToolSurface seam，在无 provider quota 条件下以 fresh Host 重放 articulated FAIL→evidence→repair→PASS；只使用 read/write/edit/run，记录 fixture/scenario/run/program identity、exact metrics、deterministic receipt/replay digest，不调用 live OMP、Marble、Hunyuan，不自动 adopt。
+两种候选记录同一来源；pose 候选带 expected Ref 直接走既有 edit admission；过期候选拒绝；两条离线闭环、类型和回归通过。
 
 ## Verification
 
-5 focused tests / 19 assertions；全量 bun test 1173 pass / 0 fail / 9264 assertions；bun run typecheck；bun run build；Harness validate 0 warnings；scoped diff-check clean；receipt status=offline-proven。
+独立 Reviewer APPROVED/P0=P1=P2=0，亲跑 focused 12/0/55、authoring typecheck；Operator 本轮 root typecheck/build 通过；产品 hash 一致；9月22日全量1180/0/9300日志已核对。
 
 ## Handoff
 
-先通过独立 plan review，再实现 measurement-only replay runner；结果只作为是否进入 data-driven authoring 的决策依据。
+独立审查批准，Operator 按 closeout→review-result→mark-done 完成关单；会话已有 Git 授权下衔接发布。
 
 ## Review Inputs
 
@@ -40,89 +40,31 @@
 ## Canonical Plan Content
 
 ```md
-# DH-019 计划：Offline Value Checkpoint
+# DH-022：明确 Program 与 Pose Edit 候选边界
 
-## 定位
+## 问题与选择
 
-这是 DH-018 之后的产品决策 checkpoint，不再实现第二套 worldmaking runner。它复用 DH-018 已完成的 WorldToolSurface fail→repair→pass seam；本 checkpoint 有意保持 measurement-only direct surface，不启动 ProductSession/OMP turn，只负责独立重放、测量和生成 decision receipt，回答：在没有任何 live model/provider quota 时，Demiurges 是否能重复证明一个模型意图经过世界、证据和修复后得到确定性结果。
+DH-020 返回 canonical Program，DH-021 返回无 target/expected Ref 的 Pose，调用端需要手工补齐 edit 输入。第二个调用方已经出现；本次只统一内部结果的类型与来源，不抽 strategy registry、executor、插件接口或公共 package export。
 
-## Golden trace
+## 实现
 
-固定使用 `fixture:two-joint-planar-reach-v1`：
-
-1. `world_write` 创建 procedural articulated fixture；
-2. `world_read` 读取结构化 joints、target 与 affordance；
-3. `world_edit` 建立 zero-joint authored state；
-4. `world_run` 使用 `run:dh019-zero` 与 one-step all-zero Program，Evaluation 为 `FAIL`；
-5. 从受信 Evaluation 读取并校验 `supportSamples=0`、`maxPositionErrorMeters=0.226543641354435`、`maxJointSpeedRadiansPerSecond=0`；
-6. 第二次 `world_read` 获取 authored Ref `version=2`；
-7. `world_run` 使用 `run:dh019-corrected` 与 one-step `.65/-1` Program（`kind=actuator-sequence`、`targetRef=entity:arm`、`durationSeconds=3`、`sampleRateHz=30`、唯一 step 为 `timeSeconds=0`），Episode 为 91 samples，Evaluation 为 `PASS`，`supportSamples=16`、`maxPositionErrorMeters=0.00000179062757188384`、`maxJointSpeedRadiansPerSecond=0.0000390513154170192`。
-
-首次 zero Program 同样固定为 `kind=actuator-sequence`、`targetRef=entity:arm`、`durationSeconds=3`、`sampleRateHz=30`、唯一 `timeSeconds=0` step，两个 command 均为 `0`。`evidenceFieldsUsed` 固定为字面有序数组 `["supportSamples","maxPositionErrorMeters","maxJointSpeedRadiansPerSecond"]`。
-
-Repair 函数必须接收第一次受信 Evaluation，逐字段校验上述 metrics 与 episode/evaluator/contract identity 后才能生成 corrected Program；缺失、篡改或错配 evidence 必须拒绝。Repair 是下一次 `world_run` 的显式 `WorldProgram` 改写，不增加 `world_edit` 能力，也不调用 provider。两次 run/evaluate 都不推进 Ref；`adopt` 不属于 checkpoint。
-
-## 实现边界
-
-新增一个 repo-owned measurement runner 与 deterministic receipt。runner 只依赖现有 `RuntimeMvpHost`、`WorldToolSurface`、articulated fixture、Program parser 和 evaluator；每次 replay 使用 fresh Host；不得复制作第二套 world authority，也不重复实现 DH-018 的 orchestration。
-
-Receipt 使用 canonical JSON bytes，固定字段：
-
-```ts
-interface OfflineValueCheckpointReceiptV1 {
-  schemaVersion: 1;
-  fixtureId: "fixture:two-joint-planar-reach-v1";
-  scenarioId: "scenario:two-joint-planar-reach-v1";
-  runIds: readonly ["run:dh019-zero", "run:dh019-corrected"];
-  traceDigest: `trace:sha256:${string}`;
-  toolSequence: readonly ["world_write", "world_read", "world_edit", "world_run", "world_read", "world_run"];
-  episodeIds: readonly [string, string];
-  evaluationIds: readonly [string, string];
-  firstOutcome: "FAIL";
-  secondOutcome: "PASS";
-  repairCount: 1;
-  evidenceFieldsUsed: readonly string[];
-  replayDigest: `replay:sha256:${string}`;
-}
-```
-
-`traceDigest` 的 preimage 是 domain string `demiurges-dh019-trace-v1\0` 加上 `canonicalJsonBytes` 的 `{fixtureId,scenarioId,runIds,programs,toolSequence}` 包装对象；programs 同时包含完整 canonical program content 与 derived `program.id`。`replayDigest` 的 preimage 是 domain string `demiurges-dh019-replay-v1\0` 加上 `canonicalJsonBytes` 的 receipt 字段（排除两个 digest 字段）。Receipt 不包含 credential、provider URL、raw response、绝对路径或大体积 Artifact bytes；receipt `status` 固定为 `offline-proven`。两次 fresh Host 执行必须生成 byte-identical receipt 与 replay digest。
-
-## Non-goals
-
-- 不接入 live OMP、Marble、Hunyuan 或任何 quota；
-- 不增加 `generate`、`inspect`、`adopt` 或第五个 world tool；
-- 不把 scripted replay 宣称为自然语言 Agent canary；
-- 不实现通用 benchmark、任务市场、调度器或长期记忆；
-- 不改变 Snapshot/Ref/Episode/Evaluation/Project authority。
-
-## 允许修改范围
-
-- `scripts/` 下单一 offline checkpoint runner 与对应测试；
-- 必要时 `packages/world/src` 中已有 Program/evidence 的最小 re-export；
-- `docs/project-harness/tasks/DH-019/` 的 plan、progress、receipt 与 review artifacts；
-- 不修改 provider transport、Keychain、World Project manifest、Studio UI 或生产 Gateway。
+- 内部 discriminated union：`kind: program` 保留 canonical Program；`kind: pose-edit` 返回既有 `WorldEditPoseWireInput`，绑定推导时 `read.ref`、`entity:ball` 与 pose。
+- 共用只读 sourceRef、sourceEpisodeId、sourceEvaluationId、basis；available 候选递归冻结。
+- 两个推导函数和现有调用端迁移到该类型，不再保留 Pose 兼容字段。
+- Program 调用端继续去掉 id 后显式 run；Pose 调用端直接显式 edit。没有自动执行，run 没有新增 CAS 语义；sourceRef 对 Program 仅是来源信息。
+- golden evidence admission、数值策略、DH-019 receipt、Kernel 与四工具 API 保持现状。摘要表示固定样本内容一致，不是来源认证；不宣称支持任意世界。
 
 ## 验收
 
-1. runner 在无网络、无 Keychain、无 live OMP 环境完成上述六次 world-tool 调用；源码结构检查不得 import provider transport、Keychain 或 OMP；
-2. tool sequence、Episode/Evaluation identity、FAIL/PASS、`repairCount=1` 与 evidence fields exact；
-3. runner 重放两次得到 byte-identical receipt/replay digest；
-4. forged Evaluation 或真实 Episode provenance/content 被篡改时 fail closed；固定 tool sequence、Ref/Program/Evaluation identity 检查阻断额外 tool 或 terminal-only bypass；
-5. 全量 tests、typecheck、build、diff-check 与 Harness validation 通过；
-6. 结果明确记录为 `offline-proven`，不扩大解释为 live Agent 或 predictive world model 已验证。
+1. 两类候选均记录 sourceRef，推导不修改 Host；已有 FAIL→repair→PASS 通过。
+2. ball 候选直接通过 edit admission；世界前进后再次执行原候选得到 stale_ref，不允许偷偷换成最新 Ref。
+3. TypeScript exhaustive narrowing 区分 program/edit，错误 payload 被类型检查拒绝；候选及 nested input 冻结。
+4. 显式检查包含未公开 authoring helper 的 TypeScript 文件，避免仅靠 app 引用图漏检。
+5. focused regressions、全量 tests、root typecheck/build、Harness validation 和 whitespace 检查；准确记录失败，不能用单测重跑冒充全量通过。
 
-## 已验证 receipt
+## 交付边界
 
-当前 offline checkpoint receipt 见 `offline-value-checkpoint-receipt.json`，`status=offline-proven`。它固定 `traceDigest=trace:sha256:3f1c77b8b77ca62d8a830385bb9386f875d49880f734702e52cc360811984177` 与 `replayDigest=replay:sha256:f806faeac3913384b5e09af502dac03af72826ae1ee50c8d6c5ff36eccfbff83`，对应两次 fresh Host 的 byte-identical replay。
-
-## 决策输出
-
-Receipt 只用于决定下一步：
-
-- 若 trace 成功且 evidence 足够定位失败，再设计最小 data-driven authoring；
-- 若 trace 成功但 evidence 不足，先改 evidence projection；
-- 若 trace 不稳定，暂停扩展 authoring，先修 Runtime/authority 根因。
+由 Operator 组织实现、独立审查与 closeout。实现者不审批自己的实现；独立 reviewer 提供结论后，Operator 按正式 Harness transition 关闭任务。发布按会话授权处理；职责分离不是要求用户接手流程的停止条件。
 ```
 
 ## Recent Progress Context
@@ -1257,24 +1199,37 @@ Independent review：
 - Kimi K3 `thinking=max` limited-fresh Reviewer session `01a0343b-7940-70ad-9452-62bcdb5e9d82` 独立审查；首次在正式结论前触及 deadline，恢复同一 session 后给出 `APPROVE / MAY_REQUEST_NEW_QUERY_AUTHORITY=yes / P0=P1=P2=0`，仅保留两条无需修改的 P3。Reviewer 只写 `/tmp` 测试文件，repo 零 mutation。
 - Operator 最终复跑 injected-fake matrix `28/28`、leak scan `CLEAN`、invalid CLI exact sentinel/exit 64、Bun bundle；脚本 115 行，SHA-256 `b58a75345517749ce50e58d035cd987ad7d06047365f9f829a0076bd38eb1d54`。本切片 Keychain read、network、query、submit、retry 均为 `0`。
 - DH-017 整项仍未完成。本 APPROVE 只证明离线诊断可用于下一次最小查询，不构成真实 query authority；当前重新阻断在 Human 是否授权对既有 Job 执行恰好一次 no-generation query。任何 paid submit 仍需另行授权。
+
+## 2026-09-05 — DH-019 Offline Value Checkpoint 已关闭
+
+- 在无 provider quota、无 live OMP/Marble/Hunyuan/Keychain 的条件下，`fixture:two-joint-planar-reach-v1` 完成 `world_write → world_read → world_edit → world_run(FAIL) → evidence-derived repair → world_run(PASS)`。
+- Episode provenance、runtime profile、samples/terminal content digest 与 Evaluation 重算均已绑定；真实 Episode 篡改 fail closed。
+- Receipt 状态为 `offline-proven`，两次 fresh Host byte-identical；全量 `bun test` 为 `1173 pass / 0 fail / 9264 assertions`，typecheck/build/Harness validate 通过。
+- 决策：允许进入 bounded evidence→WorldProgram compiler；仍不宣称 predictive world model，不扩展为通用 robotics planner 或自动 adopt。
+
+## 2026-09-22 — DH-022 内部候选边界实现中
+
+- 基于 main `82468a8`，在 `codex/dh-022-candidate-boundary` 独立 worktree 收敛 DH-020/021 的结果类型；两类候选仍属于固定 golden fixture 的离线证明。
+- Program 与 Pose Edit 使用显式 discriminator，并保留 sourceRef/Episode/Evaluation；Pose Edit 输出完整既有 wire input，原 Ref 随候选一起保存，避免调用端误用最新 Ref。
+- 新回归证明旧 Pose Edit 候选在世界前进后返回 stale_ref，不覆盖当前 Snapshot；推导不拥有 Host 写权限。Program sourceRef 仅作来源记录，不宣称新增 run CAS。
+- authoring helper 及脚本显式纳入根 typecheck；DH-019 历史 receipt 保持不变。验证详情及最终门禁结果见 `tasks/DH-022/result.md`。
+- 状态为实现者验证、准备独立审查；不自行批准 closeout，不修改 main，不调用 live provider。
 ```
 
 ## Current Review Content
 
 ```md
-# DH-015 Final Review Verdict
+# DH-022 独立实现与 closeout 审查
 
-当前 frozen 25-file product aggregate：`03297cbad3fec2f0ff5a054081e50468029a33c0e4584ba15f348fcdb841f36b`。
+- Reviewer：`/root/dh022_independent_review`（与实现者分离，只读）
+- 结论：`APPROVED`；`may_closeout=yes`；P0=0 / P1=0 / P2=0（实现范围）。
+- 审查基线：HEAD `82468a8` 加当前未提交 DH-022 差异，包含未跟踪新文件。9 个产品/测试/配置文件与 review-input manifest 全部匹配。
+- Reviewer 亲跑：focused 12 pass / 0 fail / 55 assertions（13.01s）；`bun run typecheck:authoring` exit 0；`git diff --check` exit 0。
+- 全量日志：只读核对 2026-09-22 `1180 pass / 0 fail / 9300 assertions`；Reviewer 本轮未重跑全量，不冒充 fresh full gate。
+- Reviewer 确认 Program/Pose Edit 类型区分、sourceRef、stale_ref 回归、历史 receipt 和内部类型检查在本切片范围可接受；没有隐式 run/adopt/provider 操作。
+- 操作建议：Operator 记录本 verdict 后执行正式 closeout，刷新 current/task_plan、harness-state、current/review 和 packet。旧 DH-015 verdict 不属于本任务批准依据。
 
-- GPT-5.6 Sol Max：`approved / may_closeout=yes / P0=0 / P1=0 / P2=0`；
-- ZCode GLM-5.3：`approved / may_closeout=yes / P0=0 / P1=0`；actual model verified，`Max` variant `UNVERIFIED`，direct CLI不是managed receipt；
-- 两路均完成Round 6 mandatory input-ownership与authority closure，起终aggregate无漂移；
-- final gates：`509 pass / 0 fail / 3634 expect()`，typecheck、build、diff-check、EXharness validate/doctor通过；
-- combined decision：`approved / may_closeout=yes / P0=0 / P1=0`。
-
-Canonical evidence：`docs/project-harness/tasks/DH-015/implementation-review-round6.md`。
-
-本文件记录 reviewer 已批准 closeout；commit、push与fast-forward merge依据Human standing authority执行，不由reviewer verdict自行授予。
+本文件由 Operator 原意记录独立 reviewer 返回的结论；未以实现者自测替代 reviewer。
 ```
 
 ## Closeout Questions

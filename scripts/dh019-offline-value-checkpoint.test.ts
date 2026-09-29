@@ -32,12 +32,12 @@ describe("DH-019 offline value checkpoint", () => {
     expect(receipt.replayDigest).toBe("replay:sha256:f806faeac3913384b5e09af502dac03af72826ae1ee50c8d6c5ff36eccfbff83");
   });
 
-  test("two fresh Hosts produce byte-identical replay evidence", { timeout: 15000 }, async () => {
+  test("two fresh Hosts produce byte-identical replay evidence", async () => {
     const left = await runOfflineValueCheckpoint();
     const right = await runOfflineValueCheckpoint();
     expect(left).toEqual(right);
     expect(Array.from(receiptCanonicalBytes(left))).toEqual(Array.from(receiptCanonicalBytes(right)));
-  });
+  }, 15000);
 
   test("tampered first Evaluation cannot produce a corrected Program", () => {
     expect(() => deriveCorrectedProgramFromEvidence({

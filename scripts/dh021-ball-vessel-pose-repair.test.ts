@@ -20,13 +20,28 @@ describe("DH-021 ball-vessel pose repair", () => {
     expect(proposal.status).toBe("available");
     if (proposal.status !== "available") return;
     expect(Object.isFrozen(proposal)).toBe(true);
-    expect(proposal.pose.position).toEqual([0, 0, 0.7]);
-    const edited = tools.edit({ expected: read.ref, targetRef: "entity:ball", change: { kind: "pose", frameRef: "frame:world", pose: { position: { x: proposal.pose.position[0], y: proposal.pose.position[1], z: proposal.pose.position[2] }, rotation: proposal.pose.rotation } } });
+    expect(proposal.kind).toBe("pose-edit");
+    expect(proposal.sourceRef).toEqual(read.ref);
+    expect(proposal.edit.change.pose.position).toEqual({ x: 0, y: 0, z: 0.7 });
+    expect(Object.isFrozen(proposal.edit.change.pose.position)).toBe(true);
+    expect(host.readRefRecord()).toEqual(read.ref);
+    const edited = tools.edit(proposal.edit);
     const second = await tools.run({ runId: "run:dh021-centered", program: { kind: "free-fall", targetRef: "entity:ball", durationSeconds: 3, sampleRateHz: 30 } });
     expect(edited.update.status).toBe("updated");
     expect(second.evaluation.passed).toBe(true);
     expect(host.readRefRecord()).toEqual(edited.update.ref);
-    expect(sha256Hex(canonicalJsonBytes(proposal.pose))).toBe("2202043e08d2a6c77b72bdeeeecc516b3fa9a6f0fdd1a6ac9309faa8b6fa111e");
+    expect(sha256Hex(canonicalJsonBytes({ frameRef: proposal.edit.change.frameRef, position: Object.values(proposal.edit.change.pose.position), rotation: proposal.edit.change.pose.rotation }))).toBe("2202043e08d2a6c77b72bdeeeecc516b3fa9a6f0fdd1a6ac9309faa8b6fa111e");
+  });
+
+  test("world advancement makes the original pose candidate stale", async () => {
+    const { host, tools, read, run } = await setup();
+    const proposal = deriveBallVesselPoseRepair(read, run);
+    if (proposal.status !== "available") throw new Error("缺少 pose candidate");
+    tools.edit({ expected: read.ref, targetRef: "entity:ball", change: { kind: "pose", frameRef: "frame:world", pose: { position: { x: 1.2, y: 0, z: 1 }, rotation: { x: 0, y: 0, z: 0, w: 1 } } } });
+    const before = tools.read();
+    expect(tools.edit(proposal.edit).update.status).toBe("stale_ref");
+    expect(host.readRefRecord()).toEqual(before.ref);
+    expect(tools.read().snapshot).toEqual(before.snapshot);
   });
 
   test("same golden input replays identical candidate", async () => {
