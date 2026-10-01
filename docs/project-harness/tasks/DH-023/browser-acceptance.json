@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 1,
+  "taskId": "DH-023",
+  "date": "2026-10-01",
+  "browser": "Ego Lite Chromium",
+  "taskSpaceId": 2,
+  "route": "http://127.0.0.1:5175/",
+  "gateway": "http://127.0.0.1:8790",
+  "entry": "apps/agent-gateway/src/offline-main.ts",
+  "loops": [
+    {
+      "failure": {
+        "inputMeters": [
+          1,
+          0,
+          1
+        ],
+        "ref": {
+          "name": "world:current",
+          "snapshotId": "snapshot:edit-1",
+          "version": 2
+        },
+        "episodeId": "episode:19-ball-task-local-5-1-6-edit-1",
+        "runId": "run:ball-task-local-5-1",
+        "sampleCount": 91,
+        "passed": false,
+        "metrics": {
+          "supportSamples": 0,
+          "requiredSupportSamples": 16,
+          "maxHorizontalOffsetMeters": 0.964012481714438,
+          "maxLinearSpeedMetersPerSecond": 2.46528699933686e-10,
+          "maxFloorDistanceErrorMeters": 0.0802513306515611,
+          "maxPenetrationMeters": 0
+        },
+        "rawProjectionSha256": "7dc31992cc5e611d43107e2da157705eaf7b9fe8a989a6e160055bd0989aa61a"
+      },
+      "repairPositionMeters": [
+        0,
+        0,
+        0.7
+      ],
+      "success": {
+        "inputMeters": [
+          0,
+          0,
+          0.7
+        ],
+        "ref": {
+          "name": "world:current",
+          "snapshotId": "snapshot:edit-2",
+          "version": 3
+        },
+        "episodeId": "episode:19-ball-task-local-5-2-6-edit-2",
+        "runId": "run:ball-task-local-5-2",
+        "sampleCount": 91,
+        "passed": true,
+        "metrics": {
+          "supportSamples": 16,
+          "requiredSupportSamples": 16,
+          "maxHorizontalOffsetMeters": 0.0317456944096586,
+          "maxLinearSpeedMetersPerSecond": 2.48880240847021e-10,
+          "maxFloorDistanceErrorMeters": 0.000216440462752696,
+          "maxPenetrationMeters": 0.00021644046275270945
+        },
+        "rawProjectionSha256": "2cf93654791a778e03bd609270b2ba0e2c715325aa78cb2efd52a5496ebcf3e8"
+      }
+    },
+    {
+      "failure": {
+        "inputMeters": [
+          -1.1,
+          0.2,
+          1.4
+        ],
+        "ref": {
+          "name": "world:current",
+          "snapshotId": "snapshot:edit-2",
+          "version": 3
+        },
+        "episodeId": "episode:19-ball-task-local-7-2-6-edit-2",
+        "runId": "run:ball-task-local-7-2",
+        "sampleCount": 91,
+        "passed": false,
+        "metrics": {
+          "supportSamples": 0,
+          "requiredSupportSamples": 16,
+          "maxHorizontalOffsetMeters": 1.16340800632155,
+          "maxLinearSpeedMetersPerSecond": 2.51659428544552e-10,
+          "maxFloorDistanceErrorMeters": 0.0802513306515611,
+          "maxPenetrationMeters": 0
+        },
+        "rawProjectionSha256": "a4305ae74049d0eb118ee0361671c1dff605c431a1053826fef1c29f8ebf6059"
+      },
+      "repairPositionMeters": [
+        0,
+        0,
+        0.7
+      ],
+      "success": {
+        "inputMeters": [
+          0,
+          0,
+          0.7
+        ],
+        "ref": {
+          "name": "world:current",
+          "snapshotId": "snapshot:edit-3",
+          "version": 4
+        },
+        "episodeId": "episode:19-ball-task-local-7-3-6-edit-3",
+        "runId": "run:ball-task-local-7-3",
+        "sampleCount": 91,
+        "passed": true,
+        "metrics": {
+          "supportSamples": 16,
+          "requiredSupportSamples": 16,
+          "maxHorizontalOffsetMeters": 0.0317456944096586,
+          "maxLinearSpeedMetersPerSecond": 2.48880240847021e-10,
+          "maxFloorDistanceErrorMeters": 0.000216440462752696,
+          "maxPenetrationMeters": 0.00021644046275270945
+        },
+        "rawProjectionSha256": "c4eebb21aeb02d7d322d752198a950ba2fd768f06307fe62f1c1e8ca2291e628"
+      }
+    }
+  ],
+  "previewRef": {
+    "before": {
+      "name": "world:current",
+      "snapshotId": "snapshot:edit-1",
+      "version": 2
+    },
+    "after": {
+      "name": "world:current",
+      "snapshotId": "snapshot:edit-1",
+      "version": 2
+    },
+    "unchanged": true
+  },
+  "invalidInput": {
+    "message": "请输入范围内的数值：x/y 为 −2 到 2 m，z 为 0.7 到 2 m。",
+    "refVersion": "v1"
+  },
+  "stalePreview": {
+    "ref": "v3",
+    "message": "世界或运行已更新，旧修复预览已过期。重新运行后再预览。",
+    "candidateAbsent": true
+  },
+  "historicalReplay": {
+    "failedView": {
+      "currentRefVersion": "v4",
+      "displayedEpisode": "episode:19-ball-task-local-7-2-6-edit-2",
+      "replaySource": "历史初态 v3 · 当前世界仍为 v4返回当前世界"
+    },
+    "passedView": {
+      "currentRefVersion": "v4",
+      "displayedEpisode": "episode:19-ball-task-local-7-3-6-edit-3",
+      "replaySource": "历史初态 v4 · 当前世界仍为 v4返回当前世界"
+    },
+    "authorityUnchanged": true
+  },
+  "narrowLayout": {
+    "width": 390,
+    "documentWidth": 390,
+    "viewportHeight": 390,
+    "controls": [
+      {
+        "text": "应用初态",
+        "width": 169.5,
+        "enabled": true
+      },
+      {
+        "text": "运行并评估",
+        "width": 169.5,
+        "enabled": true
+      },
+      {
+        "text": "预览修复",
+        "width": 169.5,
+        "enabled": true
+      },
+      {
+        "text": "回放此运行",
+        "width": 149.5,
+        "enabled": true
+      },
+      {
+        "text": "回放此运行",
+        "width": 149.5,
+        "enabled": true
+      }
+    ]
+  },
+  "responseAndRecoveryLoss": {
+    "previousSession": "session:local-8",
+    "beforeVersion": 2,
+    "actualVersion": 3,
+    "disconnected": {
+      "currentRef": "—",
+      "session": "—",
+      "candidateAbsent": true,
+      "recordsAbsent": true,
+      "taskCreateDisabled": true,
+      "message": "任务结果尚未核实，当前世界已断开。请新建 Session 后重新开始。"
+    }
+  },
+  "newSessionRecovery": {
+    "session": "session:local-9",
+    "ref": "—"
+  },
+  "evidenceDirectory": ".artifacts/dh023/browser",
+  "scope": "仅本地离线内存任务；无 Agent/provider/Keychain 调用，无自动 adopt、WorldProject 保存或 deploy。"
+}

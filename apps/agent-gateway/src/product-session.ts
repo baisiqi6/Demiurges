@@ -26,6 +26,11 @@ import {
   TWO_JOINT_REACH_FIXTURE_ID,
   admitMarbleHunyuanCompositeEdit,
   requireWorldWriteInput,
+  admitBallVesselTaskEdit,
+  requireBallVesselTaskWorld,
+  requireBallVesselTaskRunInput,
+  deriveBallVesselPoseRepair,
+  type BallVesselTaskPreview,
 } from "@demiurges/world";
 
 import {
@@ -227,6 +232,7 @@ export class ProductSession {
   #lastRun: WorldRunResult | null = null;
   #sequence = 0;
   #turnSequence = 0;
+  #ballRunSequence = 0;
   #running = false;
   #projectBinding: {
     readonly projectId: string;
@@ -422,6 +428,81 @@ export class ProductSession {
       this.#running = false;
     }
     return this.readProjection();
+  }
+
+  tryCreateBallTask(input: unknown): ProductSessionProjection | undefined {
+    if (!this.#tryReserve()) return undefined;
+    try {
+      this.#requireEmptyBallTaskInput(input);
+      if (this.#world !== null) rejectAuthoring("WORLD_ALREADY_EXISTS");
+      this.#surface.write({ fixtureId: BALL_VESSEL_FIXTURE_ID });
+      this.#world = this.#surface.read();
+      this.#lastRun = null;
+    } finally { this.#running = false; }
+    return this.readProjection();
+  }
+
+  tryEditBallTask(input: unknown): ProductSessionProjection | undefined {
+    if (!this.#tryReserve()) return undefined;
+    try {
+      if (!this.#world) rejectAuthoring("WORLD_REQUIRED");
+      const admitted = this.#ballTaskAdmission(() => admitBallVesselTaskEdit(this.#world!, input));
+      const result = this.#surface.edit(admitted);
+      if (result.update.status !== "updated") rejectAuthoring("STALE_REF");
+      this.#world = this.#surface.read();
+      this.#lastRun = null;
+    } finally { this.#running = false; }
+    return this.readProjection();
+  }
+
+  tryRunBallTask(input: unknown, signal?: AbortSignal): Promise<ProductSessionProjection> | undefined {
+    if (!this.#tryReserve()) return undefined;
+    return (async () => {
+      try {
+        if (signal?.aborted) rejectAuthoring("INVALID_REQUEST");
+        if (!this.#world) rejectAuthoring("WORLD_REQUIRED");
+        this.#ballTaskAdmission(() => {
+          requireBallVesselTaskWorld(this.#world!);
+          requireBallVesselTaskRunInput(this.#world!, input);
+        });
+        const run = await this.#surface.run({
+          runId: `run:ball-task-${this.#sessionId.slice("session:".length)}-${++this.#ballRunSequence}`,
+          program: { kind: BALL_VESSEL_PROGRAM.kind, targetRef: BALL_VESSEL_PROGRAM.targetRef,
+            durationSeconds: BALL_VESSEL_PROGRAM.durationSeconds, sampleRateHz: BALL_VESSEL_PROGRAM.sampleRateHz },
+        });
+        // Runtime 尚不支持取消；必须等 run settle，不能提前释放 reservation。
+        if (signal?.aborted) rejectAuthoring("INVALID_REQUEST");
+        this.#lastRun = run;
+      } finally { this.#running = false; }
+      return this.readProjection();
+    })();
+  }
+
+  tryPreviewBallTask(input: unknown): BallVesselTaskPreview | undefined {
+    if (!this.#tryReserve()) return undefined;
+    try {
+      this.#requireEmptyBallTaskInput(input);
+      if (!this.#world) rejectAuthoring("WORLD_REQUIRED");
+      this.#ballTaskAdmission(() => requireBallVesselTaskWorld(this.#world!));
+      const proposal = this.#lastRun ? deriveBallVesselPoseRepair(this.#world, this.#lastRun)
+        : { status: "unavailable" as const, reason: "run_required" as const };
+      this.#running = false;
+      return deepFreeze({ projection: this.readProjection(), proposal });
+    } finally { this.#running = false; }
+  }
+
+  #requireEmptyBallTaskInput(input: unknown): void {
+    if (typeof input !== "object" || input === null || Array.isArray(input) ||
+        Object.getPrototypeOf(input) !== Object.prototype || Reflect.ownKeys(input).length !== 0) rejectAuthoring("INVALID_REQUEST");
+  }
+
+  #ballTaskAdmission<T>(operation: () => T): T {
+    try { return operation(); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "INVALID_REQUEST";
+      if (code === "STALE_REF" || code === "FIXTURE_NOT_COMPOSABLE" || code === "POSE_NOT_COMPOSABLE") rejectAuthoring(code);
+      rejectAuthoring("INVALID_REQUEST");
+    }
   }
 
   #tryReserve(): boolean {

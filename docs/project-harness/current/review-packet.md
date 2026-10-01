@@ -2,32 +2,32 @@
 
 ## Subject
 
-- Checklist item: `DH-022`
-- Reviewer: `independent-review-pending`
-- Updated at: `2026-09-22`
-- Canonical plan path: `docs/project-harness/tasks/DH-022/plan.md`
+- Checklist item: `DH-023`
+- Reviewer: `dh023-independent-reviewer`
+- Updated at: `2026-10-01`
+- Canonical plan path: `docs/project-harness/tasks/DH-023/plan.md`
 
 ## Item Snapshot
 
-- Title: 区分 Program 与 Pose Edit 的内部候选边界
+- Title: Studio 可交互离线 Ball-Vessel 任务
 - Status: doing
 - Workflow status: running
 - Priority: p1
-- Owner: codex
-- Session: dh022-20260922
-- Dependencies: DH-021
+- Owner: codex-operator
+- Session: dh023-20261001
+- Dependencies: DH-022
 
 ## Acceptance
 
-两种候选记录同一来源；pose 候选带 expected Ref 直接走既有 edit admission；过期候选拒绝；两条离线闭环、类型和回归通过。
+三组变化初态完成 FAIL→preview→edit→run PASS；Gateway 单一authority和reservation；候选 stale_ref；Studio前后Episode回放比较；无模型调用；tests/browser/review闭环。
 
 ## Verification
 
-focused 12/0/55；全量串行 1180/0/9300；root typecheck（含新 authoring gate）和 build 通过；历史 receipt/pose/Program digest 保持；待独立 review。
+
 
 ## Handoff
 
-实现及验证已完成，result.md 含依据；仅请求独立审查，尚无 review verdict，不自行 closeout/发布。
+
 
 ## Review Inputs
 
@@ -40,31 +40,37 @@ focused 12/0/55；全量串行 1180/0/9300；root typecheck（含新 authoring g
 ## Canonical Plan Content
 
 ```md
-# DH-022：明确 Program 与 Pose Edit 候选边界
+# DH-023：可交互离线 Ball-Vessel 任务
 
-## 问题与选择
+## 用户目标
 
-DH-020 返回 canonical Program，DH-021 返回无 target/expected Ref 的 Pose，调用端需要手工补齐 edit 输入。第二个调用方已经出现；本次只统一内部结果的类型与来源，不抽 strategy registry、executor、插件接口或公共 package export。
+Studio 内完成“把球稳定放进容器里”：设置初态 → MuJoCo 运行 → 查看失败和回放 → 预览修复坐标 → 用户显式应用 → 重跑并比较。全程使用 Gateway-owned 同一 Host，不消耗模型/provider quota。
 
-## 实现
+## 支持边界
 
-- 内部 discriminated union：`kind: program` 保留 canonical Program；`kind: pose-edit` 返回既有 `WorldEditPoseWireInput`，绑定推导时 `read.ref`、`entity:ball` 与 pose。
-- 共用只读 sourceRef、sourceEpisodeId、sourceEvaluationId、basis；available 候选递归冻结。
-- 两个推导函数和现有调用端迁移到该类型，不再保留 Pose 兼容字段。
-- Program 调用端继续去掉 id 后显式 run；Pose 调用端直接显式 edit。没有自动执行，run 没有新增 CAS 语义；sourceRef 对 Program 仅是来源信息。
-- golden evidence admission、数值策略、DH-019 receipt、Kernel 与四工具 API 保持现状。摘要表示固定样本内容一致，不是来源认证；不宣称支持任意世界。
+- 只针对 registered ball-vessel fixture；容器/floor/geometry/physics 保持注册值，球 rotation/velocity 需符合该任务；用户可改 x/y∈[-2,2]、z∈[0.7,2]。
+- 当前 Host 持有的 read 和 lastRun 是 Gateway 推导输入；HTTP preview 不接受用户自带 Episode。共享 DTO codec 校验 Ref/scenario/Program/Evaluation 和 sample 证据链，hash 不被当作调用来源凭证。
+- Ball repair 移除 golden runId/content hash gate；依据当前注册 semantic 与失败 metrics 生成 candidate，保留 current Ref。already_passed/no_failure/outside_supported_world 不猜测。
+- HTTP 提供该人类任务的 create/edit/run/repair 命令；沿用 ProductSessionRegistry 与 execution reservation，Agent model-facing 四工具不变。已有 composite authoring routes 的旧边界不扩大。
+- 一个显式 offline Gateway 启动入口；不会静默将生产 OMP 配置降级为 scripted Agent。离线入口的 Agent factory 一旦调用即拒绝，只有任务命令可运行。
+- Studio 只持有验证后的 projection 和候选；预览不编辑世界，应用需原 expected Ref，run 不 adopt。提供成功/失败的两份内存 Episode 回放与指标比较。
+- WorldProject v1 不扩 schema，ball task 不宣称可导出恢复；本任务只验证内存会话体验。
 
 ## 验收
 
-1. 两类候选均记录 sourceRef，推导不修改 Host；已有 FAIL→repair→PASS 通过。
-2. ball 候选直接通过 edit admission；世界前进后再次执行原候选得到 stale_ref，不允许偷偷换成最新 Ref。
-3. TypeScript exhaustive narrowing 区分 program/edit，错误 payload 被类型检查拒绝；候选及 nested input 冻结。
-4. 显式检查包含未公开 authoring helper 的 TypeScript 文件，避免仅靠 app 引用图漏检。
-5. focused regressions、全量 tests、root typecheck/build、Harness validation 和 whitespace 检查；准确记录失败，不能用单测重跑冒充全量通过。
+1. 三组不同失败初态（不同 x/y/z 和 runId）均能 FAIL→预览→显式 edit→run PASS；正常输入 PASS 不生成修复。
+2. preview 保持 Ref/Snapshot；更改初态后旧 candidate stale_ref，不能覆盖新世界。支持范围外、foreign scenario、tampered Evaluation/Ref/geometry 拒绝。
+3. create/edit/run/preview 共享 session 的单一 reserve；与 Agent turn 不能交叉写，请求 abort 后不得污染后续 world。
+4. client transition 验证 world lineage、lastRun、sequence、running、预览坐标与 source identity；失败恢复 settled projection，迟到响应不替换新会话。
+5. 真实浏览器完成两组初态闭环、前后回放、输入错误/过期预览提示；记录桌面和窄屏可用性。
+6. focused tests、typecheck/build、全量 gate、Harness 校验；独立 reviewer 提供 verdict，Operator closeout 并衔接既有 Git 交付授权。
 
-## 交付边界
+## 顺序
 
-只做本地实现与验证，记录 reviewer-ready 状态。独立审查完成前不自行批准 closeout；本任务尚无新的发布授权，不 commit/push/merge。
+1. 核对并冻结 task/admission/transition 边界。
+2. 扩展 ball repair，Gateway 人类命令，client codec。
+3. 添加离线入口与 Studio panel；复用已有 ThreeViewport/Episode Player。
+4. 回归与 browser 验收，独立审查，正式交付。
 ```
 
 ## Review Focus

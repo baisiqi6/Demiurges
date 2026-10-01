@@ -54,6 +54,7 @@ import {
   ARTICULATED_CANONICAL_MODEL_CAUSAL_DIGEST,
   runArticulatedReach,
 } from "./runtime-mujoco/run-articulated-reach";
+import { freeFallExecutionKey } from "./runtime-mujoco/run-falling-cube";
 import {
   requireWorldProgramEvidence,
   requireWorldRunInput,
@@ -991,7 +992,8 @@ function episode(value: unknown, label: string): Episode {
         const contact = record(value, contactLabel, [
           "targetRef", "otherRef", "normalOnTargetWorld", "penetrationMeters",
         ]);
-        if (contact.targetRef !== BALL_REF || contact.otherRef !== VESSEL_REF) {
+        // 容器外的 FAIL 会接触已登记 floor；只有 vessel 支撑计入 stable-inside evaluator。
+        if (contact.targetRef !== BALL_REF || (contact.otherRef !== VESSEL_REF && contact.otherRef !== FLOOR_REF)) {
           throw new Error(`${contactLabel} semantic EntityRef pair 非法`);
         }
         vec3(contact.normalOnTargetWorld, `${contactLabel}.normalOnTargetWorld`);
@@ -1019,6 +1021,13 @@ function episode(value: unknown, label: string): Episode {
     );
   });
   const terminal = snapshot(data.terminalSnapshot, `${label}.terminalSnapshot`);
+  if (!articulated) {
+    const key = freeFallExecutionKey((inputs.runId as string).slice("run:".length), (data.baseSnapshotId as string).slice("snapshot:".length));
+    if (data.id !== `episode:${key}`) {
+      throw new Error(`${label} ExplicitInputs/baseSnapshot 与 Episode identity 不一致`);
+    }
+    if (terminal.id !== `snapshot:terminal-${key}`) throw new Error(`${label} terminal Snapshot identity 不一致`);
+  }
   const runtime = record(data.runtimeEvidence, `${label}.runtimeEvidence`, articulated
     ? ["provider", "version", "modelFormat", "modelCausalDigest"]
     : ["provider", "version", "modelFormat"]);

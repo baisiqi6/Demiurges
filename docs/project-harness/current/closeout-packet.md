@@ -2,32 +2,32 @@
 
 ## Subject
 
-- Checklist item: `DH-022`
-- Reviewer: `dh022-independent-reviewer`
-- Updated at: `2026-09-29`
-- Canonical plan path: `docs/project-harness/tasks/DH-022/plan.md`
+- Checklist item: `DH-023`
+- Reviewer: `dh023-independent-reviewer`
+- Updated at: `2026-10-01`
+- Canonical plan path: `docs/project-harness/tasks/DH-023/plan.md`
 
 ## Item Snapshot
 
-- Title: 区分 Program 与 Pose Edit 的内部候选边界
+- Title: Studio 可交互离线 Ball-Vessel 任务
 - Status: doing
 - Workflow status: closeout_requested
 - Priority: p1
-- Owner: codex
-- Session: dh022-20260922
-- Dependencies: DH-021
+- Owner: codex-operator
+- Session: dh023-20261001
+- Dependencies: DH-022
 
 ## Acceptance
 
-两种候选记录同一来源；pose 候选带 expected Ref 直接走既有 edit admission；过期候选拒绝；两条离线闭环、类型和回归通过。
+三组变化初态完成 FAIL→preview→edit→run PASS；Gateway 单一authority和reservation；候选 stale_ref；Studio前后Episode回放比较；无模型调用；tests/browser/review闭环。
 
 ## Verification
 
-独立 Reviewer APPROVED/P0=P1=P2=0，亲跑 focused 12/0/55、authoring typecheck；Operator 本轮 root typecheck/build 通过；产品 hash 一致；9月22日全量1180/0/9300日志已核对。
+Fresh full 1187 pass / 0 fail / 9383 assertions；root typecheck/build；backend 三组和 browser 两组 FAIL→preview→edit→PASS；stale/abort/失联恢复及390px通过。详见 tasks/DH-023/result.md 与 browser-acceptance.json。
 
 ## Handoff
 
-独立审查批准，Operator 按 closeout→review-result→mark-done 完成关单；会话已有 Git 授权下衔接发布。
+实现冻结，首轮 P1 已修复并经真实浏览器 fault 验证，等待独立实现/closeout 复查；无 live provider/Keychain/deploy。
 
 ## Review Inputs
 
@@ -40,31 +40,41 @@
 ## Canonical Plan Content
 
 ```md
-# DH-022：明确 Program 与 Pose Edit 候选边界
+# DH-023：可交互离线 Ball-Vessel 任务
 
-## 问题与选择
+## 用户目标
 
-DH-020 返回 canonical Program，DH-021 返回无 target/expected Ref 的 Pose，调用端需要手工补齐 edit 输入。第二个调用方已经出现；本次只统一内部结果的类型与来源，不抽 strategy registry、executor、插件接口或公共 package export。
+Studio 内完成“把球稳定放进容器里”：设置初态 → MuJoCo 运行 → 查看失败和回放 → 预览修复坐标 → 用户显式应用 → 重跑并比较。全程使用 Gateway-owned 同一 Host，不消耗模型/provider quota。
 
-## 实现
+## 支持边界
 
-- 内部 discriminated union：`kind: program` 保留 canonical Program；`kind: pose-edit` 返回既有 `WorldEditPoseWireInput`，绑定推导时 `read.ref`、`entity:ball` 与 pose。
-- 共用只读 sourceRef、sourceEpisodeId、sourceEvaluationId、basis；available 候选递归冻结。
-- 两个推导函数和现有调用端迁移到该类型，不再保留 Pose 兼容字段。
-- Program 调用端继续去掉 id 后显式 run；Pose 调用端直接显式 edit。没有自动执行，run 没有新增 CAS 语义；sourceRef 对 Program 仅是来源信息。
-- golden evidence admission、数值策略、DH-019 receipt、Kernel 与四工具 API 保持现状。摘要表示固定样本内容一致，不是来源认证；不宣称支持任意世界。
+- 只针对 registered ball-vessel fixture；容器/floor/geometry/physics 保持注册值，球 rotation/velocity 需符合该任务；用户可改 x/y∈[-2,2]、z∈[0.7,2]。
+- 当前 Host 持有的 read 和 lastRun 是 Gateway 推导输入；HTTP preview 不接受用户自带 Episode。共享 DTO codec 校验 Ref/scenario/Program/Evaluation 和 sample 证据链，hash 不被当作调用来源凭证。
+- Ball repair 移除 golden runId/content hash gate；依据当前注册 semantic 与失败 metrics 生成 candidate，保留 current Ref。already_passed/no_failure/outside_supported_world 不猜测。
+- HTTP 提供该人类任务的 create/edit/run/repair 命令；沿用 ProductSessionRegistry 与 execution reservation，Agent model-facing 四工具不变。已有 composite authoring routes 的旧边界不扩大。
+- 一个显式 offline Gateway 启动入口；不会静默将生产 OMP 配置降级为 scripted Agent。离线入口的 Agent factory 一旦调用即拒绝，只有任务命令可运行。
+- Studio 只持有验证后的 projection 和候选；预览不编辑世界，应用需原 expected Ref，run 不 adopt。提供成功/失败的两份内存 Episode 回放与指标比较。
+- WorldProject v1 不扩 schema，ball task 不宣称可导出恢复；本任务只验证内存会话体验。
 
 ## 验收
 
-1. 两类候选均记录 sourceRef，推导不修改 Host；已有 FAIL→repair→PASS 通过。
-2. ball 候选直接通过 edit admission；世界前进后再次执行原候选得到 stale_ref，不允许偷偷换成最新 Ref。
-3. TypeScript exhaustive narrowing 区分 program/edit，错误 payload 被类型检查拒绝；候选及 nested input 冻结。
-4. 显式检查包含未公开 authoring helper 的 TypeScript 文件，避免仅靠 app 引用图漏检。
-5. focused regressions、全量 tests、root typecheck/build、Harness validation 和 whitespace 检查；准确记录失败，不能用单测重跑冒充全量通过。
+1. 三组不同失败初态（不同 x/y/z 和 runId）均能 FAIL→预览→显式 edit→run PASS；正常输入 PASS 不生成修复。
+2. preview 保持 Ref/Snapshot；更改初态后旧 candidate stale_ref，不能覆盖新世界。支持范围外、foreign scenario、tampered Evaluation/Ref/geometry 拒绝。
+3. create/edit/run/preview 共享 session 的单一 reserve；与 Agent turn 不能交叉写，请求 abort 后不得污染后续 world。
+4. client transition 验证 world lineage、lastRun、sequence、running、预览坐标与 source identity；失败恢复 settled projection，迟到响应不替换新会话。
+5. 真实浏览器完成两组初态闭环、前后回放、输入错误/过期预览提示；记录桌面和窄屏可用性。
+6. focused tests、typecheck/build、全量 gate、Harness 校验；独立 reviewer 提供 verdict，Operator closeout 并衔接既有 Git 交付授权。
 
-## 交付边界
+## 顺序
 
-由 Operator 组织实现、独立审查与 closeout。实现者不审批自己的实现；独立 reviewer 提供结论后，Operator 按正式 Harness transition 关闭任务。发布按会话授权处理；职责分离不是要求用户接手流程的停止条件。
+1. 核对并冻结 task/admission/transition 边界。
+2. 扩展 ball repair，Gateway 人类命令，client codec。
+3. 添加离线入口与 Studio panel；复用已有 ThreeViewport/Episode Player。
+4. 回归与 browser 验收，独立审查，正式交付。
+
+## 全量 gate 的测试补充
+
+复核时，既有 `generated-set-visible-commit.test.ts` 在构造临时 fixture 时返回 writer lease unavailable。drift loop 将已完成 case 的 fixed derived-port lease 一直保留到整项 afterEach；本任务仅收敛该测试的资源生命周期：每个 case finally 关闭自己的 fixture/foreign fixture，acquire 失败也清理本次拥有的临时目录并保留 reason。生产 port formula、admission 与 publication 实现不变。此项纳入独立 review 和全量 gate，不采用替代端口、跳过测试或失败重试。
 ```
 
 ## Recent Progress Context
@@ -1214,22 +1224,42 @@ Independent review：
 - 新回归证明旧 Pose Edit 候选在世界前进后返回 stale_ref，不覆盖当前 Snapshot；推导不拥有 Host 写权限。Program sourceRef 仅作来源记录，不宣称新增 run CAS。
 - authoring helper 及脚本显式纳入根 typecheck；DH-019 历史 receipt 保持不变。验证详情及最终门禁结果见 `tasks/DH-022/result.md`。
 - 状态为实现者验证、准备独立审查；不自行批准 closeout，不修改 main，不调用 live provider。
+
+## 2026-09-28 — DH-022 独立审查与 Operator closeout
+
+- `/root/dh022_independent_review` 独立只读核对未提交 diff 与新文件，APPROVED / may_closeout=yes / P0=P1=P2=0；亲跑 focused 12/0/55、authoring typecheck 与 diff-check。9 个产品/测试/配置文件审查前后 SHA-256 一致。
+- Operator 本轮 root typecheck/build 均通过；9 月 22 日全量 1180/0/9300 日志只读核验，本轮不重复声称 fresh full suite。
+- 更正职责理解：职责分离要求独立 reviewer 提供结论，由 Operator 组织执行并关单，不意味着等待用户接手。已用 DH-022 verdict 替换 current/review 的历史内容。
+- 正式 transition：closeout requested → independent review approved → Operator mark-done；owner/session 清空、lease 释放、current pointer 清空、derived state 刷新。
+
+## 2026-10-01 — DH-023 交互实现与验证完成，准备独立复查
+
+- 在 `codex/dh-023-offline-ball-vessel` 中接通 Gateway-owned 球与容器人类任务；支持变化初态、FAIL→preview→显式 edit→PASS、两份 base world 绑定的 Episode 比较回放。没有新增 Agent 工具或 WorldProject schema。
+- 去除单一样本 golden gate 后补齐 registered state、Evaluation 与 free-fall identity 一致性；接受注册 floor 的失败接触，但不把它计为 vessel 支撑。预览不改变 current authority，旧 expected Ref 不静默重绑定。
+- 独立首轮指出 recovery GET 失败后保留旧 authority 的 P1；新增 authority-unavailable 分支清除当前证据并禁用写入。真实浏览器模拟 POST 已执行但响应/GET 丢失，证明旧 candidate/replay 清除且新 Session 可恢复。
+- backend 三组初态、浏览器两组闭环与 390px 窄屏通过；最终全量 1187/0/9383，root typecheck/build 通过。既有 persistence 测试的临时 lease 生命周期已收敛，生产 admission/port/publication 实现不变。
+- 当前只完成实现与验证，尚未独立复查批准或正式关单。详见 `tasks/DH-023/result.md`、`browser-acceptance.json` 与 `implementation-review.md`；无 live provider、Keychain 或 deploy。
 ```
 
 ## Current Review Content
 
 ```md
-# DH-022 独立实现与 closeout 审查
+# DH-023 独立实现审查
 
-- Reviewer：`/root/dh022_independent_review`（与实现者分离，只读）
-- 结论：`APPROVED`；`may_closeout=yes`；P0=0 / P1=0 / P2=0（实现范围）。
-- 审查基线：HEAD `82468a8` 加当前未提交 DH-022 差异，包含未跟踪新文件。9 个产品/测试/配置文件与 review-input manifest 全部匹配。
-- Reviewer 亲跑：focused 12 pass / 0 fail / 55 assertions（13.01s）；`bun run typecheck:authoring` exit 0；`git diff --check` exit 0。
-- 全量日志：只读核对 2026-09-22 `1180 pass / 0 fail / 9300 assertions`；Reviewer 本轮未重跑全量，不冒充 fresh full gate。
-- Reviewer 确认 Program/Pose Edit 类型区分、sourceRef、stale_ref 回归、历史 receipt 和内部类型检查在本切片范围可接受；没有隐式 run/adopt/provider 操作。
-- 操作建议：Operator 记录本 verdict 后执行正式 closeout，刷新 current/task_plan、harness-state、current/review 和 packet。旧 DH-015 verdict 不属于本任务批准依据。
+## 首轮：CHANGES_REQUESTED
 
-本文件由 Operator 原意记录独立 reviewer 返回的结论；未以实现者自测替代 reviewer。
+- Reviewer：`/root/dh022_independent_review`，只读，与实现者分离。
+- 基线：`be0d609` 加 DH-023 当时未提交差异，包含新文件。
+- P1=1 / P2=0：POST edit 已执行但响应丢失、随后 recovery GET 不可用时，client 抛普通 Error；Panel 保留旧 projection/preview 并解除 busy。Reviewer 使用真实 `ProductSession + ProductSessionClient` 复现 `before=1 / actual=2 / recovered=false`。
+- 亲跑：DH-023 + DH-021 focused 10 pass / 0 fail / 89 assertions；`typecheck:authoring`、`git diff --check` 通过。
+- 原意：实现需要修改，本轮不批准实现或 closeout。
+
+## 修复与待复查
+
+- recovery 也失败时返回 `ProductSessionAuthorityUnavailableError`，不附带 projection。Panel/App 清除 world/projection/lastRun、旧候选和历史 replay，任务写入禁用，提示新建 Session。
+- 本地输入 admission 拒绝保留原 authority；只有无法核实命令结果时断开。
+- 已增加真实 ProductSession/client 回归；Operator focused 21 pass / 0 fail / 142 assertions、root typecheck 通过。
+- 浏览器断线故障验收与独立复查完成后再填写结论；本段不替代 Reviewer verdict。
 ```
 
 ## Closeout Questions

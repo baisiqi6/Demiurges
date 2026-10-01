@@ -755,7 +755,7 @@ function snapshotKey(snapshot: Snapshot): string {
   return value;
 }
 
-function executionKey(run: string, snapshot: string): string {
+export function freeFallExecutionKey(run: string, snapshot: string): string {
   return `${run.length}-${run}-${snapshot.length}-${snapshot}`;
 }
 
@@ -767,7 +767,7 @@ export async function runFallingCube(
 ): Promise<Episode> {
   const run = runKey(inputs);
   const prepared = prepareRun(snapshot, program, profile);
-  const key = executionKey(run, snapshotKey(snapshot));
+  const key = freeFallExecutionKey(run, snapshotKey(snapshot));
   const compiled = renderMjcf(prepared, profile);
   const mujoco = await getMujoco();
   let model: MjModel | undefined;

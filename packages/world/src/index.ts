@@ -171,3 +171,16 @@ export {
   decodeProductSessionProjectionTrusted,
   type ProductSessionAuthoringOperation,
 } from "./product-session-codec";
+export {
+  BALL_VESSEL_TASK_LIMITS,
+  admitBallVesselTaskEdit,
+  requireBallVesselTaskWorld,
+  requireBallVesselTaskRunInput,
+} from "./authoring/ball-vessel-authoring";
+export { deriveBallVesselPoseRepair, type BallVesselPoseRepairResult } from "./authoring/derive-ball-vessel-pose-repair";
+export {
+  decodeBallVesselTaskTransition,
+  decodeBallVesselTaskPreview,
+  type BallVesselTaskOperation,
+  type BallVesselTaskPreview,
+} from "./ball-vessel-task-contract";

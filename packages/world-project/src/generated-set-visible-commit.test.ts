@@ -300,7 +300,11 @@ async function buildCommitFixture(
   bootstrapDataRoot(rootPath);
   const root = openDataRoot(rootPath);
   const acquired = await acquireDataRootWriterLease(root);
-  if (acquired.status !== "acquired") throw new Error("test lease unavailable");
+  if (acquired.status !== "acquired") {
+    root.close();
+    rmSync(parent, { recursive: true, force: true });
+    throw new Error(`test lease unavailable: ${acquired.reason}`);
+  }
   const lease = acquired.lease;
   let closed = false;
   const close = async (): Promise<void> => {
@@ -1298,23 +1302,30 @@ describe("generated-set visible commit", () => {
     ];
     for (const drift of drifts) {
       const fixture = track(await buildCommitFixture("worldlabs-marble-v1"));
-      const foreign = track(await buildCommitFixture("hunyuan-ai3d-v1"));
-      drift.inject(fixture, foreign);
-      expectRecovery(() => runCommit(fixture));
-      // 零 catalog/result mutation：注入的 drift 证据原样保留（symlink/mode
-      // drift 可能不可稳定读取，用 no-follow lstat 证明路径仍存在）。
-      if (drift.resultAppears === true) {
-        expect(() => lstatSync(resultPathOf(fixture))).not.toThrow();
-      } else {
-        assertTargetAbsent(resultPathOf(fixture));
+      let foreign: CommitFixture | undefined;
+      try {
+        foreign = track(await buildCommitFixture("hunyuan-ai3d-v1"));
+        drift.inject(fixture, foreign);
+        expectRecovery(() => runCommit(fixture));
+        // 零 catalog/result mutation：注入的 drift 证据原样保留（symlink/mode
+        // drift 可能不可稳定读取，用 no-follow lstat 证明路径仍存在）。
+        if (drift.resultAppears === true) {
+          expect(() => lstatSync(resultPathOf(fixture))).not.toThrow();
+        } else {
+          assertTargetAbsent(resultPathOf(fixture));
+        }
+        if (drift.catalogAppears === true) {
+          expect(() => lstatSync(catalogPathOf(fixture))).not.toThrow();
+        } else {
+          assertTargetAbsent(catalogPathOf(fixture));
+        }
+        expect(fixture.journal.readCurrent().state).toBe("publishing");
+        expect(readdirSync(fixture.recordsPath).length).toBe(fixture.recordCount);
+      } finally {
+        // 每个 case 只需一对 writer lease；避免已完成 case 累积占用固定 derived ports。
+        await foreign?.close();
+        await fixture.close();
       }
-      if (drift.catalogAppears === true) {
-        expect(() => lstatSync(catalogPathOf(fixture))).not.toThrow();
-      } else {
-        assertTargetAbsent(catalogPathOf(fixture));
-      }
-      expect(fixture.journal.readCurrent().state).toBe("publishing");
-      expect(readdirSync(fixture.recordsPath).length).toBe(fixture.recordCount);
     }
   }, 600_000);
 

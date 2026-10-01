@@ -56,6 +56,7 @@ import {
 } from "./world-project-ui-state";
 import type { ObserverMode } from "./presentation-three/observer-camera";
 import { GeneratedArtifactsPanel } from "./GeneratedArtifactsPanel";
+import { BallVesselTaskPanel, type BallVesselTaskRunEvidence } from "./BallVesselTaskPanel";
 
 type RuntimeStatus = "connecting" | "ready" | "running" | "completed" | "error";
 type ViewMode = "repository" | "episode";
@@ -87,6 +88,7 @@ export default function App() {
   const [projection, setProjection] = createSignal<ProductSessionProjection>();
   const [world, setWorld] = createSignal<WorldReadResult>();
   const [lastRun, setLastRun] = createSignal<WorldRunResult>();
+  const [historicalReplay, setHistoricalReplay] = createSignal<BallVesselTaskRunEvidence>();
   const [events, setEvents] = createSignal<readonly ProductSessionEvent[]>([]);
   const [prompt, setPrompt] = createSignal(DEFAULT_PROMPT);
   const [responseText, setResponseText] = createSignal("");
@@ -123,19 +125,22 @@ export default function App() {
   let pendingSaveKey: { fingerprint: string; key: string } | undefined;
   let pendingImportKey: { fingerprint: string; key: string } | undefined;
 
-  const episode = createMemo(() => lastRun()?.episode);
-  const evaluation = createMemo(() => lastRun()?.evaluation);
+  const presentedRun = createMemo(() => historicalReplay()?.run ?? lastRun());
+  const episode = createMemo(() => presentedRun()?.episode);
+  const evaluation = createMemo(() => presentedRun()?.evaluation);
   const metricRows = createMemo(() => evaluationMetricRows(evaluation()));
   const activeSample = createMemo(() => {
     if (viewMode() !== "episode") return undefined;
     return episode()?.samples[timelineIndex()];
   });
   const currentSnapshot = createMemo(() => world()?.snapshot);
+  const displayedSnapshot = createMemo(() => historicalReplay()?.world.snapshot ?? currentSnapshot());
+  const ballTaskSelected = createMemo(() => currentSnapshot()?.scenarioId === "scenario:ball-vessel-free-fall-v1");
   const currentRef = createMemo(() => world()?.ref);
   const selectedEntity = createMemo(() => {
     const ref = selectedRef();
     return ref
-      ? currentSnapshot()?.entities.find((entity) => entity.ref === ref)
+      ? displayedSnapshot()?.entities.find((entity) => entity.ref === ref)
       : undefined;
   });
   const selectedState = createMemo(() => {
@@ -197,9 +202,10 @@ export default function App() {
     return semantic?.kind === "articulated" ? semantic : undefined;
   });
   const articulatedState = createMemo(() => selectedState()?.articulated);
-  const contractSummary = createMemo(() => runContractSummary(lastRun()));
+  const contractSummary = createMemo(() => runContractSummary(presentedRun()));
   const displayedSource = createMemo(() => {
     if (viewMode() === "episode") {
+      if (historicalReplay()) return `历史回放 v${historicalReplay()!.world.ref.version}`;
       const ref = selectedRef();
       return ref && activeSample()?.states[ref]
         ? "episode-frame"
@@ -244,12 +250,16 @@ export default function App() {
   };
 
   const useProjection = (next: ProductSessionProjection, resetSelection = false) => {
+    setHistoricalReplay(undefined);
     setProjection(next);
     setAuthoritativeWorld(next.world ?? undefined, resetSelection);
     setLastRun(next.lastRun ?? undefined);
     if (next.lastRun) {
       setTimelineIndex(0);
       setViewMode("episode");
+    } else {
+      setTimelineIndex(0);
+      setViewMode("repository");
     }
   };
 
@@ -265,6 +275,7 @@ export default function App() {
   };
 
   const createSession = async () => {
+    setHistoricalReplay(undefined);
     setRuntimeStatus("connecting");
     setErrorMessage(undefined);
     setProjection(undefined);
@@ -486,6 +497,7 @@ export default function App() {
   const runAgentTurn = async () => {
     const current = projection();
     if (!current || prompt().trim().length === 0) return;
+    setHistoricalReplay(undefined);
     setRuntimeStatus("running");
     setBusyLabel("Agent 正在改变并推演世界");
     setPoseDraft(undefined);
@@ -670,7 +682,7 @@ export default function App() {
             </dl>
           </div>
           <ThreeViewport
-            snapshot={currentSnapshot()}
+            snapshot={displayedSnapshot()}
             sample={activeSample()}
             selectedRef={selectedRef()}
             presentationLayers={presentationLayers()}
@@ -729,6 +741,30 @@ export default function App() {
         </div>
 
         <aside class="inspector" aria-label="Agent 与世界证据">
+          <BallVesselTaskPanel
+            client={client}
+            projection={projection()}
+            disabled={runtimeStatus() === "running" || runtimeStatus() === "connecting"}
+            onProjection={(next) => {
+              if (next.sessionId !== projection()?.sessionId) return;
+              useMutationProjection(projection()!, next, true);
+            }}
+            onAuthorityUnavailable={(sessionId, message) => {
+              if (sessionId !== projection()?.sessionId) return;
+              setProjection(undefined); setAuthoritativeWorld(undefined, true); setLastRun(undefined);
+              setHistoricalReplay(undefined); setEvents([]); setTimelineIndex(0); setViewMode("repository");
+              setRuntimeStatus("error"); setErrorMessage(message);
+            }}
+            onNewSession={() => void createSession()}
+            onBusy={(label) => { setBusyLabel(label ?? ""); setRuntimeStatus(label ? "running" : projection() ? "completed" : "error"); }}
+            onShowRun={(evidence) => {
+              setPoseDraft(undefined); setHistoricalReplay(evidence); setSelectedRef("entity:ball");
+              setTimelineIndex(0); setViewMode("episode");
+            }}
+          />
+          <Show when={ballTaskSelected()}><section class="inspector-section">
+            <button class="button ghost" disabled={runtimeStatus() === "running"} onClick={() => void createSession()}>新建空白 Session</button>
+          </section></Show>
           <section class="inspector-section world-authority">
             <span class="eyebrow">World authority</span>
             <h2>Gateway Product Session</h2>
@@ -741,6 +777,7 @@ export default function App() {
             </dl>
           </section>
 
+          <Show when={!ballTaskSelected()}>
           <GeneratedArtifactsPanel />
 
           <section class="inspector-section project-control" data-testid="world-project-control">
@@ -957,6 +994,7 @@ export default function App() {
               <p class="assistant-response">{responseText()}</p>
             </Show>
           </section>
+          </Show>
 
           <Show when={errorMessage()}>
             {(message) => <p class="error-message" role="alert">{message()}</p>}
@@ -966,6 +1004,10 @@ export default function App() {
 
       <section class="evidence-dock" aria-label="Episode 与评估证据">
         <div class="timeline-block">
+          <Show when={historicalReplay()}><div class="task-replay-note" role="status" data-testid="ball-task-replay-source">
+            历史初态 v{historicalReplay()?.world.ref.version} · 当前世界仍为 v{currentRef()?.version}
+            <button class="button ghost" onClick={() => { setHistoricalReplay(undefined); setViewMode("repository"); setTimelineIndex(0); }}>返回当前世界</button>
+          </div></Show>
           <div class="dock-heading">
             <div>
               <span class="eyebrow">Episode evidence</span>

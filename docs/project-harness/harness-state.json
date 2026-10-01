@@ -1,21 +1,21 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "generated_at": "2026-09-29T01:58:50Z",
+  "generated_at": "2026-10-01T10:08:46Z",
   "source": {
     "checklist_path": "docs/project-harness/harness-checklist.json",
-    "checklist_sha256": "a42d89c1ba7e6aa250ddda846a0c46f704231dc1bbd7568a5264b4aa20c130c2"
+    "checklist_sha256": "592e0e22294cbbb17a87302cfb0e94e9706df5fa4273df3ea4061dfd79d493af"
   },
   "current_status": "",
   "current_item": null,
   "checklist_summary": {
     "todo": 0,
     "doing": 0,
-    "done": 24,
+    "done": 25,
     "blocked": 0
   },
   "workflow_summary": {
-    "closed": 24
+    "closed": 25
   },
   "paths": {
     "scope": "docs/project-harness/scope.md",
@@ -54,165 +54,6 @@
   "open_risks": [],
   "recent_events": [
     {
-      "actor": "operator",
-      "artifacts": [],
-      "branch": "main",
-      "causation_id": null,
-      "created_at": "2026-09-05T11:39:52Z",
-      "id": "evt-20260905T113952Z-5620a88b",
-      "idempotency_key": "ACCEPT:DH-021:running:operator",
-      "metadata": {
-        "force_reason": null,
-        "session": "demiurges-dh021-ball-vessel-20260905"
-      },
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "running",
-      "summary": "operator accepted DH-021",
-      "target": "operator",
-      "task": "DH-021",
-      "type": "ACCEPT",
-      "visible_header": "[ACCEPT] id=evt-20260905T113952Z-5620a88b task=DH-021 actor=operator target=operator status=running branch=main"
-    },
-    {
-      "actor": "operator",
-      "artifacts": [
-        "docs/project-harness/tasks/DH-022/plan.md"
-      ],
-      "branch": "codex/dh-022-candidate-boundary",
-      "causation_id": null,
-      "created_at": "2026-09-22T15:12:11Z",
-      "id": "evt-20260922T151211Z-ec8495fe",
-      "idempotency_key": "ASSIGN:DH-022:assigned:operator",
-      "metadata": {
-        "force_reason": null,
-        "session": "dh022-20260922"
-      },
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "assigned",
-      "summary": "operator assigned DH-022 to codex",
-      "target": "codex",
-      "task": "DH-022",
-      "type": "ASSIGN",
-      "visible_header": "[ASSIGN] id=evt-20260922T151211Z-ec8495fe task=DH-022 actor=operator target=codex status=assigned branch=codex/dh-022-candidate-boundary artifacts=docs/project-harness/tasks/DH-022/plan.md"
-    },
-    {
-      "actor": "codex",
-      "artifacts": [],
-      "branch": "codex/dh-022-candidate-boundary",
-      "causation_id": null,
-      "created_at": "2026-09-22T15:12:11Z",
-      "id": "evt-20260922T151211Z-501a3419",
-      "idempotency_key": "ACCEPT:DH-022:running:codex",
-      "metadata": {
-        "force_reason": null,
-        "session": "dh022-20260922"
-      },
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "running",
-      "summary": "codex accepted DH-022",
-      "target": "codex",
-      "task": "DH-022",
-      "type": "ACCEPT",
-      "visible_header": "[ACCEPT] id=evt-20260922T151211Z-501a3419 task=DH-022 actor=codex target=codex status=running branch=codex/dh-022-candidate-boundary"
-    },
-    {
-      "actor": "codex",
-      "artifacts": [
-        "docs/project-harness/current/review-packet.md"
-      ],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-09-22T15:17:43Z",
-      "id": "evt-20260922T151743Z-d1503bae",
-      "idempotency_key": "REVIEW:DH-022:requested:codex",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "requested",
-      "summary": "Review requested for DH-022",
-      "target": "independent-review-pending",
-      "task": "DH-022",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260922T151743Z-d1503bae task=DH-022 actor=codex target=independent-review-pending status=requested artifacts=docs/project-harness/current/review-packet.md"
-    },
-    {
-      "actor": "codex",
-      "artifacts": [
-        "docs/project-harness/current/closeout-packet.md"
-      ],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-09-29T01:55:03Z",
-      "id": "evt-20260929T015503Z-b5a40b05",
-      "idempotency_key": "RESULT:DH-022:closeout_requested:codex",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "closeout_requested",
-      "summary": "Closeout requested for DH-022",
-      "target": "dh022-independent-reviewer",
-      "task": "DH-022",
-      "type": "RESULT",
-      "visible_header": "[RESULT] id=evt-20260929T015503Z-b5a40b05 task=DH-022 actor=codex target=dh022-independent-reviewer status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
-    },
-    {
-      "actor": "codex",
-      "artifacts": [
-        "docs/project-harness/current/closeout-packet.md"
-      ],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-09-29T01:58:50Z",
-      "id": "evt-20260929T015850Z-963f0f45",
-      "idempotency_key": "RESULT:DH-022:closeout_requested:codex",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "closeout_requested",
-      "summary": "Closeout requested for DH-022",
-      "target": "dh022-independent-reviewer",
-      "task": "DH-022",
-      "type": "RESULT",
-      "visible_header": "[RESULT] id=evt-20260929T015850Z-963f0f45 task=DH-022 actor=codex target=dh022-independent-reviewer status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
-    },
-    {
-      "actor": "dh022-independent-reviewer",
-      "artifacts": [
-        "docs/project-harness/tasks/DH-022/implementation-review.md"
-      ],
-      "branch": null,
-      "causation_id": null,
-      "created_at": "2026-09-29T01:58:50Z",
-      "id": "evt-20260929T015850Z-e6b0ffb0",
-      "idempotency_key": "REVIEW:DH-022:approved:dh022-independent-reviewer",
-      "metadata": {},
-      "parent": null,
-      "pr": null,
-      "publish_status": "local_only",
-      "schema_version": 1,
-      "status": "approved",
-      "summary": "独立审查 APPROVED；may_closeout=yes；P0/P1/P2=0；亲跑focused12/0/55、authoring typecheck；9文件manifest一致。",
-      "target": "codex",
-      "task": "DH-022",
-      "type": "REVIEW",
-      "visible_header": "[REVIEW] id=evt-20260929T015850Z-e6b0ffb0 task=DH-022 actor=dh022-independent-reviewer target=codex status=approved artifacts=docs/project-harness/tasks/DH-022/implementation-review.md"
-    },
-    {
       "actor": "codex-operator",
       "artifacts": [],
       "branch": null,
@@ -233,6 +74,164 @@
       "task": "DH-022",
       "type": "CLOSE",
       "visible_header": "[CLOSE] id=evt-20260929T015850Z-083003ec task=DH-022 actor=codex-operator status=done"
+    },
+    {
+      "actor": "operator",
+      "artifacts": [
+        "docs/project-harness/tasks/DH-023/plan.md"
+      ],
+      "branch": "codex/dh-023-offline-ball-vessel",
+      "causation_id": null,
+      "created_at": "2026-10-01T08:36:00Z",
+      "id": "evt-20261001T083600Z-f8c41d5a",
+      "idempotency_key": "ASSIGN:DH-023:assigned:operator",
+      "metadata": {
+        "force_reason": null,
+        "session": "dh023-20261001"
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "assigned",
+      "summary": "operator assigned DH-023 to codex-operator",
+      "target": "codex-operator",
+      "task": "DH-023",
+      "type": "ASSIGN",
+      "visible_header": "[ASSIGN] id=evt-20261001T083600Z-f8c41d5a task=DH-023 actor=operator target=codex-operator status=assigned branch=codex/dh-023-offline-ball-vessel artifacts=docs/project-harness/tasks/DH-023/plan.md"
+    },
+    {
+      "actor": "codex-operator",
+      "artifacts": [],
+      "branch": "codex/dh-023-offline-ball-vessel",
+      "causation_id": null,
+      "created_at": "2026-10-01T08:36:00Z",
+      "id": "evt-20261001T083600Z-6fdd9add",
+      "idempotency_key": "ACCEPT:DH-023:running:codex-operator",
+      "metadata": {
+        "force_reason": null,
+        "session": "dh023-20261001"
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "running",
+      "summary": "codex-operator accepted DH-023",
+      "target": "codex-operator",
+      "task": "DH-023",
+      "type": "ACCEPT",
+      "visible_header": "[ACCEPT] id=evt-20261001T083600Z-6fdd9add task=DH-023 actor=codex-operator target=codex-operator status=running branch=codex/dh-023-offline-ball-vessel"
+    },
+    {
+      "actor": "codex-operator",
+      "artifacts": [
+        "docs/project-harness/current/review-packet.md"
+      ],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-10-01T09:20:46Z",
+      "id": "evt-20261001T092046Z-2a781acc",
+      "idempotency_key": "REVIEW:DH-023:requested:codex-operator",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "requested",
+      "summary": "Review requested for DH-023",
+      "target": "dh023-independent-reviewer",
+      "task": "DH-023",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20261001T092046Z-2a781acc task=DH-023 actor=codex-operator target=dh023-independent-reviewer status=requested artifacts=docs/project-harness/current/review-packet.md"
+    },
+    {
+      "actor": "dh023-independent-reviewer",
+      "artifacts": [
+        "docs/project-harness/tasks/DH-023/implementation-review.md"
+      ],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-10-01T09:20:46Z",
+      "id": "evt-20261001T092046Z-53bfff38",
+      "idempotency_key": "REVIEW:DH-023:changes_requested:dh023-independent-reviewer",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "changes_requested",
+      "summary": "首轮实现审查 P1：POST 已执行但响应及 recovery GET 丢失时保留旧 authority；已修复，待浏览器 fault 验收及独立复查。",
+      "target": "codex-operator",
+      "task": "DH-023",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20261001T092046Z-53bfff38 task=DH-023 actor=dh023-independent-reviewer target=codex-operator status=changes_requested artifacts=docs/project-harness/tasks/DH-023/implementation-review.md"
+    },
+    {
+      "actor": "codex-operator",
+      "artifacts": [
+        "docs/project-harness/current/closeout-packet.md"
+      ],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-10-01T09:54:42Z",
+      "id": "evt-20261001T095442Z-155541ef",
+      "idempotency_key": "RESULT:DH-023:closeout_requested:codex-operator",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "closeout_requested",
+      "summary": "Closeout requested for DH-023",
+      "target": "dh023-independent-reviewer",
+      "task": "DH-023",
+      "type": "RESULT",
+      "visible_header": "[RESULT] id=evt-20261001T095442Z-155541ef task=DH-023 actor=codex-operator target=dh023-independent-reviewer status=closeout_requested artifacts=docs/project-harness/current/closeout-packet.md"
+    },
+    {
+      "actor": "dh023-independent-reviewer",
+      "artifacts": [
+        "docs/project-harness/tasks/DH-023/implementation-review.md"
+      ],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-10-01T10:08:45Z",
+      "id": "evt-20261001T100845Z-c0579e3e",
+      "idempotency_key": "REVIEW:DH-023:approved:dh023-independent-reviewer",
+      "metadata": {},
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "approved",
+      "summary": "独立最终复查 APPROVED / may_closeout=yes / P0=P1=P2=0；P1已关闭；23文件manifest匹配；focused25/0/159、persistence34/0/767及authoring typecheck/diff-check通过；full1187/0/9383和browser证据只读核对。",
+      "target": "codex-operator",
+      "task": "DH-023",
+      "type": "REVIEW",
+      "visible_header": "[REVIEW] id=evt-20261001T100845Z-c0579e3e task=DH-023 actor=dh023-independent-reviewer target=codex-operator status=approved artifacts=docs/project-harness/tasks/DH-023/implementation-review.md"
+    },
+    {
+      "actor": "codex-operator",
+      "artifacts": [],
+      "branch": null,
+      "causation_id": null,
+      "created_at": "2026-10-01T10:08:45Z",
+      "id": "evt-20261001T100845Z-5ae2604c",
+      "idempotency_key": "CLOSE:DH-023:done:codex-operator",
+      "metadata": {
+        "force_reason": null
+      },
+      "parent": null,
+      "pr": null,
+      "publish_status": "local_only",
+      "schema_version": 1,
+      "status": "done",
+      "summary": "codex-operator closed DH-023",
+      "target": null,
+      "task": "DH-023",
+      "type": "CLOSE",
+      "visible_header": "[CLOSE] id=evt-20261001T100845Z-5ae2604c task=DH-023 actor=codex-operator status=done"
     }
   ]
 }

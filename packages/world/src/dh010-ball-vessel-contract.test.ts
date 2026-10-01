@@ -528,11 +528,15 @@ describe("DH-010 ball-vessel RED contract", () => {
     )).toThrow("字段");
 
     const wrongContactPair = structuredClone(projection) as any;
-    wrongContactPair.lastRun.episode.samples.at(-1).contacts[0].otherRef = "entity:floor";
+    wrongContactPair.lastRun.episode.samples.at(-1).contacts[0].otherRef = "entity:foreign";
     expect(() => decodeProductSessionProjection(
       wrongContactPair,
       "session:local-ball-vessel-red",
     )).toThrow("pair");
+    // floor 接触是合法 FAIL 证据，但不能用它冒充 vessel 支撑并保留原 PASS Evaluation。
+    const falseSupport = structuredClone(projection) as any;
+    falseSupport.lastRun.episode.samples.at(-1).contacts[0].otherRef = "entity:floor";
+    expect(() => decodeProductSessionProjection(falseSupport, "session:local-ball-vessel-red")).toThrow("Evaluation");
 
     const timestampDrift = structuredClone(projection) as any;
     timestampDrift.lastRun.episode.samples[80].timeSeconds += 1 / 60;

@@ -1149,3 +1149,18 @@ Independent review：
 - Operator 本轮 root typecheck/build 均通过；9 月 22 日全量 1180/0/9300 日志只读核验，本轮不重复声称 fresh full suite。
 - 更正职责理解：职责分离要求独立 reviewer 提供结论，由 Operator 组织执行并关单，不意味着等待用户接手。已用 DH-022 verdict 替换 current/review 的历史内容。
 - 正式 transition：closeout requested → independent review approved → Operator mark-done；owner/session 清空、lease 释放、current pointer 清空、derived state 刷新。
+
+## 2026-10-01 — DH-023 交互实现与验证完成，准备独立复查
+
+- 在 `codex/dh-023-offline-ball-vessel` 中接通 Gateway-owned 球与容器人类任务；支持变化初态、FAIL→preview→显式 edit→PASS、两份 base world 绑定的 Episode 比较回放。没有新增 Agent 工具或 WorldProject schema。
+- 去除单一样本 golden gate 后补齐 registered state、Evaluation 与 free-fall identity 一致性；接受注册 floor 的失败接触，但不把它计为 vessel 支撑。预览不改变 current authority，旧 expected Ref 不静默重绑定。
+- 独立首轮指出 recovery GET 失败后保留旧 authority 的 P1；新增 authority-unavailable 分支清除当前证据并禁用写入。真实浏览器模拟 POST 已执行但响应/GET 丢失，证明旧 candidate/replay 清除且新 Session 可恢复。
+- backend 三组初态、浏览器两组闭环与 390px 窄屏通过；最终全量 1187/0/9383，root typecheck/build 通过。既有 persistence 测试的临时 lease 生命周期已收敛，生产 admission/port/publication 实现不变。
+- 当前只完成实现与验证，尚未独立复查批准或正式关单。详见 `tasks/DH-023/result.md`、`browser-acceptance.json` 与 `implementation-review.md`；无 live provider、Keychain 或 deploy。
+
+## 2026-10-01 — DH-023 独立批准与 Operator closeout
+
+- 独立 Reviewer 最终 `APPROVED / may_closeout=yes / P0=P1=P2=0`；19 个产品/测试/config 文件与 4 个文档的冻结 manifest 全匹配。原断线 recovery P1 关闭，descriptor/contact/test lease 补充可接受。
+- Reviewer 亲跑 focused 25/0/159、persistence 34/0/767、authoring typecheck 与 diff-check；全量 1187/0/9383、root typecheck/build 和浏览器证据仅只读核对，未冒充亲跑。
+- Operator 正式执行 closeout_requested → review approved → mark-done；DH-023 owner/session 清空、lease 释放，current pointer 清空，derived state 刷新，Harness validate 通过。
+- 本地 built preview 使用 detached Gateway/Studio 进程，仅监听 loopback，不属于 production deploy；仍为内存任务。Git 交付遵循既有会话授权与 origin SHA 回查纪律。

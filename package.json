@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "bun --cwd apps/studio dev",
     "dev:gateway": "bun --cwd apps/agent-gateway dev",
+    "dev:offline": "bun --cwd apps/agent-gateway dev:offline",
     "generate:diagnostic-fixture": "bun scripts/generate-diagnostic-wedge-glb.mjs",
     "generate:diagnostic-splat": "bun scripts/generate-diagnostic-wedge-ply.mjs",
     "generate:smooth-vessel": "bun scripts/generate-smooth-vessel-glb.mjs",

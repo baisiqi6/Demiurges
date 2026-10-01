@@ -84,9 +84,9 @@ function mediaType(value: string | null): string {
 }
 
 function parseSessionPath(pathname: string):
-  | { sessionId: string; operation: "read" | "turn" | "world_write" | "world_edit" | "project_save_as" | "project_save" | "undo" | "redo" }
+  | { sessionId: string; operation: "read" | "turn" | "world_write" | "world_edit" | "project_save_as" | "project_save" | "undo" | "redo" | "ball_create" | "ball_edit" | "ball_run" | "ball_repair" }
   | undefined {
-  const match = pathname.match(/^\/api\/sessions\/([^/]+)(?:\/(turns|world\/(write|edit)|project\/(save-as|save|undo|redo)))?$/);
+  const match = pathname.match(/^\/api\/sessions\/([^/]+)(?:\/(turns|world\/(write|edit)|project\/(save-as|save|undo|redo)|ball-vessel\/(create|edit|run|repair)))?$/);
   if (!match) return undefined;
   let sessionId: string;
   try {
@@ -110,6 +110,10 @@ function parseSessionPath(pathname: string):
               ? "undo"
               : match[4] === "redo"
                 ? "redo"
+          : match[5] === "create" ? "ball_create"
+          : match[5] === "edit" ? "ball_edit"
+          : match[5] === "run" ? "ball_run"
+          : match[5] === "repair" ? "ball_repair"
           : "read",
   };
 }
@@ -547,6 +551,22 @@ export function createProductSessionApi(
 
       if (route.operation === "read" && request.method === "GET") {
         return jsonResponse(session.readProjection());
+      }
+      if ((route.operation === "ball_create" || route.operation === "ball_edit" ||
+           route.operation === "ball_run" || route.operation === "ball_repair") && request.method === "POST") {
+        try {
+          const body = await readJsonBody(request, bodyTimeoutMs);
+          if (request.signal.aborted) return errorResponse(408, "REQUEST_ABORTED");
+          const result = route.operation === "ball_create" ? session.tryCreateBallTask(body)
+            : route.operation === "ball_edit" ? session.tryEditBallTask(body)
+            : route.operation === "ball_repair" ? session.tryPreviewBallTask(body)
+            : await session.tryRunBallTask(body, request.signal);
+          return result ? jsonResponse(result) : errorResponse(409, "SESSION_BUSY");
+        } catch (error) {
+          if (error instanceof RequestBodyError) return errorResponse(408, error.code);
+          const mapped = authoringRequestError(error);
+          return errorResponse(mapped.status, mapped.code);
+        }
       }
       if (route.operation === "turn" && request.method === "POST") {
         try {

@@ -5,6 +5,11 @@ import {
   decodeProductSessionEventTrusted,
   decodeProductSessionProjectionTrusted,
   requireWorldWriteInput,
+  admitBallVesselTaskEdit,
+  decodeBallVesselTaskTransition,
+  decodeBallVesselTaskPreview,
+  type BallVesselTaskOperation,
+  type BallVesselTaskPreview,
   type ProductSessionEvent,
   type ProductSessionProjection,
   type WorldReadResult,
@@ -33,7 +38,7 @@ export interface WorldProjectList {
 }
 
 type EventSink = (event: ProductSessionEvent) => void;
-type FetchPort = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+type FetchPort = (input: string | Request | URL, init?: RequestInit) => Promise<Response>;
 type TurnTerminal = Extract<ProductSessionEvent, { type: "turn.completed" | "turn.failed" }>;
 type VerifiedTurnStream = TurnTerminal & {
   readonly verifiedWorld: Pick<WorldReadResult, "ref" | "snapshot"> | null;
@@ -322,6 +327,17 @@ export class ProductSessionAuthoringError extends Error {
     super(message.slice(0, 240));
     this.name = "ProductSessionAuthoringError";
     this.projection = projection;
+    Object.freeze(this);
+  }
+}
+
+export class ProductSessionAuthorityUnavailableError extends Error {
+  readonly sessionId: string;
+
+  constructor(sessionId: string) {
+    super("任务结果尚未核实，当前世界已断开。请新建 Session 后重新开始。");
+    this.name = "ProductSessionAuthorityUnavailableError";
+    this.sessionId = sessionId;
     Object.freeze(this);
   }
 }
@@ -766,6 +782,58 @@ export class ProductSessionClient {
         error instanceof Error ? error.message : "Agent Gateway authoring command 失败",
         projection,
       );
+    }
+  }
+
+  createBallWorld(prior: ProductSessionProjection, signal?: AbortSignal): Promise<ProductSessionProjection> {
+    return this.#runBallTaskCommand(prior, "create", {},
+      (value) => decodeBallVesselTaskTransition(value, prior.sessionId, prior, { kind: "create" }), signal);
+  }
+
+  editBallWorld(prior: ProductSessionProjection, input: unknown, signal?: AbortSignal): Promise<ProductSessionProjection> {
+    if (!prior.world) return Promise.reject(new Error("WORLD_REQUIRED"));
+    const admitted = admitBallVesselTaskEdit(prior.world, input);
+    const operation: BallVesselTaskOperation = { kind: "edit", input: admitted };
+    return this.#runBallTaskCommand(prior, "edit", admitted,
+      (value) => decodeBallVesselTaskTransition(value, prior.sessionId, prior, operation), signal);
+  }
+
+  runBallWorld(prior: ProductSessionProjection, signal?: AbortSignal): Promise<ProductSessionProjection> {
+    if (!prior.world) return Promise.reject(new Error("WORLD_REQUIRED"));
+    const expected = prior.world.ref;
+    return this.#runBallTaskCommand(prior, "run", { expected },
+      (value) => decodeBallVesselTaskTransition(value, prior.sessionId, prior, { kind: "run", expected }), signal);
+  }
+
+  previewBallRepair(prior: ProductSessionProjection, signal?: AbortSignal): Promise<BallVesselTaskPreview> {
+    return this.#runBallTaskCommand(prior, "repair", {},
+      (value) => decodeBallVesselTaskPreview(value, prior.sessionId, prior), signal);
+  }
+
+  async #runBallTaskCommand<T>(
+    prior: ProductSessionProjection,
+    path: "create" | "edit" | "run" | "repair",
+    input: unknown,
+    decode: (value: unknown) => T,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    const deadline = Date.now() + this.#turnTimeoutMs;
+    try {
+      const body = await this.#beforeDeadline(deadline, signal, `ball-vessel/${path} POST`, async (operationSignal) =>
+        responseJson(await this.#fetch(`/api/sessions/${encodeURIComponent(prior.sessionId)}/ball-vessel/${path}`, {
+          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input), signal: operationSignal,
+        })));
+      if (signal?.aborted) throw new Error("Ball task 已取消");
+      return decode(body);
+    } catch (error) {
+      // 命令取消后仍尝试独立的 bounded GET；只恢复 Gateway 返回的 settled authority。
+      let recovered: ProductSessionProjection;
+      try {
+        recovered = await this.#readSettledSession(prior.sessionId, Date.now() + Math.min(this.#turnTimeoutMs, 5_000));
+      } catch {
+        throw new ProductSessionAuthorityUnavailableError(prior.sessionId);
+      }
+      throw new ProductSessionAuthoringError(error instanceof Error ? error.message : "Ball task 命令失败", recovered);
     }
   }
 }

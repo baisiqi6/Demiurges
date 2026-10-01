@@ -105,6 +105,12 @@ connected Product Session 的唯一可写 `RuntimeMvpHost` 位于 Gateway。Stud
 
 `DH-007` 已把 production composition 切换为显式 `DEMIURGES_OMP_MODEL=provider/model` 的 restricted OMP client；deterministic scripted Agent 只保留为显式 test/browser fixture。真实 `kimi-code/k3` bounded canary 已通过同一 Product Session contract 自主执行 `world_write → world_edit → world_run`，产生 76-sample Episode 与确定性 Evaluation PASS，current ref 保持 authored edit v2。该结果证明真实模型路径已经接入，但不扩大模型 authority：模型仍只能调用四个 world tools，credential 只存在于 OMP/Gateway provider boundary，terminal Snapshot 仍需独立 Harness control 才能 adopt。
 
+`DH-023` 增加 scoped Ball-Vessel 人类任务：`/api/sessions/<id>/ball-vessel/{create,edit,run,repair}` 使用同一 Gateway-owned Host 与 execution reservation，未增加 Agent 工具。仅允许 registered floor/vessel/geometry/physics 和 canonical 球 velocity/rotation；人类可提交 x/y∈[-2,2]、z∈[0.7,2] 的初态。preview 只使用本 session 持有的 world/lastRun，不接纳外带 Episode，也不修改世界；应用仍使用候选原 expected Ref。run 只产生 Episode/Evaluation，不推进 current Ref。
+
+这一任务的 transition codec 独立于 composite authoring admission，验证 create root、edit 的唯一 pose 变化与 lineage、run 的 base identity 以及 preview 的完整候选来源和坐标。free-fall 证据允许 registered floor 接触，但只有 vessel 支撑计入 stable-inside evaluator；ExplicitInputs/baseSnapshot 与 Episode/terminal ID 必须闭合。codec 的内容一致性检查不认证调用来源，来源信任仍来自 Gateway-owned Host。
+
+独立 `offline-main.ts` 入口拒绝 Agent factory 调用，不读取模型凭证或静默回退 production OMP。当前 Runtime 不支持取消运行，request abort 后 reservation 保持到 Runtime settle；迟到结果不会更新 projection.lastRun。Studio 只保存两份已验证 run 与各自 base world 作内存回放，历史回放不进入 current projection。命令失联且 recovery 失败时清除当前 authority、候选和 replay，禁用任务写入，直到新建 Session。此任务不扩 WorldProject v1，不宣称刷新恢复或模型规划能力。
+
 ## 防止架构漂移的规则
 
 - renderer node 不是 Entity。

@@ -1,7 +1,7 @@
 {
   "project": "demiurges",
   "harness_root": "docs/project-harness",
-  "updated_at": "2026-09-29",
+  "updated_at": "2026-10-01",
   "items": [
     {
       "id": "DH-000",
@@ -1077,6 +1077,50 @@
         "expires_at": "2026-09-22T17:12:11Z",
         "ttl_minutes": 120,
         "released_at": "2026-09-29T01:58:50Z"
+      }
+    },
+    {
+      "id": "DH-023",
+      "title": "Studio 可交互离线 Ball-Vessel 任务",
+      "status": "done",
+      "priority": "p1",
+      "owner": null,
+      "selected_in_session": null,
+      "updated_at": "2026-10-01",
+      "dependencies": [
+        "DH-022"
+      ],
+      "blocked_by": [],
+      "blocked_reason": null,
+      "acceptance": "三组变化初态完成 FAIL→preview→edit→run PASS；Gateway 单一authority和reservation；候选 stale_ref；Studio前后Episode回放比较；无模型调用；tests/browser/review闭环。",
+      "verification": "独立closeout review APPROVED，P0/P1/P2=0；fresh full1187/0/9383；root typecheck/build；backend三组+browser两组闭环、stale/abort/失联恢复/390px；详见 tasks/DH-023/result.md、browser-acceptance.json、implementation-review.md。",
+      "handoff": "实现冻结，首轮 P1 已修复并经真实浏览器 fault 验证，等待独立实现/closeout 复查；无 live provider/Keychain/deploy。",
+      "plan_path": "docs/project-harness/tasks/DH-023/plan.md",
+      "workflow": {
+        "status": "closed",
+        "updated_at": "2026-10-01",
+        "branch": "codex/dh-023-offline-ball-vessel"
+      },
+      "artifacts": {
+        "branch": "codex/dh-023-offline-ball-vessel",
+        "review_packet": "docs/project-harness/current/review-packet.md",
+        "closeout_packet": "docs/project-harness/current/closeout-packet.md"
+      },
+      "review": {
+        "decision": "approved",
+        "reviewer": "dh023-independent-reviewer",
+        "phase": "closeout_requested",
+        "updated_at": "2026-10-01",
+        "summary": "独立最终复查 APPROVED / may_closeout=yes / P0=P1=P2=0；P1已关闭；23文件manifest匹配；focused25/0/159、persistence34/0/767及authoring typecheck/diff-check通过；full1187/0/9383和browser证据只读核对。",
+        "artifact": "docs/project-harness/tasks/DH-023/implementation-review.md"
+      },
+      "lease": {
+        "owner": "codex-operator",
+        "session": "dh023-20261001",
+        "acquired_at": "2026-10-01T08:36:00Z",
+        "expires_at": "2026-10-01T10:36:00Z",
+        "ttl_minutes": 120,
+        "released_at": "2026-10-01T10:08:45Z"
       }
     }
   ]
