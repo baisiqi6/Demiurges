@@ -32,3 +32,7 @@ bun run build
 6. [`docs/project-harness/harness-checklist.json`](docs/project-harness/harness-checklist.json)
 
 Lyaup 只是只读技术捐赠者和未来应用场景，不是 Demiurges 的源码母体、协议 authority 或共享 mutable kernel。
+
+## 许可证
+
+本项目自有代码和文档采用 [Apache License 2.0](LICENSE)。第三方组件、独立授权素材及外部数据的范围见 [第三方授权说明](THIRD_PARTY_NOTICES.md)；版权声明见 [NOTICE](NOTICE)。
